@@ -13,6 +13,12 @@ object TlsFingerprintManager {
         return hash.joinToString("") { "%02x".format(it) }
     }
 
+    /**
+     * Creates an SSLContext for TOFU fingerprint capture.
+     * Accepts any server certificate unconditionally — TLS chain validation is intentionally
+     * bypassed. Use for exactly one connection to capture the server certificate fingerprint.
+     * After the user confirms, build a pinning SSLContext for all subsequent connections.
+     */
     fun buildCapturingSSLContext(onCertificate: (X509Certificate) -> Unit): SSLContext {
         val trustManager = object : X509TrustManager {
             override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
