@@ -45,4 +45,27 @@ class ConnectionStateMachineTest {
         sm.onDisconnected()
         assertThat(sm.state.value).isInstanceOf(ConnectionState.Disconnected::class.java)
     }
+
+    @Test fun `Leave transitions Active back to Idle`() {
+        val sm = ConnectionStateMachine()
+        sm.onIdle("192.168.1.10", "work-pc")
+        sm.onActive()
+        sm.onLeave()
+        assertThat(sm.state.value).isEqualTo(ConnectionState.Idle("192.168.1.10", "work-pc"))
+    }
+
+    @Test fun `keepalive miss returns false twice then true on third`() {
+        val sm = ConnectionStateMachine()
+        assertThat(sm.onKeepAliveMiss()).isFalse()
+        assertThat(sm.onKeepAliveMiss()).isFalse()
+        assertThat(sm.onKeepAliveMiss()).isTrue()
+    }
+
+    @Test fun `keepalive resets miss counter`() {
+        val sm = ConnectionStateMachine()
+        sm.onKeepAliveMiss()
+        sm.onKeepAliveMiss()
+        sm.onKeepAlive() // resets counter
+        assertThat(sm.onKeepAliveMiss()).isFalse() // counter back to 1
+    }
 }
