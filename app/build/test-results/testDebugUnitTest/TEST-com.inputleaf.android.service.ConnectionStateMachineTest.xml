@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.inputleaf.android.service.ConnectionStateMachineTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-03-20T19:09:13.068Z" hostname="ansh-vhora" time="0.071">
+  <properties/>
+  <testcase name="Enter transitions Idle to Active" classname="com.inputleaf.android.service.ConnectionStateMachineTest" time="0.038"/>
+  <testcase name="keepalive resets miss counter" classname="com.inputleaf.android.service.ConnectionStateMachineTest" time="0.003"/>
+  <testcase name="disconnect resets to Disconnected" classname="com.inputleaf.android.service.ConnectionStateMachineTest" time="0.001"/>
+  <testcase name="DInfo sent transitions to Idle" classname="com.inputleaf.android.service.ConnectionStateMachineTest" time="0.002"/>
+  <testcase name="Leave transitions Active back to Idle" classname="com.inputleaf.android.service.ConnectionStateMachineTest" time="0.0"/>
+  <testcase name="connect transitions to Connecting" classname="com.inputleaf.android.service.ConnectionStateMachineTest" time="0.009"/>
+  <testcase name="initial state is Disconnected" classname="com.inputleaf.android.service.ConnectionStateMachineTest" time="0.005"/>
+  <testcase name="keepalive miss returns false twice then true on third" classname="com.inputleaf.android.service.ConnectionStateMachineTest" time="0.003"/>
+  <testcase name="duplicate Enter while Active is ignored" classname="com.inputleaf.android.service.ConnectionStateMachineTest" time="0.002"/>
+  <system-out><![CDATA[StateMachine: Duplicate kMsgCEnter received — ignoring
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
