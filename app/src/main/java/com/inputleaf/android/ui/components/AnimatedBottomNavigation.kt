@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.inputleaf.android.ui.theme.CustomShapes
 import com.inputleaf.android.ui.theme.Gradients
+import com.inputleaf.android.ui.theme.Purple500
 import com.inputleaf.android.ui.theme.TextTertiary
 import kotlin.math.roundToInt
 
@@ -41,6 +42,7 @@ fun AnimatedBottomNavigation(
     onItemSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    if (items.isEmpty()) return
     val density = LocalDensity.current
     var containerSize = remember { androidx.compose.runtime.mutableStateOf(IntSize.Zero) }
     
@@ -84,8 +86,8 @@ fun AnimatedBottomNavigation(
                     .shadow(
                         elevation = 4.dp,
                         shape = CustomShapes.Pill,
-                        ambientColor = Color(0xFF8B5CF6).copy(alpha = 0.4f),
-                        spotColor = Color(0xFF8B5CF6).copy(alpha = 0.4f)
+                        ambientColor = Purple500.copy(alpha = 0.4f),
+                        spotColor = Purple500.copy(alpha = 0.4f)
                     )
                     .clip(CustomShapes.Pill)
                     .background(Gradients.Primary)
