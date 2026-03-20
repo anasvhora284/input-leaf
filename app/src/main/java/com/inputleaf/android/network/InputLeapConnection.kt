@@ -22,7 +22,7 @@ class InputLeapConnection(
 
     private var socket: SSLSocket? = null
     private var writer: ProtocolWriter? = null
-    private var readerJob: Job? = null
+    private val readerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     suspend fun connect(): Boolean = withContext(Dispatchers.IO) {
         var capturedCert: X509Certificate? = null
@@ -39,7 +39,7 @@ class InputLeapConnection(
 
         socket = raw
         writer = ProtocolWriter(raw.outputStream)
-        readerJob = CoroutineScope(Dispatchers.IO).launch { readLoop(raw) }
+        readerScope.launch { readLoop(raw) }
         true
     }
 
@@ -62,7 +62,7 @@ class InputLeapConnection(
     fun sendInfoAck() = writer?.writeInfoAck()
 
     fun close() {
-        readerJob?.cancel()
+        readerScope.coroutineContext[Job]?.cancel()
         runCatching { socket?.close() }
         socket = null; writer = null
     }
