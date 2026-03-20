@@ -14,7 +14,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Info
