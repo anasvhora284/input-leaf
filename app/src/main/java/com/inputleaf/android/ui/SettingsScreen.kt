@@ -1,17 +1,28 @@
 package com.inputleaf.android.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.inputleaf.android.ui.components.CircularAvatar
+import com.inputleaf.android.ui.components.GradientCard
+import com.inputleaf.android.ui.components.MaterialToggleSwitch
+import com.inputleaf.android.ui.theme.Gradients
+import com.inputleaf.android.ui.theme.TextPrimary
+import com.inputleaf.android.ui.theme.TextSecondary
+import com.inputleaf.android.ui.theme.Purple600
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -20,7 +31,7 @@ fun SettingsScreen(
     autoConnect: Boolean,
     showCursor: Boolean,
     canDrawOverlays: Boolean,
-    fingerprints: Map<String, String>, // ip → fingerprint
+    fingerprints: Map<String, String>,
     onScreenNameChange: (String) -> Unit,
     onAutoConnectChange: (Boolean) -> Unit,
     onShowCursorChange: (Boolean) -> Unit,
@@ -35,108 +46,255 @@ fun SettingsScreen(
             TopAppBar(
                 title = { Text("Settings") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Rounded.ArrowBack, "Back")
+                    }
                 }
             )
         }
     ) { padding ->
-        LazyColumn(contentPadding = padding, modifier = Modifier.padding(horizontal = 16.dp)) {
-            item {
-                OutlinedTextField(
-                    value = editingName,
-                    onValueChange = { editingName = it },
-                    label = { Text("Screen name") },
-                    supportingText = { Text("Must match Input-Leap server layout") },
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    singleLine = true
-                )
-                Button(onClick = { onScreenNameChange(editingName) },
-                    modifier = Modifier.padding(bottom = 16.dp)) { Text("Save") }
-            }
-            item {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Auto-connect on launch")
-                    Switch(checked = autoConnect, onCheckedChange = onAutoConnectChange)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 16.dp)
+        ) {
+            // Connection Section
+            SectionHeader("CONNECTION")
+            
+            GradientCard(
+                modifier = Modifier.fillMaxWidth(),
+                backgroundColor = Color.White,
+                cornerRadius = 24.dp,
+                padding = 0.dp
+            ) {
+                Column {
+                    // Screen Name
+                    SettingsRow(
+                        icon = Icons.Rounded.Phone,
+                        title = "Screen name",
+                        subtitle = screenName,
+                        onClick = { /* Could open edit dialog */ }
+                    )
+                    HorizontalDivider(
+                        color = Color(0xFFF5F5F5),
+                        thickness = 1.dp,
+                        modifier = Modifier.padding(start = 72.dp)
+                    )
+                    // Auto-connect
+                    SettingsRow(
+                        icon = Icons.Rounded.Build,
+                        title = "Auto-connect on launch",
+                        showDivider = false,
+                        trailingContent = {
+                            MaterialToggleSwitch(
+                                checked = autoConnect,
+                                onCheckedChange = onAutoConnectChange
+                            )
+                        }
+                    )
                 }
-                
-                HorizontalDivider(Modifier.padding(vertical = 16.dp))
-                Text("Cursor Overlay", style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(8.dp))
-                
-                // Show cursor toggle with permission check
-                if (!canDrawOverlays) {
-                    // Permission not granted - show warning and button
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer
-                        )
-                    ) {
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Display Section
+            SectionHeader("DISPLAY")
+            
+            GradientCard(
+                modifier = Modifier.fillMaxWidth(),
+                backgroundColor = Color.White,
+                cornerRadius = 24.dp,
+                padding = 0.dp
+            ) {
+                Column {
+                    if (!canDrawOverlays) {
+                        // Permission warning
                         Row(
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFFFEE2E2))
+                                .padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                Icons.Default.Warning,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onErrorContainer
+                            CircularAvatar(
+                                icon = Icons.Rounded.Warning,
+                                size = 40.dp,
+                                iconSize = 24.dp,
+                                backgroundColor = Color(0xFFFECACA),
+                                iconTint = Color(0xFFDC2626)
                             )
-                            Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)) {
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    "Overlay permission required",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                    text = "Overlay permission required",
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF991B1B),
+                                    style = MaterialTheme.typography.bodyMedium
                                 )
                                 Text(
-                                    "Required to show cursor on screen",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
+                                    text = "Required to show cursor on screen",
+                                    color = Color(0xFFB91C1C),
+                                    style = MaterialTheme.typography.bodySmall
                                 )
                             }
                         }
-                        Button(
+                        TextButton(
                             onClick = onRequestOverlayPermission,
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
-                            Text("Grant Permission")
+                            Text("Grant Permission", color = Purple600)
                         }
                     }
-                } else {
-                    // Permission granted - show toggle
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text("Show cursor overlay")
-                            Text(
-                                "Display a visual cursor when controlling",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                    // Show Cursor toggle
+                    SettingsRow(
+                        icon = Icons.Rounded.Info,
+                        title = "Show cursor overlay",
+                        subtitle = if (canDrawOverlays) "Display cursor when active" else "Grant permission first",
+                        showDivider = false,
+                        trailingContent = {
+                            MaterialToggleSwitch(
+                                checked = showCursor,
+                                onCheckedChange = onShowCursorChange,
+                                enabled = canDrawOverlays
                             )
                         }
-                        Switch(checked = showCursor, onCheckedChange = onShowCursorChange)
-                    }
+                    )
                 }
-                
-                HorizontalDivider(Modifier.padding(vertical = 16.dp))
-                Text("Trusted Servers", style = MaterialTheme.typography.titleSmall)
             }
-            items(fingerprints.entries.toList()) { (ip, fp) ->
-                ListItem(
-                    headlineContent = { Text(ip) },
-                    supportingContent = { Text(fp.take(16) + "…", style = MaterialTheme.typography.bodySmall) },
-                    trailingContent = {
-                        IconButton(onClick = { onDeleteFingerprint(ip) }) {
-                            Icon(Icons.Default.Delete, "Remove")
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Security Section
+            SectionHeader("SECURITY")
+            
+            GradientCard(
+                modifier = Modifier.fillMaxWidth(),
+                backgroundColor = Color.White,
+                cornerRadius = 24.dp,
+                padding = 0.dp
+            ) {
+                Column {
+                    // Trusted servers header
+                    SettingsRow(
+                        icon = Icons.Rounded.Lock,
+                        title = "Trusted servers",
+                        subtitle = "${fingerprints.size} server${if (fingerprints.size != 1) "s" else ""}",
+                        showDivider = fingerprints.isNotEmpty()
+                    )
+                    // Server entries
+                    fingerprints.entries.forEachIndexed { index, (ip, fp) ->
+                        if (index > 0) {
+                            HorizontalDivider(
+                                color = Color(0xFFF5F5F5),
+                                thickness = 1.dp,
+                                modifier = Modifier.padding(start = 72.dp)
+                            )
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = ip,
+                                    fontWeight = FontWeight.Medium,
+                                    color = TextPrimary,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    text = fp.take(16) + "...",
+                                    color = TextSecondary,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            IconButton(onClick = { onDeleteFingerprint(ip) }) {
+                                Icon(
+                                    Icons.Rounded.Delete,
+                                    contentDescription = "Remove",
+                                    tint = Color(0xFFCCCCCC)
+                                )
+                            }
                         }
                     }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(text: String) {
+    Text(
+        text = text,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = TextSecondary,
+        modifier = Modifier.padding(start = 4.dp, bottom = 12.dp, top = 8.dp)
+    )
+}
+
+@Composable
+private fun SettingsRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String? = null,
+    showDivider: Boolean = true,
+    onClick: (() -> Unit)? = null,
+    trailingContent: @Composable (() -> Unit)? = null
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable { onClick() }
+                } else Modifier
+            )
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            CircularAvatar(
+                icon = icon,
+                size = 40.dp,
+                iconSize = 22.dp,
+                background = Gradients.Accent,
+                iconTint = Purple600
+            )
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.Medium,
+                    color = TextPrimary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                if (subtitle != null) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = subtitle,
+                        color = TextSecondary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+
+            if (trailingContent != null) {
+                trailingContent()
+            } else if (onClick != null) {
+                Icon(
+                    imageVector = Icons.Rounded.ArrowForward,
+                    contentDescription = "Navigate",
+                    tint = Color(0xFFCCCCCC)
                 )
             }
         }
