@@ -8,7 +8,7 @@ class ConnectionStateMachine {
     private val _state = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     val state: StateFlow<ConnectionState> = _state
 
-    private var keepAliveMissed = 0
+    @Volatile private var keepAliveMissed = 0
 
     fun onConnecting(ip: String) { _state.value = ConnectionState.Connecting(ip) }
 

@@ -3,6 +3,7 @@ package com.inputleaf.android.network
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import java.security.cert.X509Certificate
+import javax.net.ssl.X509TrustManager
 
 class TlsFingerprintManagerTest {
     private fun loadTestCert(): X509Certificate {
@@ -24,10 +25,13 @@ class TlsFingerprintManagerTest {
         assertThat(fp).matches("[0-9a-f]{64}")
     }
 
-    @Test fun `buildCapturingSSLContext returns non-null context`() {
+    @Test fun `buildCapturingSSLContext returns initialized TLS context`() {
         var captured: X509Certificate? = null
         val ctx = TlsFingerprintManager.buildCapturingSSLContext { cert -> captured = cert }
         assertThat(ctx).isNotNull()
+        assertThat(ctx.protocol).isEqualTo("TLS")
         assertThat(ctx.socketFactory).isNotNull()
+        // The callback fires during a TLS handshake when checkServerTrusted is called.
+        // Full loopback TLS verification is covered by integration tests (Task 19).
     }
 }

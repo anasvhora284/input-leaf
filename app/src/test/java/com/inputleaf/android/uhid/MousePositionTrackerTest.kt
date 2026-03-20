@@ -25,4 +25,13 @@ class MousePositionTrackerTest {
         assertThat(dx).isEqualTo(3)
         assertThat(dy).isEqualTo(-7)
     }
+
+    @Test fun `reset causes next absolute move to return full position as delta`() {
+        val tracker = MousePositionTracker()
+        tracker.updateAbsolute(100, 200)
+        tracker.reset()
+        val (dx, dy) = tracker.updateAbsolute(50, 75)
+        assertThat(dx).isEqualTo(50)
+        assertThat(dy).isEqualTo(75)
+    }
 }
