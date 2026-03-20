@@ -9,9 +9,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.rounded.Build
-import androidx.compose.material.icons.rounded.Phone
-import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Computer
+import androidx.compose.material.icons.rounded.Smartphone
+import androidx.compose.material.icons.rounded.Mouse
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -84,7 +84,7 @@ fun MainScreen(
                     ) {
                         Column {
                             Icon(
-                                imageVector = Icons.Rounded.Phone,
+                                imageVector = Icons.Rounded.Smartphone,
                                 contentDescription = "Screen",
                                 modifier = Modifier.size(28.dp),
                                 tint = Purple600
@@ -115,7 +115,7 @@ fun MainScreen(
                     ) {
                         Column {
                             Icon(
-                                imageVector = Icons.Rounded.Info,
+                                imageVector = Icons.Rounded.Mouse,
                                 contentDescription = "Cursor",
                                 modifier = Modifier.size(28.dp),
                                 tint = Purple600
@@ -358,7 +358,7 @@ private fun StatusCard(state: ConnectionState, screenName: String) {
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 CircularAvatar(
-                    icon = Icons.Rounded.Build,
+                    icon = Icons.Rounded.Computer,
                     size = 56.dp,
                     iconSize = 28.dp,
                     background = if (isConnected) Gradients.Primary else null,
