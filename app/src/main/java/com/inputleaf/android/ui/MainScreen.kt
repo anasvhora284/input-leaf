@@ -1,15 +1,20 @@
 package com.inputleaf.android.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.inputleaf.android.model.ConnectionState
 import com.inputleaf.android.model.ServerInfo
@@ -21,9 +26,11 @@ fun MainScreen(
     discoveredServers: List<ServerInfo>,
     isScanning: Boolean,
     screenName: String,
+    shizukuStatus: MainViewModel.ShizukuStatus,
     onScan: () -> Unit,
     onConnect: (ServerInfo) -> Unit,
     onAddManual: (String) -> Unit,
+    onRequestShizukuPermission: () -> Unit,
     onSettingsClick: () -> Unit
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
@@ -45,6 +52,10 @@ fun MainScreen(
             // Status card
             item {
                 StatusCard(connectionState, screenName)
+            }
+            // Shizuku status card
+            item {
+                ShizukuStatusCard(shizukuStatus, onRequestShizukuPermission)
             }
             // Server list header
             item {
@@ -87,6 +98,104 @@ fun MainScreen(
                 TextButton(onClick = { showAddDialog = false }) { Text("Cancel") }
             }
         )
+    }
+}
+
+@Composable
+private fun ShizukuStatusCard(
+    status: MainViewModel.ShizukuStatus,
+    onRequestPermission: () -> Unit
+) {
+    val context = LocalContext.current
+    
+    data class StatusInfo(
+        val icon: androidx.compose.ui.graphics.vector.ImageVector?,
+        val color: Color,
+        val title: String,
+        val description: String,
+        val actionLabel: String?,
+        val action: (() -> Unit)?
+    )
+    
+    val info = when (status) {
+        MainViewModel.ShizukuStatus.CHECKING -> StatusInfo(
+            icon = null,
+            color = Color.Gray,
+            title = "Checking Shizuku...",
+            description = "",
+            actionLabel = null,
+            action = null
+        )
+        MainViewModel.ShizukuStatus.NOT_INSTALLED -> StatusInfo(
+            icon = Icons.Default.Warning,
+            color = Color(0xFFF44336),
+            title = "Shizuku Not Installed",
+            description = "Install Shizuku from Play Store to enable mouse/keyboard input.",
+            actionLabel = "Install Shizuku",
+            action = {
+                context.startActivity(Intent(Intent.ACTION_VIEW, 
+                    Uri.parse("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api")))
+            }
+        )
+        MainViewModel.ShizukuStatus.NOT_RUNNING -> StatusInfo(
+            icon = Icons.Default.Warning,
+            color = Color(0xFFFF9800),
+            title = "Shizuku Not Running",
+            description = "Open Shizuku app and start it via Wireless Debugging (Android 11+) or ADB.",
+            actionLabel = "Open Shizuku",
+            action = {
+                context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")?.let {
+                    context.startActivity(it)
+                }
+            }
+        )
+        MainViewModel.ShizukuStatus.PERMISSION_REQUIRED -> StatusInfo(
+            icon = Icons.Default.Warning,
+            color = Color(0xFFFF9800),
+            title = "Permission Required",
+            description = "Grant Input-Leaf permission to use Shizuku for input injection.",
+            actionLabel = "Grant Permission",
+            action = onRequestPermission
+        )
+        MainViewModel.ShizukuStatus.READY -> StatusInfo(
+            icon = Icons.Default.CheckCircle,
+            color = Color(0xFF4CAF50),
+            title = "Shizuku Ready",
+            description = "Mouse and keyboard input will work without root.",
+            actionLabel = null,
+            action = null
+        )
+    }
+    
+    Card(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (info.icon != null) {
+                    Icon(
+                        info.icon,
+                        contentDescription = null,
+                        tint = info.color,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(info.title, style = MaterialTheme.typography.titleSmall)
+            }
+            if (info.description.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Text(info.description, style = MaterialTheme.typography.bodySmall)
+            }
+            if (info.actionLabel != null && info.action != null) {
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = info.action) {
+                    Text(info.actionLabel)
+                }
+            }
+        }
     }
 }
 

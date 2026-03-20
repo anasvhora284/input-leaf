@@ -16,7 +16,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures { 
+        compose = true
+        aidl = true  // Enable AIDL for Shizuku IPC
+    }
 }
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
@@ -30,12 +33,18 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.datastore:datastore-preferences:1.0.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    
+    // Shizuku for privileged input injection without root
+    val shizukuVersion = "13.1.5"
+    implementation("dev.rikka.shizuku:api:$shizukuVersion")
+    implementation("dev.rikka.shizuku:provider:$shizukuVersion")
+    
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
     testImplementation("com.google.truth:truth:1.4.0")
 }
 
-// Ensure UHID server DEX is built before app assets are merged
-tasks.matching { it.name.contains("mergeDebugAssets") }.configureEach {
-    dependsOn(project(":uhid-server").tasks.named("buildDex"))
-}
+// UHID server is a fallback for rooted devices - disabled while focusing on Shizuku
+// tasks.matching { it.name.contains("mergeDebugAssets") }.configureEach {
+//     dependsOn(project(":uhid-server").tasks.named("buildDex"))
+// }

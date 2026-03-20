@@ -4,6 +4,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.Binder
 import android.os.IBinder
+import android.provider.Settings
 import android.util.Log
 import android.view.WindowManager
 import com.inputleaf.android.model.ConnectionState
@@ -11,6 +12,7 @@ import com.inputleaf.android.model.InputLeapEvent
 import com.inputleaf.android.network.InputLeapConnection
 import com.inputleaf.android.network.TlsFingerprintManager
 import com.inputleaf.android.storage.AppPreferences
+import com.inputleaf.android.shizuku.ShizukuInputInjector
 import com.inputleaf.android.uhid.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.StateFlow
@@ -26,8 +28,15 @@ class ConnectionService : Service() {
     private val mouseTracker = MousePositionTracker()
     private var connection: InputLeapConnection? = null
     private var uhidSocket: UhidEventSocket? = null
+    private var shizukuInjector: ShizukuInputInjector? = null
+    private var useShizuku = false
     private var keepAliveJob: Job? = null
     private var retryAttempt = 0
+    private var cursorOverlayEnabled = false
+    private var screenWidth = 0
+    private var screenHeight = 0
+    private var currentMouseX = 0f
+    private var currentMouseY = 0f
     private lateinit var prefs: AppPreferences
 
     val state: StateFlow<ConnectionState> get() = stateMachine.state
@@ -39,8 +48,32 @@ class ConnectionService : Service() {
         super.onCreate()
         prefs = AppPreferences(this)
         NotificationHelper.createChannel(this)
-        startForeground(NOTIF_ID, NotificationHelper.build(this, stateMachine.state.value))
         observeState()
+        
+        // Get screen dimensions
+        val wm = getSystemService(WindowManager::class.java)
+        val bounds = wm.currentWindowMetrics.bounds
+        screenWidth = bounds.width()
+        screenHeight = bounds.height()
+        
+        // Load cursor overlay preference - get initial value synchronously first
+        scope.launch {
+            // Get initial value immediately
+            cursorOverlayEnabled = prefs.showCursor.first()
+            Log.d(TAG, "Cursor overlay initial value: $cursorOverlayEnabled")
+            
+            // Then observe for changes
+            prefs.showCursor.collect { enabled ->
+                cursorOverlayEnabled = enabled
+                Log.d(TAG, "Cursor overlay enabled changed: $enabled")
+            }
+        }
+        
+        // Pre-start the cursor overlay service so it's ready when needed
+        if (Settings.canDrawOverlays(this)) {
+            Log.d(TAG, "Pre-starting CursorOverlayService")
+            startService(Intent(this, CursorOverlayService::class.java))
+        }
     }
 
     private fun observeState() = scope.launch {
@@ -56,6 +89,7 @@ class ConnectionService : Service() {
 
     fun connect(serverIp: String, screenName: String) {
         scope.launch {
+            startForeground(NOTIF_ID, NotificationHelper.build(this@ConnectionService, stateMachine.state.value))
             stateMachine.onConnecting(serverIp)
             val conn = InputLeapConnection(serverIp) { cert ->
                 val newFp = TlsFingerprintManager.fingerprintOf(cert)
@@ -74,11 +108,12 @@ class ConnectionService : Service() {
                 if (trusted) prefs.saveFingerprint(serverIp, newFp)
                 trusted
             }
-            val connected = conn.connect()
-            if (!connected) { stateMachine.onDisconnected(); scheduleRetry(serverIp, screenName); return@launch }
+            val banner = conn.connect()
+            if (banner == null) { stateMachine.onDisconnected(); scheduleRetry(serverIp, screenName); return@launch }
             retryAttempt = 0
             connection = conn
             stateMachine.onHandshaking(serverIp)
+            withContext(Dispatchers.IO) { conn.sendHelloBack(screenName) }
             startEventLoop(conn, serverIp, screenName)
         }
     }
@@ -99,25 +134,108 @@ class ConnectionService : Service() {
                         stateMachine.onIdle(ip, serverName)
                         startKeepAliveMonitor(conn)
                     }
-                    is InputLeapEvent.Enter -> stateMachine.onActive()
-                    is InputLeapEvent.Leave -> { stateMachine.onLeave(); mouseTracker.reset() }
+                    is InputLeapEvent.Enter -> {
+                        stateMachine.onActive()
+                        // Show cursor when entering
+                        showCursorOverlay()
+                    }
+                    is InputLeapEvent.Leave -> { 
+                        stateMachine.onLeave()
+                        mouseTracker.reset()
+                        // Hide cursor when leaving
+                        hideCursorOverlay()
+                    }
                     is InputLeapEvent.KeepAlive -> { stateMachine.onKeepAlive(); conn.sendKeepAlive() }
                     is InputLeapEvent.MouseMoveAbs -> {
-                        val (dx, dy) = mouseTracker.updateAbsolute(event.x, event.y)
-                        dispatchToUhid(InputLeapEvent.MouseMoveRel(dx, dy))
+                        // Update cursor overlay position
+                        currentMouseX = event.x.toFloat()
+                        currentMouseY = event.y.toFloat()
+                        updateCursorPosition(currentMouseX, currentMouseY)
+                        
+                        // Shizuku uses absolute coordinates directly, UHID needs relative
+                        if (useShizuku) {
+                            dispatchInput(event)
+                        } else {
+                            val (dx, dy) = mouseTracker.updateAbsolute(event.x, event.y)
+                            dispatchInput(InputLeapEvent.MouseMoveRel(dx, dy))
+                        }
                     }
                     is InputLeapEvent.MouseMoveRel -> {
+                        // Update cursor overlay position
+                        currentMouseX = (currentMouseX + event.dx).coerceIn(0f, screenWidth.toFloat())
+                        currentMouseY = (currentMouseY + event.dy).coerceIn(0f, screenHeight.toFloat())
+                        updateCursorPosition(currentMouseX, currentMouseY)
+                        
                         mouseTracker.updateRelative(event.dx, event.dy)
-                        dispatchToUhid(event)
+                        dispatchInput(event)
                     }
                     is InputLeapEvent.Unhandled -> if (event.tag == "__DISCONNECTED__") {
                         stateMachine.onDisconnected()
+                        hideCursorOverlay()
                         scheduleRetry(ip, screenName)
                     }
-                    else -> dispatchToUhid(event)
+                    else -> dispatchInput(event)
                 }
             }
         }
+    }
+    
+    /**
+     * Enable or disable the cursor overlay.
+     */
+    fun setCursorOverlayEnabled(enabled: Boolean) {
+        cursorOverlayEnabled = enabled
+        if (enabled && stateMachine.state.value is ConnectionState.Active) {
+            showCursorOverlay()
+        } else if (!enabled) {
+            hideCursorOverlay()
+        }
+    }
+    
+    private fun showCursorOverlay() {
+        Log.d(TAG, "showCursorOverlay() called - cursorOverlayEnabled=$cursorOverlayEnabled")
+        if (!cursorOverlayEnabled) {
+            Log.d(TAG, "Cursor overlay disabled, not showing")
+            return
+        }
+        if (!Settings.canDrawOverlays(this)) {
+            Log.w(TAG, "Cannot draw overlays - permission not granted")
+            return
+        }
+        
+        Log.d(TAG, "Calling CursorOverlayService.show()")
+        CursorOverlayService.show()
+    }
+    
+    private fun hideCursorOverlay() {
+        CursorOverlayService.hide()
+    }
+    
+    private fun updateCursorPosition(x: Float, y: Float) {
+        if (!cursorOverlayEnabled) return
+        CursorOverlayService.updatePosition(x, y)
+    }
+
+    /**
+     * Connect to Shizuku input injector. Call this before connect() for non-root input injection.
+     * @return true if Shizuku is available and bound successfully
+     */
+    suspend fun connectShizukuInjector(): Boolean = withContext(Dispatchers.IO) {
+        val wm = getSystemService(WindowManager::class.java)
+        val bounds = wm.currentWindowMetrics.bounds
+        val injector = ShizukuInputInjector(bounds.width(), bounds.height())
+        
+        if (injector.isAvailable()) {
+            val bound = injector.bind()
+            if (bound) {
+                shizukuInjector = injector
+                useShizuku = true
+                Log.i(TAG, "Shizuku input injector connected")
+                return@withContext true
+            }
+        }
+        Log.w(TAG, "Shizuku not available, will fall back to UHID")
+        false
     }
 
     fun connectUhidSocket() {
@@ -131,10 +249,16 @@ class ConnectionService : Service() {
         }
     }
 
-    private fun dispatchToUhid(event: InputLeapEvent) {
-        val socket = uhidSocket
-        if (socket?.isConnected == true) socket.send(event)
-        else uhidQueue.enqueue(event)
+    private fun dispatchInput(event: InputLeapEvent) {
+        // Prefer Shizuku if available, fall back to UHID
+        val injector = shizukuInjector
+        if (useShizuku && injector != null) {
+            injector.send(event)
+        } else {
+            val socket = uhidSocket
+            if (socket?.isConnected == true) socket.send(event)
+            else uhidQueue.enqueue(event)
+        }
     }
 
     private fun startKeepAliveMonitor(conn: InputLeapConnection) {
@@ -146,6 +270,7 @@ class ConnectionService : Service() {
                     Log.w(TAG, "Keep-alive timeout — disconnecting")
                     conn.close()
                     stateMachine.onDisconnected()
+                    hideCursorOverlay()
                     break
                 }
             }
@@ -164,6 +289,10 @@ class ConnectionService : Service() {
         keepAliveJob?.cancel()
         connection?.close()
         connection = null
+        shizukuInjector?.unbind()
+        shizukuInjector = null
+        useShizuku = false
+        hideCursorOverlay()
         stateMachine.onDisconnected()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -174,5 +303,12 @@ class ConnectionService : Service() {
         return START_STICKY
     }
 
-    override fun onDestroy() { scope.cancel(); uhidSocket?.close(); super.onDestroy() }
+    override fun onDestroy() { 
+        scope.cancel()
+        uhidSocket?.close()
+        shizukuInjector?.unbind()
+        hideCursorOverlay()
+        stopService(Intent(this, CursorOverlayService::class.java))
+        super.onDestroy() 
+    }
 }

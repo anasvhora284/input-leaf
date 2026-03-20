@@ -1,9 +1,12 @@
 package com.inputleaf.android.ui
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -13,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 class MainActivity : ComponentActivity() {
@@ -40,17 +44,29 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+    
+    override fun onResume() {
+        super.onResume()
+        // Re-check Shizuku status when returning to app
+        viewModel.checkShizukuStatus()
+        // Re-check overlay permission (user may have granted it in settings)
+        viewModel.checkOverlayPermission()
+    }
 }
 
 @Composable
 fun AppNavigation(viewModel: MainViewModel) {
     var screen by remember { mutableStateOf("main") }
+    val context = LocalContext.current
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val discoveredServers by viewModel.discoveredServers.collectAsStateWithLifecycle()
     val isScanning by viewModel.isScanning.collectAsStateWithLifecycle()
     val screenName by viewModel.screenName.collectAsState(initial = "android-phone")
     val autoConnect by viewModel.autoConnect.collectAsState(initial = true)
+    val showCursor by viewModel.showCursor.collectAsState(initial = true)
+    val canDrawOverlays by viewModel.canDrawOverlays.collectAsStateWithLifecycle()
     val fingerprints by viewModel.fingerprints.collectAsState(initial = emptyMap())
+    val shizukuStatus by viewModel.shizukuStatus.collectAsStateWithLifecycle()
 
     // TOFU fingerprint dialog
     var pendingFpRequest by remember { mutableStateOf<MainViewModel.FingerprintRequest?>(null) }
@@ -72,17 +88,29 @@ fun AppNavigation(viewModel: MainViewModel) {
             discoveredServers = discoveredServers,
             isScanning = isScanning,
             screenName = screenName,
+            shizukuStatus = shizukuStatus,
             onScan = { viewModel.scan() },
             onConnect = { viewModel.connect(it) },
             onAddManual = { viewModel.addManualServer(it) },
+            onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
             onSettingsClick = { screen = "settings" }
         )
         "settings" -> SettingsScreen(
             screenName = screenName,
             autoConnect = autoConnect,
+            showCursor = showCursor,
+            canDrawOverlays = canDrawOverlays,
             fingerprints = fingerprints,
             onScreenNameChange = { viewModel.saveScreenName(it) },
             onAutoConnectChange = { viewModel.saveAutoConnect(it) },
+            onShowCursorChange = { viewModel.saveShowCursor(it) },
+            onRequestOverlayPermission = {
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:${context.packageName}")
+                )
+                context.startActivity(intent)
+            },
             onDeleteFingerprint = { viewModel.deleteFingerprint(it) },
             onBack = { screen = "main" }
         )
