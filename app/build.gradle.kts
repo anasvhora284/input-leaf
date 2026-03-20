@@ -34,3 +34,8 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
     testImplementation("com.google.truth:truth:1.4.0")
 }
+
+// Ensure UHID server DEX is built before app assets are merged
+tasks.matching { it.name.contains("mergeDebugAssets") }.configureEach {
+    dependsOn(project(":uhid-server").tasks.named("buildDex"))
+}

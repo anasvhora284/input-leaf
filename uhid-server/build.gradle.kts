@@ -19,10 +19,7 @@ tasks.register<Exec>("buildDex") {
     dependsOn("fatJar")
     val jarPath = layout.buildDirectory.file("libs/inputleaf-uhid.jar").get().asFile
     val dexOut  = project(":app").layout.projectDirectory.file("src/main/assets").asFile
+    val d8Path = "${System.getenv("ANDROID_SDK_ROOT") ?: System.getenv("ANDROID_HOME") ?: ""}/build-tools/34.0.0/d8"
     doFirst { dexOut.mkdirs() }
-    commandLine("d8", "--output", dexOut.absolutePath, jarPath.absolutePath)
-}
-// Auto-run DEX build before :app:assembleDebug
-project(":app").tasks.matching { it.name == "mergeDebugAssets" }.configureEach {
-    dependsOn(tasks.named("buildDex"))
+    commandLine(if (java.io.File(d8Path).exists()) d8Path else "d8", "--output", dexOut.absolutePath, jarPath.absolutePath)
 }
