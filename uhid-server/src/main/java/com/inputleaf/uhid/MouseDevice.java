@@ -36,13 +36,14 @@ public class MouseDevice implements Closeable {
         sendReport(buttonState, clamp(dx), clamp(dy), (byte)0);
     }
 
+    // button: 1-indexed (1=left, 2=right, 3=middle) per Input-Leap protocol
     public void buttonDown(int button) throws IOException {
-        buttonState |= (byte)(1 << button);
+        buttonState |= (byte)(1 << (button - 1));
         sendReport(buttonState, (byte)0, (byte)0, (byte)0);
     }
 
     public void buttonUp(int button) throws IOException {
-        buttonState &= (byte)~(1 << button);
+        buttonState &= (byte)~(1 << (button - 1));
         sendReport(buttonState, (byte)0, (byte)0, (byte)0);
     }
 

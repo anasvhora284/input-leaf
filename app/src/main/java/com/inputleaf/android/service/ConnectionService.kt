@@ -27,6 +27,7 @@ class ConnectionService : Service() {
     private var connection: InputLeapConnection? = null
     private var uhidSocket: UhidEventSocket? = null
     private var keepAliveJob: Job? = null
+    private var retryAttempt = 0
     private lateinit var prefs: AppPreferences
 
     val state: StateFlow<ConnectionState> get() = stateMachine.state
@@ -75,6 +76,7 @@ class ConnectionService : Service() {
             }
             val connected = conn.connect()
             if (!connected) { stateMachine.onDisconnected(); scheduleRetry(serverIp, screenName); return@launch }
+            retryAttempt = 0
             connection = conn
             stateMachine.onHandshaking(serverIp)
             startEventLoop(conn, serverIp, screenName)
@@ -118,6 +120,17 @@ class ConnectionService : Service() {
         }
     }
 
+    fun connectUhidSocket() {
+        scope.launch(Dispatchers.IO) {
+            val s = UhidEventSocket()
+            if (s.connect()) {
+                uhidSocket = s
+                // Drain queued events that arrived before socket was ready
+                uhidQueue.dequeueAll().forEach { s.send(it) }
+            }
+        }
+    }
+
     private fun dispatchToUhid(event: InputLeapEvent) {
         val socket = uhidSocket
         if (socket?.isConnected == true) socket.send(event)
@@ -141,9 +154,8 @@ class ConnectionService : Service() {
 
     private fun scheduleRetry(ip: String, screenName: String) {
         val delays = listOf(5_000L, 10_000L, 20_000L, 40_000L, 60_000L)
-        var attempt = 0
         scope.launch {
-            delay(delays[minOf(attempt++, delays.lastIndex)])
+            delay(delays[minOf(retryAttempt++, delays.lastIndex)])
             connect(ip, screenName)
         }
     }
