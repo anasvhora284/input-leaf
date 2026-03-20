@@ -1,0 +1,155 @@
+<h2>Cursor Overlay Design Options</h2>
+<p class="subtitle">Matching Android's native pointer visualization style</p>
+
+<div class="split">
+  <!-- Option 1: Android "Show taps" style -->
+  <div class="mockup" data-choice="cursor-taps" onclick="toggleSelect(this)">
+    <div class="mockup-header">Option 1: Android "Show Taps" Style</div>
+    <div class="mockup-body" style="background: #f5f5f5; padding: 40px; position: relative; height: 400px;">
+      <!-- Simulated phone screen -->
+      <div style="background: white; border-radius: 8px; padding: 20px; position: relative; height: 100%; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <div style="text-align: center; color: #999; padding-top: 100px;">
+          <p>Tap anywhere on screen</p>
+        </div>
+        
+        <!-- Cursor: Ripple effect with center dot -->
+        <div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);">
+          <!-- Outer ripple (semi-transparent) -->
+          <div style="position: absolute; width: 80px; height: 80px; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle, rgba(139, 92, 246, 0.2) 0%, rgba(139, 92, 246, 0.1) 50%, rgba(139, 92, 246, 0) 100%); animation: ripple 1s ease-out infinite;"></div>
+          
+          <!-- Middle ring -->
+          <div style="position: absolute; width: 48px; height: 48px; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 50%; border: 2px solid rgba(139, 92, 246, 0.4);"></div>
+          
+          <!-- Center dot (solid) -->
+          <div style="position: absolute; width: 16px; height: 16px; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 50%; background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%); box-shadow: 0 2px 8px rgba(139, 92, 246, 0.5);"></div>
+          
+          <!-- Inner white ring for contrast -->
+          <div style="position: absolute; width: 12px; height: 12px; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 50%; border: 2px solid white;"></div>
+        </div>
+      </div>
+    </div>
+    <div style="padding: 16px; font-size: 13px; color: #666; background: #fafafa; border-top: 1px solid #eee;">
+      <strong>Features:</strong> Animated ripple effect, solid center dot with white ring, semi-transparent outer glow. Mimics Android's "Show taps" visualization.
+    </div>
+  </div>
+
+  <!-- Option 2: Android Pointer Location style -->
+  <div class="mockup" data-choice="cursor-pointer" onclick="toggleSelect(this)">
+    <div class="mockup-header">Option 2: Android Pointer Location Style</div>
+    <div class="mockup-body" style="background: #f5f5f5; padding: 40px; position: relative; height: 400px;">
+      <!-- Simulated phone screen -->
+      <div style="background: white; border-radius: 8px; padding: 20px; position: relative; height: 100%; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <div style="text-align: center; color: #999; padding-top: 100px;">
+          <p>Crosshair pointer visualization</p>
+        </div>
+        
+        <!-- Cursor: Crosshair with center -->
+        <div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);">
+          <!-- Vertical line -->
+          <div style="position: absolute; width: 2px; height: 40px; left: 50%; top: 50%; transform: translate(-50%, -50%); background: linear-gradient(180deg, transparent 0%, rgba(139, 92, 246, 0.6) 20%, rgba(139, 92, 246, 0.8) 50%, rgba(139, 92, 246, 0.6) 80%, transparent 100%);"></div>
+          
+          <!-- Horizontal line -->
+          <div style="position: absolute; width: 40px; height: 2px; left: 50%; top: 50%; transform: translate(-50%, -50%); background: linear-gradient(90deg, transparent 0%, rgba(139, 92, 246, 0.6) 20%, rgba(139, 92, 246, 0.8) 50%, rgba(139, 92, 246, 0.6) 80%, transparent 100%);"></div>
+          
+          <!-- Outer ring -->
+          <div style="position: absolute; width: 24px; height: 24px; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 50%; border: 2px solid rgba(139, 92, 246, 0.5);"></div>
+          
+          <!-- Center dot -->
+          <div style="position: absolute; width: 12px; height: 12px; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 50%; background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%); box-shadow: 0 2px 6px rgba(139, 92, 246, 0.5); border: 2px solid white;"></div>
+        </div>
+      </div>
+    </div>
+    <div style="padding: 16px; font-size: 13px; color: #666; background: #fafafa; border-top: 1px solid #eee;">
+      <strong>Features:</strong> Crosshair lines with gradient fade, circular ring, solid center dot. Mimics Android's "Pointer location" developer option.
+    </div>
+  </div>
+</div>
+
+<div class="split" style="margin-top: 24px;">
+  <!-- Option 3: Hybrid Material You style -->
+  <div class="mockup" data-choice="cursor-hybrid" onclick="toggleSelect(this)">
+    <div class="mockup-header">Option 3: Material You Hybrid (Recommended)</div>
+    <div class="mockup-body" style="background: #f5f5f5; padding: 40px; position: relative; height: 400px;">
+      <!-- Simulated phone screen -->
+      <div style="background: white; border-radius: 8px; padding: 20px; position: relative; height: 100%; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <div style="text-align: center; color: #999; padding-top: 100px;">
+          <p>Best of both worlds</p>
+        </div>
+        
+        <!-- Cursor: Hybrid design -->
+        <div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);">
+          <!-- Subtle outer glow (no animation for static mockup) -->
+          <div style="position: absolute; width: 64px; height: 64px; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, rgba(139, 92, 246, 0.05) 60%, rgba(139, 92, 246, 0) 100%);"></div>
+          
+          <!-- Thin crosshair lines (subtle) -->
+          <div style="position: absolute; width: 1px; height: 32px; left: 50%; top: 50%; transform: translate(-50%, -50%); background: linear-gradient(180deg, transparent 0%, rgba(139, 92, 246, 0.3) 30%, transparent 100%);"></div>
+          <div style="position: absolute; width: 32px; height: 1px; left: 50%; top: 50%; transform: translate(-50%, -50%); background: linear-gradient(90deg, transparent 0%, rgba(139, 92, 246, 0.3) 30%, transparent 100%);"></div>
+          
+          <!-- Outer ring with gradient -->
+          <div style="position: absolute; width: 32px; height: 32px; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 50%; border: 2px solid rgba(167, 139, 250, 0.4);"></div>
+          
+          <!-- Center dot with border -->
+          <div style="position: absolute; width: 16px; height: 16px; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 50%; background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%); box-shadow: 0 2px 8px rgba(139, 92, 246, 0.6), 0 0 0 3px white; border: 3px solid white;"></div>
+        </div>
+      </div>
+    </div>
+    <div style="padding: 16px; font-size: 13px; color: #666; background: #fafafa; border-top: 1px solid #eee;">
+      <strong>Features:</strong> Subtle glow + thin crosshairs + ring + prominent center dot with white border. Combines precision (crosshair) with visibility (glow) and Material You aesthetics.
+    </div>
+  </div>
+
+  <!-- Current implementation for comparison -->
+  <div class="mockup" data-choice="cursor-current" onclick="toggleSelect(this)">
+    <div class="mockup-header">Current Implementation (For Comparison)</div>
+    <div class="mockup-body" style="background: #f5f5f5; padding: 40px; position: relative; height: 400px;">
+      <!-- Simulated phone screen -->
+      <div style="background: white; border-radius: 8px; padding: 20px; position: relative; height: 100%; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <div style="text-align: center; color: #999; padding-top: 100px;">
+          <p>Simple triple-circle design</p>
+        </div>
+        
+        <!-- Current cursor design -->
+        <div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);">
+          <!-- Black outer circle -->
+          <div style="position: absolute; width: 24px; height: 24px; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 50%; background: black;"></div>
+          
+          <!-- White middle circle -->
+          <div style="position: absolute; width: 20px; height: 20px; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 50%; background: white;"></div>
+          
+          <!-- Red center dot -->
+          <div style="position: absolute; width: 8px; height: 8px; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 50%; background: red;"></div>
+        </div>
+      </div>
+    </div>
+    <div style="padding: 16px; font-size: 13px; color: #666; background: #fafafa; border-top: 1px solid #eee;">
+      <strong>Current:</strong> Simple three-circle design (black/white/red). Functional but doesn't match Android 14's Material You aesthetic.
+    </div>
+  </div>
+</div>
+
+<div style="margin-top: 32px; padding: 24px; background: #f0f9ff; border-radius: 12px; border-left: 4px solid #3b82f6;">
+  <h3 style="margin-top: 0; color: #1e40af;">Recommendation: Option 3 (Material You Hybrid)</h3>
+  <p style="margin-bottom: 12px; color: #1e3a8a;">The hybrid design combines the best aspects:</p>
+  <ul style="line-height: 1.8; color: #1e40af;">
+    <li><strong>Precision:</strong> Subtle crosshairs help with exact positioning</li>
+    <li><strong>Visibility:</strong> Outer glow ensures cursor is visible on any background</li>
+    <li><strong>Modern:</strong> Material You gradient colors match the app's design system</li>
+    <li><strong>Contrast:</strong> White border around center dot provides visibility</li>
+    <li><strong>Performance:</strong> No continuous animations (optional pulsing glow on tap)</li>
+  </ul>
+</div>
+
+<style>
+@keyframes ripple {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.5);
+    opacity: 0;
+  }
+}
+</style>
+
+<p style="margin-top: 24px; color: #666;">Check out the browser at <strong>http://localhost:63236</strong> to see these cursor designs. Click any design to select it, or let me know your preference in the terminal.</p>

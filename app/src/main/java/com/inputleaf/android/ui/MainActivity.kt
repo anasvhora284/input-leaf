@@ -114,7 +114,7 @@ fun AppNavigation(viewModel: MainViewModel) {
         NavItem("Home", Icons.Rounded.Home, "main"),
         NavItem("Servers", Icons.Rounded.Info, "servers"),
         NavItem("Setup", Icons.Rounded.Build, "setup"),
-        NavItem("Settings", Icons.Filled.Settings, "settings")
+        NavItem("Settings", Icons.Rounded.Settings, "settings")
     )
     val selectedIndex = when (screen) {
         "main" -> 0
