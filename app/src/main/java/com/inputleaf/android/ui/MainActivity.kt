@@ -11,15 +11,24 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.rounded.Build
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.inputleaf.android.ui.components.AnimatedBottomNavigation
+import com.inputleaf.android.ui.components.NavItem
 
 class MainActivity : ComponentActivity() {
 
@@ -101,37 +110,86 @@ fun AppNavigation(viewModel: MainViewModel) {
         )
     }
 
-    when (screen) {
-        "main" -> MainScreen(
-            connectionState = connectionState,
-            discoveredServers = discoveredServers,
-            isScanning = isScanning,
-            screenName = screenName,
-            shizukuStatus = shizukuStatus,
-            onScan = { viewModel.scan() },
-            onConnect = { viewModel.connect(it) },
-            onAddManual = { viewModel.addManualServer(it) },
-            onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
-            onSettingsClick = { screen = "settings" }
-        )
-        "settings" -> SettingsScreen(
-            screenName = screenName,
-            autoConnect = autoConnect,
-            showCursor = showCursor,
-            canDrawOverlays = canDrawOverlays,
-            fingerprints = fingerprints,
-            onScreenNameChange = { viewModel.saveScreenName(it) },
-            onAutoConnectChange = { viewModel.saveAutoConnect(it) },
-            onShowCursorChange = { viewModel.saveShowCursor(it) },
-            onRequestOverlayPermission = {
-                val intent = Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:${context.packageName}")
-                )
-                context.startActivity(intent)
+    val navItems = listOf(
+        NavItem("Home", Icons.Rounded.Home, "main"),
+        NavItem("Servers", Icons.Rounded.Info, "servers"),
+        NavItem("Setup", Icons.Rounded.Build, "setup"),
+        NavItem("Settings", Icons.Filled.Settings, "settings")
+    )
+    val selectedIndex = when (screen) {
+        "main" -> 0
+        "servers" -> 1
+        "setup" -> 2
+        "settings" -> 3
+        else -> 0
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        when (screen) {
+            "main" -> MainScreen(
+                connectionState = connectionState,
+                discoveredServers = discoveredServers,
+                isScanning = isScanning,
+                screenName = screenName,
+                shizukuStatus = shizukuStatus,
+                onScan = { viewModel.scan() },
+                onConnect = { viewModel.connect(it) },
+                onAddManual = { viewModel.addManualServer(it) },
+                onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
+                onSettingsClick = { screen = "settings" }
+            )
+            "servers" -> MainScreen(
+                connectionState = connectionState,
+                discoveredServers = discoveredServers,
+                isScanning = isScanning,
+                screenName = screenName,
+                shizukuStatus = shizukuStatus,
+                onScan = { viewModel.scan() },
+                onConnect = { viewModel.connect(it) },
+                onAddManual = { viewModel.addManualServer(it) },
+                onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
+                onSettingsClick = { screen = "settings" }
+            )
+            "setup" -> MainScreen(
+                connectionState = connectionState,
+                discoveredServers = discoveredServers,
+                isScanning = isScanning,
+                screenName = screenName,
+                shizukuStatus = shizukuStatus,
+                onScan = { viewModel.scan() },
+                onConnect = { viewModel.connect(it) },
+                onAddManual = { viewModel.addManualServer(it) },
+                onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
+                onSettingsClick = { screen = "settings" }
+            )
+            "settings" -> SettingsScreen(
+                screenName = screenName,
+                autoConnect = autoConnect,
+                showCursor = showCursor,
+                canDrawOverlays = canDrawOverlays,
+                fingerprints = fingerprints,
+                onScreenNameChange = { viewModel.saveScreenName(it) },
+                onAutoConnectChange = { viewModel.saveAutoConnect(it) },
+                onShowCursorChange = { viewModel.saveShowCursor(it) },
+                onRequestOverlayPermission = {
+                    val intent = Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:${context.packageName}")
+                    )
+                    context.startActivity(intent)
+                },
+                onDeleteFingerprint = { viewModel.deleteFingerprint(it) },
+                onBack = { screen = "main" }
+            )
+        }
+
+        AnimatedBottomNavigation(
+            items = navItems,
+            selectedIndex = selectedIndex,
+            onItemSelected = { index ->
+                screen = navItems[index].route
             },
-            onDeleteFingerprint = { viewModel.deleteFingerprint(it) },
-            onBack = { screen = "main" }
+            modifier = Modifier.align(Alignment.BottomCenter)
         )
     }
 }
