@@ -14,6 +14,8 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -37,7 +39,24 @@ class MainActivity : ComponentActivity() {
         viewModel.scan()
 
         setContent {
-            MaterialTheme {
+            val colorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                dynamicLightColorScheme(this@MainActivity)
+            } else {
+                lightColorScheme(
+                    primary = com.inputleaf.android.ui.theme.Purple500,
+                    primaryContainer = com.inputleaf.android.ui.theme.Purple100,
+                    onPrimary = androidx.compose.ui.graphics.Color.White,
+                    secondary = com.inputleaf.android.ui.theme.Purple400,
+                    tertiary = com.inputleaf.android.ui.theme.Success500,
+                    background = com.inputleaf.android.ui.theme.Background,
+                    surface = com.inputleaf.android.ui.theme.Surface
+                )
+            }
+
+            MaterialTheme(
+                colorScheme = colorScheme,
+                shapes = com.inputleaf.android.ui.theme.InputLeafShapes
+            ) {
                 Surface(Modifier.fillMaxSize()) {
                     AppNavigation(viewModel)
                 }
