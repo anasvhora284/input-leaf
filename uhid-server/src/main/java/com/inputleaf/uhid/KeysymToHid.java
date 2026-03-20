@@ -1,0 +1,38 @@
+package com.inputleaf.uhid;
+
+import java.util.HashMap;
+
+public class KeysymToHid {
+    private static final HashMap<Integer, Integer> TABLE = new HashMap<>();
+    static {
+        // Letters a-z
+        int[] letters = {0x61,0x62,0x63,0x64,0x65,0x66,0x67,0x68,0x69,0x6A,
+                         0x6B,0x6C,0x6D,0x6E,0x6F,0x70,0x71,0x72,0x73,0x74,
+                         0x75,0x76,0x77,0x78,0x79,0x7A};
+        for (int i = 0; i < 26; i++) {
+            TABLE.put(letters[i], 0x04 + i);          // lowercase
+            TABLE.put(letters[i] - 32, 0x04 + i);     // uppercase
+        }
+        // Digits
+        for (int i = 1; i <= 9; i++) TABLE.put(0x30 + i, 0x1D + i);
+        TABLE.put(0x30, 0x27);
+        // Control
+        TABLE.put(0xFF0D, 0x28); TABLE.put(0xFF1B, 0x29); TABLE.put(0xFF08, 0x2A);
+        TABLE.put(0xFF09, 0x2B); TABLE.put(0x20,   0x2C); TABLE.put(0xFF50, 0x4A);
+        TABLE.put(0xFF57, 0x4D); TABLE.put(0xFF55, 0x4B); TABLE.put(0xFF56, 0x4E);
+        TABLE.put(0xFF63, 0x49); TABLE.put(0xFFFF, 0x4C);
+        // Arrows
+        TABLE.put(0xFF51, 0x50); TABLE.put(0xFF52, 0x52);
+        TABLE.put(0xFF53, 0x4F); TABLE.put(0xFF54, 0x51);
+        // F1-F12
+        for (int i = 0; i < 12; i++) TABLE.put(0xFFBE + i, 0x3A + i);
+        // Modifiers
+        TABLE.put(0xFFE1, 0xE1); TABLE.put(0xFFE2, 0xE5);
+        TABLE.put(0xFFE3, 0xE0); TABLE.put(0xFFE4, 0xE4);
+        TABLE.put(0xFFE9, 0xE2); TABLE.put(0xFFEA, 0xE6);
+        // Media
+        TABLE.put(0x1008FF14, 0xCD); TABLE.put(0x1008FF11, 0xEA);
+        TABLE.put(0x1008FF13, 0xE9); TABLE.put(0x1008FF12, 0xE2);
+    }
+    public static Integer lookup(int keysym) { return TABLE.get(keysym); }
+}
