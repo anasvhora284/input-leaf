@@ -153,7 +153,7 @@ fun MainScreen(
                     is ConnectionState.Active -> connectionState.serverIp == server.ip
                     else -> false
                 }
-                ServerListItem(server, isConnected) { onConnect(server) }
+                ServerListItem(server, isConnected, onConnect)
             }
             // Action buttons
             item {
