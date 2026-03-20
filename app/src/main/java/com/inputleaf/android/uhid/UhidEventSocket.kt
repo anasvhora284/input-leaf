@@ -44,12 +44,12 @@ class UhidEventSocket {
                     is InputLeapEvent.KeyDown -> {
                         KeysymTable.toHidUsage(event.keyId) ?: return
                         o.writeByte(0x01); o.writeInt(event.keyId)
-                        o.writeByte(0x00); o.writeByte(event.mask.toByte())
+                        o.writeByte(0x00); o.writeByte(event.mask.toInt())
                     }
                     is InputLeapEvent.KeyUp -> {
                         KeysymTable.toHidUsage(event.keyId) ?: return
                         o.writeByte(0x01); o.writeInt(event.keyId)
-                        o.writeByte(0x01); o.writeByte(event.mask.toByte())
+                        o.writeByte(0x01); o.writeByte(event.mask.toInt())
                     }
                     is InputLeapEvent.MouseMoveRel -> {
                         o.writeByte(0x02); o.writeInt(event.dx); o.writeInt(event.dy)
