@@ -18,8 +18,11 @@ import androidx.compose.ui.unit.dp
 import com.inputleaf.android.ui.MainViewModel
 import com.inputleaf.android.ui.theme.Gradients
 import com.inputleaf.android.ui.theme.Purple600
+import com.inputleaf.android.ui.theme.Success500
+import com.inputleaf.android.ui.theme.Success600
 import com.inputleaf.android.ui.theme.TextPrimary
 import com.inputleaf.android.ui.theme.TextSecondary
+import com.inputleaf.android.ui.theme.Warning500
 
 @Composable
 fun ShizukuStatusCard(
@@ -48,19 +51,19 @@ fun ShizukuStatusCard(
                         size = 48.dp,
                         iconSize = 28.dp,
                         backgroundColor = Color.White,
-                        iconTint = Color(0xFF10B981)
+                        iconTint = Success500
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Shizuku Ready",
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF065F46),
+                            color = Success600,
                             style = MaterialTheme.typography.titleSmall
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "Input injection enabled",
-                            color = Color(0xFF047857),
+                            color = Success600.copy(alpha = 0.8f),
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -81,7 +84,7 @@ fun ShizukuStatusCard(
                     description = ""; actionLabel = null; action = null
                 }
                 MainViewModel.ShizukuStatus.NOT_INSTALLED -> {
-                    icon = Icons.Default.Warning; color = Color(0xFFF44336)
+                    icon = Icons.Default.Warning; color = MaterialTheme.colorScheme.error
                     title = "Shizuku Not Installed"
                     description = "Install Shizuku from Play Store to enable mouse/keyboard input."
                     actionLabel = "Install Shizuku"
@@ -91,7 +94,7 @@ fun ShizukuStatusCard(
                     }
                 }
                 MainViewModel.ShizukuStatus.NOT_RUNNING -> {
-                    icon = Icons.Default.Warning; color = Color(0xFFFF9800)
+                    icon = Icons.Default.Warning; color = Warning500
                     title = "Shizuku Not Running"
                     description = "Open Shizuku app and start it via Wireless Debugging (Android 11+) or ADB."
                     actionLabel = "Open Shizuku"
@@ -102,7 +105,7 @@ fun ShizukuStatusCard(
                     }
                 }
                 MainViewModel.ShizukuStatus.PERMISSION_REQUIRED -> {
-                    icon = Icons.Default.Warning; color = Color(0xFFFF9800)
+                    icon = Icons.Default.Warning; color = Warning500
                     title = "Permission Required"
                     description = "Grant Input-Leaf permission to use Shizuku for input injection."
                     actionLabel = "Grant Permission"; action = onRequestPermission
@@ -115,7 +118,7 @@ fun ShizukuStatusCard(
             
             GradientCard(
                 modifier = modifier.fillMaxWidth(),
-                backgroundColor = Color.White,
+                backgroundColor = MaterialTheme.colorScheme.surface,
                 cornerRadius = 24.dp,
                 elevation = 1.dp,
                 padding = 20.dp

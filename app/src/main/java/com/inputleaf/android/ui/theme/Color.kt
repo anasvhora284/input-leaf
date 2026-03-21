@@ -17,6 +17,8 @@ val Success400 = Color(0xFFA7F3D0)
 val Success500 = Color(0xFF10B981)
 val Success600 = Color(0xFF059669)
 val Success100 = Color(0xFFD1FAE5)
+val Warning500 = Color(0xFFFF9800)
+val Warning600 = Color(0xFFF57C00)
 
 // Surface colors
 val Surface = Color(0xFFFAFAFA)
