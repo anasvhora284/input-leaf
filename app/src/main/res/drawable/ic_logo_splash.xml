@@ -1,0 +1,65 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+
+    <!-- Leaf body - right side -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.95"
+        android:pathData="M60,10
+            C70,10 88,22 92,42
+            C96,62 84,80 70,86
+            C65,88 62,86 60,84
+            C58,82 56,78 54,74
+            C46,60 48,36 60,10Z" />
+
+    <!-- Leaf body - left side -->
+    <path
+        android:fillColor="#E9D5FF"
+        android:fillAlpha="0.8"
+        android:pathData="M60,10
+            C50,12 36,24 34,42
+            C32,60 40,76 52,82
+            C54,83 56,84 60,84
+            C58,82 56,78 54,74
+            C46,60 48,36 60,10Z" />
+
+    <!-- Leaf center vein -->
+    <path
+        android:strokeColor="#7C3AED"
+        android:strokeWidth="2.5"
+        android:strokeAlpha="0.5"
+        android:fillColor="#00000000"
+        android:pathData="M60,14 L60,82" />
+
+    <!-- Side veins - right -->
+    <path
+        android:strokeColor="#7C3AED"
+        android:strokeWidth="1.5"
+        android:strokeAlpha="0.3"
+        android:fillColor="#00000000"
+        android:pathData="M60,26 L78,22 M60,38 L82,34 M60,50 L78,50 M60,62 L72,64 M60,72 L68,74" />
+
+    <!-- Side veins - left -->
+    <path
+        android:strokeColor="#7C3AED"
+        android:strokeWidth="1.5"
+        android:strokeAlpha="0.3"
+        android:fillColor="#00000000"
+        android:pathData="M60,26 L42,22 M60,38 L38,34 M60,50 L42,50 M60,62 L48,64 M60,72 L52,74" />
+
+    <!-- Cursor arrow overlay -->
+    <path
+        android:fillColor="#8B5CF6"
+        android:pathData="M66,18 L66,44 L73,37 L80,50 L85,47 L78,34 L85,28Z" />
+
+    <!-- Cursor arrow outline -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:fillColor="#00000000"
+        android:pathData="M66,18 L66,44 L73,37 L80,50 L85,47 L78,34 L85,28Z" />
+
+</vector>
