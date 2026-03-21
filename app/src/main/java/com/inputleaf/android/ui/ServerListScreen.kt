@@ -122,13 +122,17 @@ fun ServerListScreen(
             confirmButton = {
                 TextButton(onClick = { 
                     onAddManual(manualIp)
+                    manualIp = ""
                     showAddDialog = false 
                 }) { 
                     Text("Add") 
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showAddDialog = false }) { 
+                TextButton(onClick = { 
+                    manualIp = ""
+                    showAddDialog = false 
+                }) { 
                     Text("Cancel") 
                 }
             }
