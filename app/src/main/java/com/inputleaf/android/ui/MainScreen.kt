@@ -165,11 +165,7 @@ fun MainScreen(
             }
             // Action buttons
             item {
-                Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onScan, enabled = !isScanning) {
-                        if (isScanning) CircularProgressIndicator(Modifier.size(16.dp))
-                        else Text("Scan Again")
-                    }
+                Row(Modifier.padding(16.dp)) {
                     OutlinedButton(onClick = { showAddDialog = true }) { Text("Add Manually") }
                 }
             }
