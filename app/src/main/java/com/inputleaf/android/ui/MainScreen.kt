@@ -32,6 +32,7 @@ import com.inputleaf.android.model.ConnectionState
 import com.inputleaf.android.model.ServerInfo
 import com.inputleaf.android.ui.components.CircularAvatar
 import com.inputleaf.android.ui.components.GradientCard
+import com.inputleaf.android.ui.components.ShizukuStatusCard
 import com.inputleaf.android.ui.theme.Gradients
 import com.inputleaf.android.ui.theme.Purple600
 import com.inputleaf.android.ui.theme.TextPrimary
@@ -139,7 +140,11 @@ fun MainScreen(
             }
             // Shizuku status card
             item {
-                ShizukuStatusCard(shizukuStatus, onRequestShizukuPermission)
+                ShizukuStatusCard(
+                    status = shizukuStatus,
+                    onRequestPermission = onRequestShizukuPermission,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
             }
             // Search bar
             item {
@@ -186,147 +191,6 @@ fun MainScreen(
                 TextButton(onClick = { showAddDialog = false }) { Text("Cancel") }
             }
         )
-    }
-}
-
-@Composable
-private fun ShizukuStatusCard(
-    status: MainViewModel.ShizukuStatus,
-    onRequestPermission: () -> Unit
-) {
-    val context = LocalContext.current
-    
-    when (status) {
-        MainViewModel.ShizukuStatus.READY -> {
-            GradientCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                gradient = Gradients.Success,
-                cornerRadius = 24.dp,
-                elevation = 0.dp,
-                padding = 20.dp
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    CircularAvatar(
-                        icon = Icons.Rounded.CheckCircle,
-                        size = 48.dp,
-                        iconSize = 28.dp,
-                        backgroundColor = Color.White,
-                        iconTint = Color(0xFF10B981)
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Shizuku Ready",
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF065F46),
-                            style = MaterialTheme.typography.titleSmall
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Input injection enabled",
-                            color = Color(0xFF047857),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-            }
-        }
-        else -> {
-            val icon: ImageVector?
-            val color: Color
-            val title: String
-            val description: String
-            val actionLabel: String?
-            val action: (() -> Unit)?
-
-            when (status) {
-                MainViewModel.ShizukuStatus.CHECKING -> {
-                    icon = null; color = Color.Gray; title = "Checking Shizuku..."
-                    description = ""; actionLabel = null; action = null
-                }
-                MainViewModel.ShizukuStatus.NOT_INSTALLED -> {
-                    icon = Icons.Default.Warning; color = Color(0xFFF44336)
-                    title = "Shizuku Not Installed"
-                    description = "Install Shizuku from Play Store to enable mouse/keyboard input."
-                    actionLabel = "Install Shizuku"
-                    action = {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, 
-                            Uri.parse("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api")))
-                    }
-                }
-                MainViewModel.ShizukuStatus.NOT_RUNNING -> {
-                    icon = Icons.Default.Warning; color = Color(0xFFFF9800)
-                    title = "Shizuku Not Running"
-                    description = "Open Shizuku app and start it via Wireless Debugging (Android 11+) or ADB."
-                    actionLabel = "Open Shizuku"
-                    action = {
-                        context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")?.let {
-                            context.startActivity(it)
-                        }
-                    }
-                }
-                MainViewModel.ShizukuStatus.PERMISSION_REQUIRED -> {
-                    icon = Icons.Default.Warning; color = Color(0xFFFF9800)
-                    title = "Permission Required"
-                    description = "Grant Input-Leaf permission to use Shizuku for input injection."
-                    actionLabel = "Grant Permission"; action = onRequestPermission
-                }
-                else -> {
-                    icon = null; color = Color.Gray; title = "Unknown"
-                    description = ""; actionLabel = null; action = null
-                }
-            }
-            
-            GradientCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                backgroundColor = Color.White,
-                cornerRadius = 24.dp,
-                elevation = 1.dp,
-                padding = 20.dp
-            ) {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (icon != null) {
-                            CircularAvatar(
-                                icon = icon,
-                                size = 40.dp,
-                                iconSize = 24.dp,
-                                backgroundColor = color.copy(alpha = 0.1f),
-                                iconTint = color
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                        }
-                        Text(
-                            text = title,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary,
-                            style = MaterialTheme.typography.titleSmall
-                        )
-                    }
-                    if (description.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = description,
-                            color = TextSecondary,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                    if (actionLabel != null && action != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        TextButton(onClick = action) {
-                            Text(actionLabel, color = Purple600)
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
