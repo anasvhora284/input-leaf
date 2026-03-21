@@ -48,9 +48,16 @@ class MainActivity : ComponentActivity() {
         viewModel.scan()
 
         setContent {
+            val themeMode by viewModel.themeMode.collectAsState(initial = "SYSTEM")
+
+            val isDarkTheme = when (themeMode) {
+                "LIGHT" -> false
+                "DARK" -> true
+                else -> androidx.compose.foundation.isSystemInDarkTheme()
+            }
+
             val colorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 // Android 12+ Material You dynamic colors
-                val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
                 if (isDarkTheme) {
                     androidx.compose.material3.dynamicDarkColorScheme(this@MainActivity)
                 } else {
@@ -58,7 +65,6 @@ class MainActivity : ComponentActivity() {
                 }
             } else {
                 // Fallback for older Android versions
-                val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
                 if (isDarkTheme) {
                     androidx.compose.material3.darkColorScheme(
                         primary = com.inputleaf.android.ui.theme.Purple400,
@@ -117,6 +123,7 @@ fun AppNavigation(viewModel: MainViewModel) {
     val canDrawOverlays by viewModel.canDrawOverlays.collectAsStateWithLifecycle()
     val fingerprints by viewModel.fingerprints.collectAsState(initial = emptyMap())
     val shizukuStatus by viewModel.shizukuStatus.collectAsStateWithLifecycle()
+    val themeMode by viewModel.themeMode.collectAsState(initial = "SYSTEM")
 
     // TOFU fingerprint dialog
     var pendingFpRequest by remember { mutableStateOf<MainViewModel.FingerprintRequest?>(null) }
@@ -175,11 +182,13 @@ fun AppNavigation(viewModel: MainViewModel) {
                 screenName = screenName,
                 autoConnect = autoConnect,
                 showCursor = showCursor,
+                themeMode = themeMode,
                 canDrawOverlays = canDrawOverlays,
                 fingerprints = fingerprints,
                 onScreenNameChange = { viewModel.saveScreenName(it) },
                 onAutoConnectChange = { viewModel.saveAutoConnect(it) },
                 onShowCursorChange = { viewModel.saveShowCursor(it) },
+                onThemeModeChange = { viewModel.saveThemeMode(it) },
                 onRequestOverlayPermission = {
                     val intent = Intent(
                         Settings.ACTION_MANAGE_OVERLAY_PERMISSION,

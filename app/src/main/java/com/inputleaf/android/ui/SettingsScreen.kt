@@ -30,16 +30,19 @@ fun SettingsScreen(
     screenName: String,
     autoConnect: Boolean,
     showCursor: Boolean,
+    themeMode: String,
     canDrawOverlays: Boolean,
     fingerprints: Map<String, String>,
     onScreenNameChange: (String) -> Unit,
     onAutoConnectChange: (Boolean) -> Unit,
     onShowCursorChange: (Boolean) -> Unit,
+    onThemeModeChange: (String) -> Unit,
     onRequestOverlayPermission: () -> Unit,
     onDeleteFingerprint: (String) -> Unit,
     onBack: () -> Unit
 ) {
     var editingName by remember(screenName) { mutableStateOf(screenName) }
+    var showThemeDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -152,7 +155,7 @@ fun SettingsScreen(
                         icon = Icons.Rounded.Info,
                         title = "Show cursor overlay",
                         subtitle = if (canDrawOverlays) "Display cursor when active" else "Grant permission first",
-                        showDivider = false,
+                        showDivider = true,
                         trailingContent = {
                             MaterialToggleSwitch(
                                 checked = showCursor,
@@ -160,6 +163,18 @@ fun SettingsScreen(
                                 enabled = canDrawOverlays
                             )
                         }
+                    )
+                    // Theme setting
+                    SettingsRow(
+                        icon = Icons.Rounded.Settings,
+                        title = "Theme",
+                        subtitle = when (themeMode) {
+                            "LIGHT" -> "Light"
+                            "DARK" -> "Dark"
+                            else -> "System default"
+                        },
+                        showDivider = false,
+                        onClick = { showThemeDialog = true }
                     )
                 }
             }
@@ -225,6 +240,46 @@ fun SettingsScreen(
             
             Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+
+    if (showThemeDialog) {
+        AlertDialog(
+            onDismissRequest = { showThemeDialog = false },
+            title = { Text("Select Theme") },
+            text = {
+                Column {
+                    ThemeModeOption(
+                        text = "System default",
+                        selected = themeMode == "SYSTEM",
+                        onClick = {
+                            onThemeModeChange("SYSTEM")
+                            showThemeDialog = false
+                        }
+                    )
+                    ThemeModeOption(
+                        text = "Light",
+                        selected = themeMode == "LIGHT",
+                        onClick = {
+                            onThemeModeChange("LIGHT")
+                            showThemeDialog = false
+                        }
+                    )
+                    ThemeModeOption(
+                        text = "Dark",
+                        selected = themeMode == "DARK",
+                        onClick = {
+                            onThemeModeChange("DARK")
+                            showThemeDialog = false
+                        }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showThemeDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
@@ -298,5 +353,27 @@ private fun SettingsRow(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ThemeModeOption(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(
+            selected = selected,
+            onClick = onClick
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text = text)
     }
 }
