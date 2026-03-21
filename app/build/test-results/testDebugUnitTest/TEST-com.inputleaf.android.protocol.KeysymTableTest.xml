@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.inputleaf.android.protocol.KeysymTableTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-03-20T19:09:13.009Z" hostname="ansh-vhora" time="0.044">
+<testsuite name="com.inputleaf.android.protocol.KeysymTableTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-03-20T20:10:49.098Z" hostname="ansh-vhora" time="0.011">
   <properties/>
-  <testcase name="maps letter a to HID usage 0x04" classname="com.inputleaf.android.protocol.KeysymTableTest" time="0.027"/>
-  <testcase name="returns null for unmapped keysym" classname="com.inputleaf.android.protocol.KeysymTableTest" time="0.003"/>
-  <testcase name="maps F1 to HID usage 0x3A" classname="com.inputleaf.android.protocol.KeysymTableTest" time="0.0"/>
+  <testcase name="maps letter a to HID usage 0x04" classname="com.inputleaf.android.protocol.KeysymTableTest" time="0.009"/>
+  <testcase name="returns null for unmapped keysym" classname="com.inputleaf.android.protocol.KeysymTableTest" time="0.001"/>
+  <testcase name="maps F1 to HID usage 0x3A" classname="com.inputleaf.android.protocol.KeysymTableTest" time="0.001"/>
   <testcase name="maps Space to HID usage 0x2C" classname="com.inputleaf.android.protocol.KeysymTableTest" time="0.0"/>
   <testcase name="maps Return to HID usage 0x28" classname="com.inputleaf.android.protocol.KeysymTableTest" time="0.0"/>
   <system-out><![CDATA[]]></system-out>

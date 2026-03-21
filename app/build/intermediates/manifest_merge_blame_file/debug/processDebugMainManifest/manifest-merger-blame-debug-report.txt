@@ -45,136 +45,148 @@
 24-->[dev.rikka.shizuku:provider:13.1.5] /home/anshv/.gradle/caches/8.13/transforms/35476e2a14c15c0ce112a8773396a859/transformed/provider-13.1.5/AndroidManifest.xml:8:22-75
 25
 26    <application
-26-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:11:5-39:19
+26-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:11:5-45:19
 27        android:name="com.inputleaf.android.InputLeafApplication"
 27-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:12:9-45
 28        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
 28-->[androidx.core:core:1.13.1] /home/anshv/.gradle/caches/8.13/transforms/ebfcabefed30883702763da81e935c30/transformed/core-1.13.1/AndroidManifest.xml:28:18-86
 29        android:debuggable="true"
 30        android:extractNativeLibs="false"
-31        android:label="Input-Leaf"
-31-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:13:9-35
-32        android:theme="@style/Theme.InputLeaf" >
-32-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:14:9-47
-33        <activity
-33-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:15:9-22:20
-34            android:name="com.inputleaf.android.ui.MainActivity"
-34-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:16:13-44
-35            android:exported="true" >
-35-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:17:13-36
-36            <intent-filter>
-36-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:18:13-21:29
-37                <action android:name="android.intent.action.MAIN" />
-37-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:19:17-68
-37-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:19:25-66
-38
-39                <category android:name="android.intent.category.LAUNCHER" />
-39-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:20:17-76
-39-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:20:27-74
-40            </intent-filter>
-41        </activity>
-42
-43        <service
-43-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:23:9-26:39
-44            android:name="com.inputleaf.android.service.ConnectionService"
-44-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:24:13-54
-45            android:exported="false"
-45-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:26:13-37
-46            android:foregroundServiceType="connectedDevice" />
-46-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:25:13-60
-47        <service
-47-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:27:9-29:39
-48            android:name="com.inputleaf.android.service.CursorOverlayService"
-48-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:28:13-57
-49            android:exported="false" />
-49-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:29:13-37
-50
-51        <!-- Shizuku provider for privileged input injection -->
-52        <provider
-53            android:name="rikka.shizuku.ShizukuProvider"
-53-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:33:13-57
-54            android:authorities="com.inputleaf.android.shizuku"
-54-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:34:13-59
-55            android:enabled="true"
-55-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:36:13-35
-56            android:exported="true"
-56-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:37:13-36
-57            android:multiprocess="false"
-57-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:35:13-41
-58            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
-58-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:38:13-79
-59        <provider
-59-->[androidx.emoji2:emoji2:1.3.0] /home/anshv/.gradle/caches/8.13/transforms/5b1e70b2bef14053496e7ce6d9e3c5ed/transformed/emoji2-1.3.0/AndroidManifest.xml:24:9-32:20
-60            android:name="androidx.startup.InitializationProvider"
-60-->[androidx.emoji2:emoji2:1.3.0] /home/anshv/.gradle/caches/8.13/transforms/5b1e70b2bef14053496e7ce6d9e3c5ed/transformed/emoji2-1.3.0/AndroidManifest.xml:25:13-67
-61            android:authorities="com.inputleaf.android.androidx-startup"
-61-->[androidx.emoji2:emoji2:1.3.0] /home/anshv/.gradle/caches/8.13/transforms/5b1e70b2bef14053496e7ce6d9e3c5ed/transformed/emoji2-1.3.0/AndroidManifest.xml:26:13-68
-62            android:exported="false" >
-62-->[androidx.emoji2:emoji2:1.3.0] /home/anshv/.gradle/caches/8.13/transforms/5b1e70b2bef14053496e7ce6d9e3c5ed/transformed/emoji2-1.3.0/AndroidManifest.xml:27:13-37
-63            <meta-data
-63-->[androidx.emoji2:emoji2:1.3.0] /home/anshv/.gradle/caches/8.13/transforms/5b1e70b2bef14053496e7ce6d9e3c5ed/transformed/emoji2-1.3.0/AndroidManifest.xml:29:13-31:52
-64                android:name="androidx.emoji2.text.EmojiCompatInitializer"
-64-->[androidx.emoji2:emoji2:1.3.0] /home/anshv/.gradle/caches/8.13/transforms/5b1e70b2bef14053496e7ce6d9e3c5ed/transformed/emoji2-1.3.0/AndroidManifest.xml:30:17-75
-65                android:value="androidx.startup" />
-65-->[androidx.emoji2:emoji2:1.3.0] /home/anshv/.gradle/caches/8.13/transforms/5b1e70b2bef14053496e7ce6d9e3c5ed/transformed/emoji2-1.3.0/AndroidManifest.xml:31:17-49
-66            <meta-data
-66-->[androidx.lifecycle:lifecycle-process:2.8.3] /home/anshv/.gradle/caches/8.13/transforms/49d7f85f6179fa619088b67389e083f7/transformed/lifecycle-process-2.8.3/AndroidManifest.xml:29:13-31:52
-67                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
-67-->[androidx.lifecycle:lifecycle-process:2.8.3] /home/anshv/.gradle/caches/8.13/transforms/49d7f85f6179fa619088b67389e083f7/transformed/lifecycle-process-2.8.3/AndroidManifest.xml:30:17-78
-68                android:value="androidx.startup" />
-68-->[androidx.lifecycle:lifecycle-process:2.8.3] /home/anshv/.gradle/caches/8.13/transforms/49d7f85f6179fa619088b67389e083f7/transformed/lifecycle-process-2.8.3/AndroidManifest.xml:31:17-49
+31        android:icon="@mipmap/ic_launcher"
+31-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:13:9-43
+32        android:label="Input-Leaf"
+32-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:15:9-35
+33        android:roundIcon="@mipmap/ic_launcher_round"
+33-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:14:9-54
+34        android:theme="@style/Theme.InputLeaf" >
+34-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:16:9-47
+35        <activity
+35-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:17:9-25:20
+36            android:name="com.inputleaf.android.ui.SplashActivity"
+36-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:18:13-46
+37            android:exported="true"
+37-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:20:13-36
+38            android:theme="@style/Theme.InputLeaf.Splash" >
+38-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:19:13-58
+39            <intent-filter>
+39-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:21:13-24:29
+40                <action android:name="android.intent.action.MAIN" />
+40-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:22:17-68
+40-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:22:25-66
+41
+42                <category android:name="android.intent.category.LAUNCHER" />
+42-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:23:17-76
+42-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:23:27-74
+43            </intent-filter>
+44        </activity>
+45        <activity
+45-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:26:9-28:40
+46            android:name="com.inputleaf.android.ui.MainActivity"
+46-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:27:13-44
+47            android:exported="false" />
+47-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:28:13-37
+48
+49        <service
+49-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:29:9-32:39
+50            android:name="com.inputleaf.android.service.ConnectionService"
+50-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:30:13-54
+51            android:exported="false"
+51-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:32:13-37
+52            android:foregroundServiceType="connectedDevice" />
+52-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:31:13-60
+53        <service
+53-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:33:9-35:39
+54            android:name="com.inputleaf.android.service.CursorOverlayService"
+54-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:34:13-57
+55            android:exported="false" />
+55-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:35:13-37
+56
+57        <!-- Shizuku provider for privileged input injection -->
+58        <provider
+59            android:name="rikka.shizuku.ShizukuProvider"
+59-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:39:13-57
+60            android:authorities="com.inputleaf.android.shizuku"
+60-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:40:13-59
+61            android:enabled="true"
+61-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:42:13-35
+62            android:exported="true"
+62-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:43:13-36
+63            android:multiprocess="false"
+63-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:41:13-41
+64            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+64-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:44:13-79
+65        <provider
+65-->[androidx.emoji2:emoji2:1.3.0] /home/anshv/.gradle/caches/8.13/transforms/5b1e70b2bef14053496e7ce6d9e3c5ed/transformed/emoji2-1.3.0/AndroidManifest.xml:24:9-32:20
+66            android:name="androidx.startup.InitializationProvider"
+66-->[androidx.emoji2:emoji2:1.3.0] /home/anshv/.gradle/caches/8.13/transforms/5b1e70b2bef14053496e7ce6d9e3c5ed/transformed/emoji2-1.3.0/AndroidManifest.xml:25:13-67
+67            android:authorities="com.inputleaf.android.androidx-startup"
+67-->[androidx.emoji2:emoji2:1.3.0] /home/anshv/.gradle/caches/8.13/transforms/5b1e70b2bef14053496e7ce6d9e3c5ed/transformed/emoji2-1.3.0/AndroidManifest.xml:26:13-68
+68            android:exported="false" >
+68-->[androidx.emoji2:emoji2:1.3.0] /home/anshv/.gradle/caches/8.13/transforms/5b1e70b2bef14053496e7ce6d9e3c5ed/transformed/emoji2-1.3.0/AndroidManifest.xml:27:13-37
 69            <meta-data
-69-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:29:13-31:52
-70                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
-70-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:30:17-85
+69-->[androidx.emoji2:emoji2:1.3.0] /home/anshv/.gradle/caches/8.13/transforms/5b1e70b2bef14053496e7ce6d9e3c5ed/transformed/emoji2-1.3.0/AndroidManifest.xml:29:13-31:52
+70                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+70-->[androidx.emoji2:emoji2:1.3.0] /home/anshv/.gradle/caches/8.13/transforms/5b1e70b2bef14053496e7ce6d9e3c5ed/transformed/emoji2-1.3.0/AndroidManifest.xml:30:17-75
 71                android:value="androidx.startup" />
-71-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:31:17-49
-72        </provider>
-73
-74        <meta-data
-74-->[dev.rikka.shizuku:provider:13.1.5] /home/anshv/.gradle/caches/8.13/transforms/35476e2a14c15c0ce112a8773396a859/transformed/provider-13.1.5/AndroidManifest.xml:11:9-13:36
-75            android:name="moe.shizuku.client.V3_SUPPORT"
-75-->[dev.rikka.shizuku:provider:13.1.5] /home/anshv/.gradle/caches/8.13/transforms/35476e2a14c15c0ce112a8773396a859/transformed/provider-13.1.5/AndroidManifest.xml:12:13-57
-76            android:value="true" />
-76-->[dev.rikka.shizuku:provider:13.1.5] /home/anshv/.gradle/caches/8.13/transforms/35476e2a14c15c0ce112a8773396a859/transformed/provider-13.1.5/AndroidManifest.xml:13:13-33
-77
-78        <receiver
-78-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:34:9-52:20
-79            android:name="androidx.profileinstaller.ProfileInstallReceiver"
-79-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:35:13-76
-80            android:directBootAware="false"
-80-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:36:13-44
-81            android:enabled="true"
-81-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:37:13-35
-82            android:exported="true"
-82-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:38:13-36
-83            android:permission="android.permission.DUMP" >
-83-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:39:13-57
-84            <intent-filter>
-84-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:40:13-42:29
-85                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
-85-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:17-91
-85-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:25-88
-86            </intent-filter>
-87            <intent-filter>
-87-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:43:13-45:29
-88                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
-88-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:17-85
-88-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:25-82
-89            </intent-filter>
+71-->[androidx.emoji2:emoji2:1.3.0] /home/anshv/.gradle/caches/8.13/transforms/5b1e70b2bef14053496e7ce6d9e3c5ed/transformed/emoji2-1.3.0/AndroidManifest.xml:31:17-49
+72            <meta-data
+72-->[androidx.lifecycle:lifecycle-process:2.8.3] /home/anshv/.gradle/caches/8.13/transforms/49d7f85f6179fa619088b67389e083f7/transformed/lifecycle-process-2.8.3/AndroidManifest.xml:29:13-31:52
+73                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+73-->[androidx.lifecycle:lifecycle-process:2.8.3] /home/anshv/.gradle/caches/8.13/transforms/49d7f85f6179fa619088b67389e083f7/transformed/lifecycle-process-2.8.3/AndroidManifest.xml:30:17-78
+74                android:value="androidx.startup" />
+74-->[androidx.lifecycle:lifecycle-process:2.8.3] /home/anshv/.gradle/caches/8.13/transforms/49d7f85f6179fa619088b67389e083f7/transformed/lifecycle-process-2.8.3/AndroidManifest.xml:31:17-49
+75            <meta-data
+75-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:29:13-31:52
+76                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+76-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:30:17-85
+77                android:value="androidx.startup" />
+77-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:31:17-49
+78        </provider>
+79
+80        <meta-data
+80-->[dev.rikka.shizuku:provider:13.1.5] /home/anshv/.gradle/caches/8.13/transforms/35476e2a14c15c0ce112a8773396a859/transformed/provider-13.1.5/AndroidManifest.xml:11:9-13:36
+81            android:name="moe.shizuku.client.V3_SUPPORT"
+81-->[dev.rikka.shizuku:provider:13.1.5] /home/anshv/.gradle/caches/8.13/transforms/35476e2a14c15c0ce112a8773396a859/transformed/provider-13.1.5/AndroidManifest.xml:12:13-57
+82            android:value="true" />
+82-->[dev.rikka.shizuku:provider:13.1.5] /home/anshv/.gradle/caches/8.13/transforms/35476e2a14c15c0ce112a8773396a859/transformed/provider-13.1.5/AndroidManifest.xml:13:13-33
+83
+84        <receiver
+84-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:34:9-52:20
+85            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+85-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:35:13-76
+86            android:directBootAware="false"
+86-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:36:13-44
+87            android:enabled="true"
+87-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:37:13-35
+88            android:exported="true"
+88-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:38:13-36
+89            android:permission="android.permission.DUMP" >
+89-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:39:13-57
 90            <intent-filter>
-90-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:46:13-48:29
-91                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
-91-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:17-88
-91-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:25-85
+90-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:40:13-42:29
+91                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+91-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:17-91
+91-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:25-88
 92            </intent-filter>
 93            <intent-filter>
-93-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:49:13-51:29
-94                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
-94-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:17-95
-94-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:25-92
+93-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:43:13-45:29
+94                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+94-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:17-85
+94-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:25-82
 95            </intent-filter>
-96        </receiver>
-97    </application>
-98
-99</manifest>
+96            <intent-filter>
+96-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:46:13-48:29
+97                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+97-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:17-88
+97-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:25-85
+98            </intent-filter>
+99            <intent-filter>
+99-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:49:13-51:29
+100                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+100-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:17-95
+100-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/anshv/.gradle/caches/8.13/transforms/1ccc5c2dc8cc6ecdec79b8cd757f43a0/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:25-92
+101            </intent-filter>
+102        </receiver>
+103    </application>
+104
+105</manifest>

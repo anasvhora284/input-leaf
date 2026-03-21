@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.inputleaf.android.network.TlsFingerprintManagerTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-03-20T19:09:12.466Z" hostname="ansh-vhora" time="0.523">
+<testsuite name="com.inputleaf.android.network.TlsFingerprintManagerTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-03-20T20:10:48.963Z" hostname="ansh-vhora" time="0.132">
   <properties/>
-  <testcase name="buildCapturingSSLContext returns initialized TLS context" classname="com.inputleaf.android.network.TlsFingerprintManagerTest" time="0.399"/>
-  <testcase name="fingerprint of same cert is stable" classname="com.inputleaf.android.network.TlsFingerprintManagerTest" time="0.101"/>
-  <testcase name="fingerprint is 64 hex chars (SHA-256)" classname="com.inputleaf.android.network.TlsFingerprintManagerTest" time="0.019"/>
+  <testcase name="buildCapturingSSLContext returns initialized TLS context" classname="com.inputleaf.android.network.TlsFingerprintManagerTest" time="0.107"/>
+  <testcase name="fingerprint of same cert is stable" classname="com.inputleaf.android.network.TlsFingerprintManagerTest" time="0.021"/>
+  <testcase name="fingerprint is 64 hex chars (SHA-256)" classname="com.inputleaf.android.network.TlsFingerprintManagerTest" time="0.003"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
 </testsuite>

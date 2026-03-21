@@ -1,0 +1,22 @@
+[
+    {
+        "merged": "com.inputleaf.android.app-debug-45:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.inputleaf.android.app-main-47:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "com.inputleaf.android.app-debug-45:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.inputleaf.android.app-main-47:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.inputleaf.android.app-debug-45:/drawable_ic_logo.xml.flat",
+        "source": "com.inputleaf.android.app-main-47:/drawable/ic_logo.xml"
+    },
+    {
+        "merged": "com.inputleaf.android.app-debug-45:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.inputleaf.android.app-main-47:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "com.inputleaf.android.app-debug-45:/drawable_ic_logo_splash.xml.flat",
+        "source": "com.inputleaf.android.app-main-47:/drawable/ic_logo_splash.xml"
+    }
+]

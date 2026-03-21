@@ -49,17 +49,39 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val colorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                dynamicLightColorScheme(this@MainActivity)
+                // Android 12+ Material You dynamic colors
+                val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
+                if (isDarkTheme) {
+                    androidx.compose.material3.dynamicDarkColorScheme(this@MainActivity)
+                } else {
+                    dynamicLightColorScheme(this@MainActivity)
+                }
             } else {
-                lightColorScheme(
-                    primary = com.inputleaf.android.ui.theme.Purple500,
-                    primaryContainer = com.inputleaf.android.ui.theme.Purple100,
-                    onPrimary = androidx.compose.ui.graphics.Color.White,
-                    secondary = com.inputleaf.android.ui.theme.Purple400,
-                    tertiary = com.inputleaf.android.ui.theme.Success500,
-                    background = com.inputleaf.android.ui.theme.Background,
-                    surface = com.inputleaf.android.ui.theme.Surface
-                )
+                // Fallback for older Android versions
+                val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
+                if (isDarkTheme) {
+                    androidx.compose.material3.darkColorScheme(
+                        primary = com.inputleaf.android.ui.theme.Purple400,
+                        primaryContainer = com.inputleaf.android.ui.theme.Purple700,
+                        onPrimary = androidx.compose.ui.graphics.Color.White,
+                        secondary = com.inputleaf.android.ui.theme.Purple300,
+                        tertiary = com.inputleaf.android.ui.theme.Success400,
+                        background = androidx.compose.ui.graphics.Color(0xFF121212),
+                        surface = androidx.compose.ui.graphics.Color(0xFF1E1E1E),
+                        onBackground = androidx.compose.ui.graphics.Color(0xFFE1E1E1),
+                        onSurface = androidx.compose.ui.graphics.Color(0xFFE1E1E1)
+                    )
+                } else {
+                    lightColorScheme(
+                        primary = com.inputleaf.android.ui.theme.Purple500,
+                        primaryContainer = com.inputleaf.android.ui.theme.Purple100,
+                        onPrimary = androidx.compose.ui.graphics.Color.White,
+                        secondary = com.inputleaf.android.ui.theme.Purple400,
+                        tertiary = com.inputleaf.android.ui.theme.Success500,
+                        background = com.inputleaf.android.ui.theme.Background,
+                        surface = com.inputleaf.android.ui.theme.Surface
+                    )
+                }
             }
 
             MaterialTheme(
@@ -135,32 +157,19 @@ fun AppNavigation(viewModel: MainViewModel) {
                 onScan = { viewModel.scan() },
                 onConnect = { viewModel.connect(it) },
                 onAddManual = { viewModel.addManualServer(it) },
-                onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
-                onSettingsClick = { screen = "settings" }
+                onRequestShizukuPermission = { viewModel.requestShizukuPermission() }
             )
-            "servers" -> MainScreen(
+            "servers" -> ServerListScreen(
                 connectionState = connectionState,
                 discoveredServers = discoveredServers,
                 isScanning = isScanning,
-                screenName = screenName,
-                shizukuStatus = shizukuStatus,
                 onScan = { viewModel.scan() },
                 onConnect = { viewModel.connect(it) },
-                onAddManual = { viewModel.addManualServer(it) },
-                onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
-                onSettingsClick = { screen = "settings" }
+                onAddManual = { viewModel.addManualServer(it) }
             )
-            "setup" -> MainScreen(
-                connectionState = connectionState,
-                discoveredServers = discoveredServers,
-                isScanning = isScanning,
-                screenName = screenName,
+            "setup" -> SetupScreen(
                 shizukuStatus = shizukuStatus,
-                onScan = { viewModel.scan() },
-                onConnect = { viewModel.connect(it) },
-                onAddManual = { viewModel.addManualServer(it) },
-                onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
-                onSettingsClick = { screen = "settings" }
+                onRequestShizukuPermission = { viewModel.requestShizukuPermission() }
             )
             "settings" -> SettingsScreen(
                 screenName = screenName,

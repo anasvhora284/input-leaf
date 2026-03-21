@@ -5,8 +5,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,8 +27,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.inputleaf.android.ui.theme.CustomShapes
 import com.inputleaf.android.ui.theme.Gradients
-import com.inputleaf.android.ui.theme.Purple500
-import com.inputleaf.android.ui.theme.TextTertiary
 import kotlin.math.roundToInt
 
 data class NavItem(
@@ -45,6 +45,7 @@ fun AnimatedBottomNavigation(
     if (items.isEmpty()) return
     val density = LocalDensity.current
     var containerSize = remember { androidx.compose.runtime.mutableStateOf(IntSize.Zero) }
+    val isDarkTheme = isSystemInDarkTheme()
     
     // Calculate indicator position fraction (0.0, 0.25, 0.5, 0.75 for 4 items)
     val indicatorPosition by animateFloatAsState(
@@ -70,24 +71,31 @@ fun AnimatedBottomNavigation(
                     spotColor = Color.Black.copy(alpha = 0.12f)
                 )
                 .clip(CustomShapes.BottomNav)
-                .background(Color.White.copy(alpha = 0.95f))
+                .background(
+                    if (isDarkTheme) {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f)
+                    } else {
+                        Color.White.copy(alpha = 0.95f)
+                    }
+                )
                 .padding(8.dp)
         ) {
             // Animated background indicator
             Box(
                 modifier = Modifier
                     .fillMaxWidth(1f / items.size)
-                    .height(48.dp)
+                    .height(64.dp)
                     .offset(
                         x = with(density) {
                             (containerSize.value.width * indicatorPosition - 8.dp.toPx()).toDp()
                         }
                     )
+                    .padding(horizontal = 4.dp, vertical = 4.dp)
                     .shadow(
                         elevation = 4.dp,
                         shape = CustomShapes.Pill,
-                        ambientColor = Purple500.copy(alpha = 0.4f),
-                        spotColor = Purple500.copy(alpha = 0.4f)
+                        ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                        spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
                     )
                     .clip(CustomShapes.Pill)
                     .background(Gradients.Primary)
@@ -132,14 +140,14 @@ private fun NavItemView(
             imageVector = item.icon,
             contentDescription = item.label,
             modifier = Modifier.size(24.dp),
-            tint = if (isSelected) Color.White else TextTertiary
+            tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = item.label,
             fontSize = 11.sp,
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (isSelected) Color.White else TextTertiary
+            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

@@ -4,9 +4,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
 // Primary colors (purple/lavender theme)
+val Purple300 = Color(0xFFC4B5FD)
 val Purple400 = Color(0xFFA78BFA)
 val Purple500 = Color(0xFF8B5CF6)
 val Purple600 = Color(0xFF7C3AED)
+val Purple700 = Color(0xFF6D28D9)
 val Purple100 = Color(0xFFDDD6FE)
 val Purple50 = Color(0xFFE9D5FF)
 

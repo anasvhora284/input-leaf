@@ -28,17 +28,23 @@
         android:appComponentFactory="androidx.core.app.CoreComponentFactory"
         android:debuggable="true"
         android:extractNativeLibs="false"
+        android:icon="@mipmap/ic_launcher"
         android:label="Input-Leaf"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.InputLeaf" >
         <activity
-            android:name="com.inputleaf.android.ui.MainActivity"
-            android:exported="true" >
+            android:name="com.inputleaf.android.ui.SplashActivity"
+            android:exported="true"
+            android:theme="@style/Theme.InputLeaf.Splash" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name="com.inputleaf.android.ui.MainActivity"
+            android:exported="false" />
 
         <service
             android:name="com.inputleaf.android.service.ConnectionService"

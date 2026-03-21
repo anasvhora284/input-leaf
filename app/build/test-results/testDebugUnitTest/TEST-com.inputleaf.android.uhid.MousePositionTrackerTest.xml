@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.inputleaf.android.uhid.MousePositionTrackerTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-03-20T19:09:13.164Z" hostname="ansh-vhora" time="0.014">
+<testsuite name="com.inputleaf.android.uhid.MousePositionTrackerTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-03-20T20:10:49.129Z" hostname="ansh-vhora" time="0.002">
   <properties/>
-  <testcase name="subsequent absolute moves return delta" classname="com.inputleaf.android.uhid.MousePositionTrackerTest" time="0.002"/>
+  <testcase name="subsequent absolute moves return delta" classname="com.inputleaf.android.uhid.MousePositionTrackerTest" time="0.001"/>
   <testcase name="first absolute move returns full position as delta" classname="com.inputleaf.android.uhid.MousePositionTrackerTest" time="0.001"/>
   <testcase name="reset causes next absolute move to return full position as delta" classname="com.inputleaf.android.uhid.MousePositionTrackerTest" time="0.0"/>
   <testcase name="relative move returns unchanged" classname="com.inputleaf.android.uhid.MousePositionTrackerTest" time="0.0"/>

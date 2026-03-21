@@ -1,24 +1,24 @@
 -- Merging decision tree log ---
 provider#rikka.shizuku.ShizukuProvider
-INJECTED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:32:9-38:81
+INJECTED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:38:9-44:81
 	android:enabled
-		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:36:13-35
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:42:13-35
 	android:authorities
 		INJECTED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml
-		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:34:13-59
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:40:13-59
 	android:multiprocess
-		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:35:13-41
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:41:13-41
 	android:exported
-		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:37:13-36
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:43:13-36
 	android:permission
-		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:38:13-79
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:44:13-79
 	android:name
-		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:33:13-57
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:39:13-57
 manifest
-ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:2:1-40:12
-INJECTED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:2:1-40:12
-INJECTED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:2:1-40:12
-INJECTED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:2:1-40:12
+ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:2:1-46:12
+INJECTED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:2:1-46:12
+INJECTED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:2:1-46:12
+INJECTED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:2:1-46:12
 MERGED from [androidx.compose.material3:material3-android:1.3.0] /home/anshv/.gradle/caches/8.13/transforms/b2df27c314c2879aff97af78eee64e80/transformed/material3-release/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.compose.animation:animation-core-android:1.7.0] /home/anshv/.gradle/caches/8.13/transforms/b6f50037be83c0da53999979212e11b2/transformed/animation-core-release/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.compose.material:material-ripple-android:1.7.0] /home/anshv/.gradle/caches/8.13/transforms/eaff11e677eb5fe96e0bab125e7b0109/transformed/material-ripple-release/AndroidManifest.xml:2:1-7:12
@@ -105,8 +105,8 @@ ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifes
 	android:name
 		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:9:22-75
 application
-ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:11:5-39:19
-INJECTED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:11:5-39:19
+ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:11:5-45:19
+INJECTED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:11:5-45:19
 MERGED from [androidx.emoji2:emoji2:1.3.0] /home/anshv/.gradle/caches/8.13/transforms/5b1e70b2bef14053496e7ce6d9e3c5ed/transformed/emoji2-1.3.0/AndroidManifest.xml:23:5-33:19
 MERGED from [androidx.emoji2:emoji2:1.3.0] /home/anshv/.gradle/caches/8.13/transforms/5b1e70b2bef14053496e7ce6d9e3c5ed/transformed/emoji2-1.3.0/AndroidManifest.xml:23:5-33:19
 MERGED from [androidx.core:core:1.13.1] /home/anshv/.gradle/caches/8.13/transforms/ebfcabefed30883702763da81e935c30/transformed/core-1.13.1/AndroidManifest.xml:28:5-89
@@ -126,43 +126,55 @@ MERGED from [androidx.startup:startup-runtime:1.1.1] /home/anshv/.gradle/caches/
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.13.1] /home/anshv/.gradle/caches/8.13/transforms/ebfcabefed30883702763da81e935c30/transformed/core-1.13.1/AndroidManifest.xml:28:18-86
 	android:label
-		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:13:9-35
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:15:9-35
 	tools:ignore
 		ADDED from [dev.rikka.shizuku:provider:13.1.5] /home/anshv/.gradle/caches/8.13/transforms/35476e2a14c15c0ce112a8773396a859/transformed/provider-13.1.5/AndroidManifest.xml:10:18-69
+	android:roundIcon
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:14:9-54
+	android:icon
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:13:9-43
 	android:theme
-		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:14:9-47
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:16:9-47
 	android:name
 		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:12:9-45
-activity#com.inputleaf.android.ui.MainActivity
-ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:15:9-22:20
+activity#com.inputleaf.android.ui.SplashActivity
+ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:17:9-25:20
 	android:exported
-		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:17:13-36
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:20:13-36
+	android:theme
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:19:13-58
 	android:name
-		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:16:13-44
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:18:13-46
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:18:13-21:29
+ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:21:13-24:29
 action#android.intent.action.MAIN
-ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:19:17-68
+ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:22:17-68
 	android:name
-		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:19:25-66
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:22:25-66
 category#android.intent.category.LAUNCHER
-ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:20:17-76
+ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:23:17-76
 	android:name
-		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:20:27-74
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:23:27-74
+activity#com.inputleaf.android.ui.MainActivity
+ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:26:9-28:40
+	android:exported
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:28:13-37
+	android:name
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:27:13-44
 service#com.inputleaf.android.service.ConnectionService
-ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:23:9-26:39
+ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:29:9-32:39
 	android:exported
-		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:26:13-37
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:32:13-37
 	android:foregroundServiceType
-		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:25:13-60
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:31:13-60
 	android:name
-		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:24:13-54
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:30:13-54
 service#com.inputleaf.android.service.CursorOverlayService
-ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:27:9-29:39
+ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:33:9-35:39
 	android:exported
-		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:29:13-37
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:35:13-37
 	android:name
-		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:28:13-57
+		ADDED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:34:13-57
 uses-sdk
 INJECTED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml
