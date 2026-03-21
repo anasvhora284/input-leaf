@@ -169,7 +169,8 @@ int layout notification_template_icon_group 0x7f070006
 int layout notification_template_part_chronometer 0x7f070007
 int layout notification_template_part_time 0x7f070008
 int mipmap ic_launcher 0x7f080000
-int mipmap ic_launcher_round 0x7f080001
+int mipmap ic_launcher_foreground 0x7f080001
+int mipmap ic_launcher_round 0x7f080002
 int string androidx_startup 0x7f090000
 int string call_notification_answer_action 0x7f090001
 int string call_notification_answer_video_action 0x7f090002

@@ -128,13 +128,15 @@ fun MainScreen(
                     }
                 }
             }
-            // Shizuku status card
-            item {
-                ShizukuStatusCard(
-                    status = shizukuStatus,
-                    onRequestPermission = onRequestShizukuPermission,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
+            // Shizuku status card - only show when not ready
+            if (shizukuStatus != MainViewModel.ShizukuStatus.READY) {
+                item {
+                    ShizukuStatusCard(
+                        status = shizukuStatus,
+                        onRequestPermission = onRequestShizukuPermission,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
             }
             // Search bar
             item {
