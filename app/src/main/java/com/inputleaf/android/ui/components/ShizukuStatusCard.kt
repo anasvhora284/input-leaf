@@ -16,13 +16,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.inputleaf.android.ui.MainViewModel
-import com.inputleaf.android.ui.theme.Gradients
-import com.inputleaf.android.ui.theme.Purple600
-import com.inputleaf.android.ui.theme.Success500
-import com.inputleaf.android.ui.theme.Success600
-import com.inputleaf.android.ui.theme.TextPrimary
-import com.inputleaf.android.ui.theme.TextSecondary
-import com.inputleaf.android.ui.theme.Warning500
 
 @Composable
 fun ShizukuStatusCard(
@@ -36,7 +29,7 @@ fun ShizukuStatusCard(
         MainViewModel.ShizukuStatus.READY -> {
             GradientCard(
                 modifier = modifier.fillMaxWidth(),
-                gradient = Gradients.Success,
+                backgroundColor = MaterialTheme.colorScheme.tertiaryContainer,
                 cornerRadius = 24.dp,
                 elevation = 0.dp,
                 padding = 20.dp
@@ -50,20 +43,20 @@ fun ShizukuStatusCard(
                         icon = Icons.Rounded.CheckCircle,
                         size = 48.dp,
                         iconSize = 28.dp,
-                        backgroundColor = Color.White,
-                        iconTint = Success500
+                        backgroundColor = MaterialTheme.colorScheme.tertiary,
+                        iconTint = MaterialTheme.colorScheme.onTertiary
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Shizuku Ready",
                             fontWeight = FontWeight.SemiBold,
-                            color = Success600,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
                             style = MaterialTheme.typography.titleSmall
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "Input injection enabled",
-                            color = Success600.copy(alpha = 0.8f),
+                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f),
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -80,7 +73,7 @@ fun ShizukuStatusCard(
 
             when (status) {
                 MainViewModel.ShizukuStatus.CHECKING -> {
-                    icon = null; color = Color.Gray; title = "Checking Shizuku..."
+                    icon = null; color = MaterialTheme.colorScheme.onSurfaceVariant; title = "Checking Shizuku..."
                     description = ""; actionLabel = null; action = null
                 }
                 MainViewModel.ShizukuStatus.NOT_INSTALLED -> {
@@ -94,7 +87,7 @@ fun ShizukuStatusCard(
                     }
                 }
                 MainViewModel.ShizukuStatus.NOT_RUNNING -> {
-                    icon = Icons.Default.Warning; color = Warning500
+                    icon = Icons.Default.Warning; color = MaterialTheme.colorScheme.tertiary
                     title = "Shizuku Not Running"
                     description = "Open Shizuku app and start it via Wireless Debugging (Android 11+) or ADB."
                     actionLabel = "Open Shizuku"
@@ -105,13 +98,13 @@ fun ShizukuStatusCard(
                     }
                 }
                 MainViewModel.ShizukuStatus.PERMISSION_REQUIRED -> {
-                    icon = Icons.Default.Warning; color = Warning500
+                    icon = Icons.Default.Warning; color = MaterialTheme.colorScheme.tertiary
                     title = "Permission Required"
                     description = "Grant Input-Leaf permission to use Shizuku for input injection."
                     actionLabel = "Grant Permission"; action = onRequestPermission
                 }
                 else -> {
-                    icon = null; color = Color.Gray; title = "Unknown"
+                    icon = null; color = MaterialTheme.colorScheme.onSurfaceVariant; title = "Unknown"
                     description = ""; actionLabel = null; action = null
                 }
             }
@@ -138,7 +131,7 @@ fun ShizukuStatusCard(
                         Text(
                             text = title,
                             fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary,
+                            color = MaterialTheme.colorScheme.onSurface,
                             style = MaterialTheme.typography.titleSmall
                         )
                     }
@@ -146,14 +139,14 @@ fun ShizukuStatusCard(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = description,
-                            color = TextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
                     if (actionLabel != null && action != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         TextButton(onClick = action) {
-                            Text(actionLabel, color = Purple600)
+                            Text(actionLabel, color = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }

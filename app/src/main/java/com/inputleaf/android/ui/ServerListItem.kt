@@ -16,15 +16,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.inputleaf.android.model.ServerInfo
 import com.inputleaf.android.ui.components.CircularAvatar
 import com.inputleaf.android.ui.components.GradientCard
-import com.inputleaf.android.ui.theme.Gradients
-import com.inputleaf.android.ui.theme.TextPrimary
-import com.inputleaf.android.ui.theme.TextSecondary
-import com.inputleaf.android.ui.theme.TextTertiary
-import com.inputleaf.android.ui.theme.Purple600
 
 @Composable
 fun ServerListItem(
@@ -38,8 +32,7 @@ fun ServerListItem(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
             .clickable { onServerClick(server) },
-        gradient = if (isConnected) Gradients.Accent else null,
-        backgroundColor = if (isConnected) Color.Transparent else Color.White,
+        backgroundColor = if (isConnected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
         cornerRadius = 24.dp,
         elevation = if (isConnected) 0.dp else 1.dp,
         padding = 16.dp
@@ -53,8 +46,8 @@ fun ServerListItem(
                 icon = Icons.Rounded.Build,
                 size = 48.dp,
                 iconSize = 24.dp,
-                backgroundColor = if (isConnected) Color.White else Color(0xFFF5F5F5),
-                iconTint = if (isConnected) Purple600 else TextTertiary,
+                backgroundColor = if (isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest,
+                iconTint = if (isConnected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                 elevation = if (isConnected) 2.dp else 0.dp
             )
 
@@ -62,13 +55,13 @@ fun ServerListItem(
                 Text(
                     text = server.name.ifBlank { server.ip },
                     fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.titleSmall
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = if (isConnected) "${server.ip} • Connected" else server.ip,
-                    color = if (isConnected) Purple600 else TextSecondary,
+                    color = if (isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall
                 )
             }
@@ -77,15 +70,15 @@ fun ServerListItem(
                 Box(
                     modifier = Modifier
                         .size(12.dp)
-                        .shadow(4.dp, CircleShape, ambientColor = Color(0xFF4CAF50))
+                        .shadow(4.dp, CircleShape, ambientColor = MaterialTheme.colorScheme.primary)
                         .clip(CircleShape)
-                        .background(Color(0xFF4CAF50))
+                        .background(MaterialTheme.colorScheme.primary)
                 )
             } else {
                 Icon(
                     imageVector = Icons.Rounded.ArrowForward,
                     contentDescription = "Navigate",
-                    tint = Color(0xFFCCCCCC),
+                    tint = MaterialTheme.colorScheme.outline,
                     modifier = Modifier.size(20.dp)
                 )
             }

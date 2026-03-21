@@ -19,10 +19,6 @@ import androidx.compose.ui.unit.sp
 import com.inputleaf.android.ui.components.CircularAvatar
 import com.inputleaf.android.ui.components.GradientCard
 import com.inputleaf.android.ui.components.MaterialToggleSwitch
-import com.inputleaf.android.ui.theme.Gradients
-import com.inputleaf.android.ui.theme.TextPrimary
-import com.inputleaf.android.ui.theme.TextSecondary
-import com.inputleaf.android.ui.theme.Purple600
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,7 +65,7 @@ fun SettingsScreen(
             
             GradientCard(
                 modifier = Modifier.fillMaxWidth(),
-                backgroundColor = Color.White,
+                backgroundColor = MaterialTheme.colorScheme.surface,
                 cornerRadius = 24.dp,
                 padding = 0.dp
             ) {
@@ -82,7 +78,7 @@ fun SettingsScreen(
                         onClick = { showEditNameDialog = true }
                     )
                     HorizontalDivider(
-                        color = Color(0xFFF5F5F5),
+                        color = MaterialTheme.colorScheme.outlineVariant,
                         thickness = 1.dp,
                         modifier = Modifier.padding(start = 72.dp)
                     )
@@ -108,7 +104,7 @@ fun SettingsScreen(
             
             GradientCard(
                 modifier = Modifier.fillMaxWidth(),
-                backgroundColor = Color.White,
+                backgroundColor = MaterialTheme.colorScheme.surface,
                 cornerRadius = 24.dp,
                 padding = 0.dp
             ) {
@@ -118,7 +114,7 @@ fun SettingsScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(Color(0xFFFEE2E2))
+                                .background(MaterialTheme.colorScheme.errorContainer)
                                 .padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -126,20 +122,20 @@ fun SettingsScreen(
                                 icon = Icons.Rounded.Warning,
                                 size = 40.dp,
                                 iconSize = 24.dp,
-                                backgroundColor = Color(0xFFFECACA),
-                                iconTint = Color(0xFFDC2626)
+                                backgroundColor = MaterialTheme.colorScheme.error.copy(alpha = 0.1f),
+                                iconTint = MaterialTheme.colorScheme.error
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = "Overlay permission required",
                                     fontWeight = FontWeight.SemiBold,
-                                    color = Color(0xFF991B1B),
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                                 Text(
                                     text = "Required to show cursor on screen",
-                                    color = Color(0xFFB91C1C),
+                                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f),
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
@@ -148,7 +144,7 @@ fun SettingsScreen(
                             onClick = onRequestOverlayPermission,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
-                            Text("Grant Permission", color = Purple600)
+                            Text("Grant Permission", color = MaterialTheme.colorScheme.primary)
                         }
                     }
                     // Show Cursor toggle
@@ -187,7 +183,7 @@ fun SettingsScreen(
             
             GradientCard(
                 modifier = Modifier.fillMaxWidth(),
-                backgroundColor = Color.White,
+                backgroundColor = MaterialTheme.colorScheme.surface,
                 cornerRadius = 24.dp,
                 padding = 0.dp
             ) {
@@ -203,7 +199,7 @@ fun SettingsScreen(
                     fingerprints.entries.forEachIndexed { index, (ip, fp) ->
                         if (index > 0) {
                             HorizontalDivider(
-                                color = Color(0xFFF5F5F5),
+                                color = MaterialTheme.colorScheme.outlineVariant,
                                 thickness = 1.dp,
                                 modifier = Modifier.padding(start = 72.dp)
                             )
@@ -218,12 +214,12 @@ fun SettingsScreen(
                                 Text(
                                     text = ip,
                                     fontWeight = FontWeight.Medium,
-                                    color = TextPrimary,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                                 Text(
                                     text = fp.take(16) + "...",
-                                    color = TextSecondary,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
@@ -231,7 +227,7 @@ fun SettingsScreen(
                                 Icon(
                                     Icons.Rounded.Delete,
                                     contentDescription = "Remove",
-                                    tint = Color(0xFFCCCCCC)
+                                    tint = MaterialTheme.colorScheme.outline
                                 )
                             }
                         }
@@ -325,7 +321,7 @@ private fun SectionHeader(text: String) {
         text = text,
         fontSize = 12.sp,
         fontWeight = FontWeight.SemiBold,
-        color = TextSecondary,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = 4.dp, bottom = 12.dp, top = 8.dp)
     )
 }
@@ -358,22 +354,22 @@ private fun SettingsRow(
                 icon = icon,
                 size = 40.dp,
                 iconSize = 22.dp,
-                background = Gradients.Accent,
-                iconTint = Purple600
+                backgroundColor = MaterialTheme.colorScheme.secondaryContainer,
+                iconTint = MaterialTheme.colorScheme.onSecondaryContainer
             )
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
                     fontWeight = FontWeight.Medium,
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.bodyMedium
                 )
                 if (subtitle != null) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = subtitle,
-                        color = TextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -385,7 +381,7 @@ private fun SettingsRow(
                 Icon(
                     imageVector = Icons.Rounded.ArrowForward,
                     contentDescription = "Navigate",
-                    tint = Color(0xFFCCCCCC)
+                    tint = MaterialTheme.colorScheme.outline
                 )
             }
         }

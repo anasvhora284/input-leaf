@@ -1,7 +1,5 @@
 package com.inputleaf.android.ui
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -9,9 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.Info
@@ -24,7 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,11 +28,6 @@ import com.inputleaf.android.model.ServerInfo
 import com.inputleaf.android.ui.components.CircularAvatar
 import com.inputleaf.android.ui.components.GradientCard
 import com.inputleaf.android.ui.components.ShizukuStatusCard
-import com.inputleaf.android.ui.theme.Gradients
-import com.inputleaf.android.ui.theme.Purple600
-import com.inputleaf.android.ui.theme.TextPrimary
-import com.inputleaf.android.ui.theme.TextSecondary
-import com.inputleaf.android.ui.theme.TextTertiary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,7 +67,7 @@ fun MainScreen(
                 ) {
                     GradientCard(
                         modifier = Modifier.weight(1f),
-                        gradient = Gradients.Accent,
+                        backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
                         cornerRadius = 24.dp,
                         elevation = 0.dp,
                         padding = 16.dp
@@ -87,20 +77,20 @@ fun MainScreen(
                                 imageVector = Icons.Rounded.Phone,
                                 contentDescription = "Screen",
                                 modifier = Modifier.size(28.dp),
-                                tint = Purple600
+                                tint = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "SCREEN",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Purple600
+                                color = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = screenName,
                                 fontWeight = FontWeight.Medium,
-                                color = TextPrimary,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
@@ -108,7 +98,7 @@ fun MainScreen(
 
                     GradientCard(
                         modifier = Modifier.weight(1f),
-                        gradient = Gradients.Accent,
+                        backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
                         cornerRadius = 24.dp,
                         elevation = 0.dp,
                         padding = 16.dp
@@ -118,20 +108,20 @@ fun MainScreen(
                                 imageVector = Icons.Rounded.Info,
                                 contentDescription = "Cursor",
                                 modifier = Modifier.size(28.dp),
-                                tint = Purple600
+                                tint = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "CURSOR",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Purple600
+                                color = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "Enabled",
                                 fontWeight = FontWeight.Medium,
-                                color = TextPrimary,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
@@ -209,7 +199,7 @@ private fun StatusCard(state: ConnectionState, screenName: String) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        backgroundColor = Color.White,
+        backgroundColor = MaterialTheme.colorScheme.surface,
         cornerRadius = 28.dp,
         elevation = 1.dp,
         padding = 20.dp
@@ -224,9 +214,8 @@ private fun StatusCard(state: ConnectionState, screenName: String) {
                     icon = Icons.Rounded.Build,
                     size = 56.dp,
                     iconSize = 28.dp,
-                    background = if (isConnected) Gradients.Primary else null,
-                    backgroundColor = Color(0xFFF5F5F5),
-                    iconTint = if (isConnected) Color.White else TextTertiary,
+                    backgroundColor = if (isConnected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
+                    iconTint = if (isConnected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                     elevation = if (isConnected) 4.dp else 0.dp
                 )
 
@@ -234,7 +223,7 @@ private fun StatusCard(state: ConnectionState, screenName: String) {
                     Text(
                         text = statusLabel,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (isConnected) Purple600 else TextSecondary,
+                        color = if (isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.labelMedium
                     )
                     if (serverName.isNotEmpty()) {
@@ -242,14 +231,14 @@ private fun StatusCard(state: ConnectionState, screenName: String) {
                         Text(
                             text = serverName,
                             fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary,
+                            color = MaterialTheme.colorScheme.onSurface,
                             style = MaterialTheme.typography.titleMedium
                         )
                     }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "Screen: $screenName",
-                        color = TextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -267,7 +256,7 @@ private fun ServerSearchBar(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        backgroundColor = Color.White,
+        backgroundColor = MaterialTheme.colorScheme.surface,
         cornerRadius = 28.dp,
         elevation = 1.dp,
         padding = 12.dp
@@ -281,12 +270,12 @@ private fun ServerSearchBar(
                 imageVector = Icons.Rounded.Search,
                 contentDescription = "Search",
                 modifier = Modifier.size(24.dp),
-                tint = TextTertiary
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
             
             Text(
                 text = "Search servers...",
-                color = TextTertiary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyMedium
             )
@@ -294,7 +283,7 @@ private fun ServerSearchBar(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Gradients.Primary)
+                    .background(MaterialTheme.colorScheme.primary)
                     .clickable { onScanClick() }
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center
@@ -302,7 +291,7 @@ private fun ServerSearchBar(
                 Text(
                     text = "Scan",
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     style = MaterialTheme.typography.labelMedium
                 )
             }
