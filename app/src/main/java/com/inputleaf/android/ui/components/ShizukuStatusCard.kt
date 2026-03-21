@@ -100,7 +100,7 @@ fun ShizukuStatusCard(
                 MainViewModel.ShizukuStatus.PERMISSION_REQUIRED -> {
                     icon = Icons.Default.Warning; color = MaterialTheme.colorScheme.tertiary
                     title = "Permission Required"
-                    description = "Grant Input-Leaf permission to use Shizuku for input injection."
+                    description = "Grant Input Leaf permission to use Shizuku for input injection."
                     actionLabel = "Grant Permission"; action = onRequestPermission
                 }
                 else -> {

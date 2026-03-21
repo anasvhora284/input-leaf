@@ -29,7 +29,7 @@
         android:debuggable="true"
         android:extractNativeLibs="false"
         android:icon="@mipmap/ic_launcher"
-        android:label="Input-Leaf"
+        android:label="Input Leaf"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.InputLeaf" >
         <activity

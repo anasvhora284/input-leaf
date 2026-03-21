@@ -2,8 +2,6 @@ package com.inputleaf.android.ui
 
 import android.content.Intent
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.core.animateFloatAsState
@@ -66,34 +64,42 @@ fun SplashScreen(onTimeout: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF8B5CF6)),
+            .background(Color(0xFF0C3244)),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Image(
-            painter = painterResource(id = R.drawable.ic_logo_splash),
-            contentDescription = "InputLeaf Logo",
+            painter = painterResource(id = R.drawable.ic_splash_logo),
+            contentDescription = "Input Leaf Logo",
             modifier = Modifier
-                .size(160.dp)
+                .size(200.dp)
                 .alpha(alphaAnim)
         )
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        Image(
+            painter = painterResource(id = R.drawable.ic_splash_text),
+            contentDescription = "Input Leaf",
+            modifier = Modifier
+                .height(48.dp)
+                .alpha(alphaAnim),
+            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         Text(
-            text = "InputLeaf",
-            color = Color.White,
-            fontSize = 32.sp,
-            fontWeight = FontWeight.Bold,
+            text = "Android extension of Input Leap",
+            color = Color(0xFF7CB8A8),
+            fontSize = 13.sp,
             modifier = Modifier.alpha(alphaAnim)
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
-
         Text(
-            text = "Seamless Input Sharing",
-            color = Color(0xFFDDD6FE),
-            fontSize = 16.sp,
+            text = "Open Source KVM Software",
+            color = Color(0xFF5A9A8A),
+            fontSize = 12.sp,
             modifier = Modifier.alpha(alphaAnim)
         )
     }

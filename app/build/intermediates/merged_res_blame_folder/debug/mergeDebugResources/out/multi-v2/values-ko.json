@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.inputleaf.android.app-mergeDebugResources-43:/values-ko/values-ko.xml",
+            "outputFile": "com.inputleaf.android.app-mergeDebugResources-44:/values-ko/values-ko.xml",
             "map": [
                 {
                     "source": "/home/anshv/.gradle/caches/8.13/transforms/ebfcabefed30883702763da81e935c30/transformed/core-1.13.1/res/values-ko/values-ko.xml",

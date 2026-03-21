@@ -31,6 +31,7 @@ MERGED from [androidx.compose.ui:ui-geometry-android:1.7.0] /home/anshv/.gradle/
 MERGED from [androidx.compose.ui:ui-util-android:1.7.0] /home/anshv/.gradle/caches/8.13/transforms/4f98e66befedc941220b742e3bf917f3/transformed/ui-util-release/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.compose.ui:ui-text-android:1.7.0] /home/anshv/.gradle/caches/8.13/transforms/1f4e7607a426fe3ea3a77dd3ecba59b6/transformed/ui-text-release/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.compose.ui:ui-tooling-preview-android:1.7.0] /home/anshv/.gradle/caches/8.13/transforms/7f72b8fb16543f7c1f2900d60b559987/transformed/ui-tooling-preview-release/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.compose.material:material-icons-extended-android:1.7.0] /home/anshv/.gradle/caches/8.13/transforms/2afceed9910741323fa40684c284506f/transformed/material-icons-extended-release/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.compose.material:material-icons-core-android:1.7.0] /home/anshv/.gradle/caches/8.13/transforms/ceb23eec67e1289a4d8ce6746b6e70d2/transformed/material-icons-core-release/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.activity:activity:1.8.2] /home/anshv/.gradle/caches/8.13/transforms/257eef3da3033d45802a39c869eed120/transformed/activity-1.8.2/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.emoji2:emoji2:1.3.0] /home/anshv/.gradle/caches/8.13/transforms/5b1e70b2bef14053496e7ce6d9e3c5ed/transformed/emoji2-1.3.0/AndroidManifest.xml:17:1-35:12
@@ -203,6 +204,8 @@ MERGED from [androidx.compose.ui:ui-text-android:1.7.0] /home/anshv/.gradle/cach
 MERGED from [androidx.compose.ui:ui-text-android:1.7.0] /home/anshv/.gradle/caches/8.13/transforms/1f4e7607a426fe3ea3a77dd3ecba59b6/transformed/ui-text-release/AndroidManifest.xml:5:5-44
 MERGED from [androidx.compose.ui:ui-tooling-preview-android:1.7.0] /home/anshv/.gradle/caches/8.13/transforms/7f72b8fb16543f7c1f2900d60b559987/transformed/ui-tooling-preview-release/AndroidManifest.xml:20:5-44
 MERGED from [androidx.compose.ui:ui-tooling-preview-android:1.7.0] /home/anshv/.gradle/caches/8.13/transforms/7f72b8fb16543f7c1f2900d60b559987/transformed/ui-tooling-preview-release/AndroidManifest.xml:20:5-44
+MERGED from [androidx.compose.material:material-icons-extended-android:1.7.0] /home/anshv/.gradle/caches/8.13/transforms/2afceed9910741323fa40684c284506f/transformed/material-icons-extended-release/AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.material:material-icons-extended-android:1.7.0] /home/anshv/.gradle/caches/8.13/transforms/2afceed9910741323fa40684c284506f/transformed/material-icons-extended-release/AndroidManifest.xml:5:5-44
 MERGED from [androidx.compose.material:material-icons-core-android:1.7.0] /home/anshv/.gradle/caches/8.13/transforms/ceb23eec67e1289a4d8ce6746b6e70d2/transformed/material-icons-core-release/AndroidManifest.xml:5:5-44
 MERGED from [androidx.compose.material:material-icons-core-android:1.7.0] /home/anshv/.gradle/caches/8.13/transforms/ceb23eec67e1289a4d8ce6746b6e70d2/transformed/material-icons-core-release/AndroidManifest.xml:5:5-44
 MERGED from [androidx.activity:activity:1.8.2] /home/anshv/.gradle/caches/8.13/transforms/257eef3da3033d45802a39c869eed120/transformed/activity-1.8.2/AndroidManifest.xml:20:5-44
