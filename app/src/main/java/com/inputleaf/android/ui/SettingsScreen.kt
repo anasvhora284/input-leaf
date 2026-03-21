@@ -43,6 +43,7 @@ fun SettingsScreen(
 ) {
     var editingName by remember(screenName) { mutableStateOf(screenName) }
     var showThemeDialog by remember { mutableStateOf(false) }
+    var showEditNameDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -78,7 +79,7 @@ fun SettingsScreen(
                         icon = Icons.Rounded.Phone,
                         title = "Screen name",
                         subtitle = screenName,
-                        onClick = { /* Could open edit dialog */ }
+                        onClick = { showEditNameDialog = true }
                     )
                     HorizontalDivider(
                         color = Color(0xFFF5F5F5),
@@ -276,6 +277,41 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showThemeDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showEditNameDialog) {
+        var newName by remember { mutableStateOf(screenName) }
+        AlertDialog(
+            onDismissRequest = { showEditNameDialog = false },
+            title = { Text("Screen Name") },
+            text = {
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (newName.isNotBlank()) {
+                            onScreenNameChange(newName)
+                            showEditNameDialog = false
+                        }
+                    },
+                    enabled = newName.isNotBlank()
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditNameDialog = false }) {
                     Text("Cancel")
                 }
             }
