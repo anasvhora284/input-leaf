@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.inputleaf.android.protocol.ProtocolParserTest" tests="6" skipped="0" failures="2" errors="0" timestamp="2026-03-20T19:09:12.187Z" hostname="ansh-vhora" time="0.152">
+<testsuite name="com.inputleaf.android.protocol.ProtocolParserTest" tests="6" skipped="0" failures="2" errors="0" timestamp="2026-03-20T20:10:48.873Z" hostname="ansh-vhora" time="0.057">
   <properties/>
-  <testcase name="parses QueryInfo message" classname="com.inputleaf.android.protocol.ProtocolParserTest" time="0.09"/>
-  <testcase name="skips unknown message type" classname="com.inputleaf.android.protocol.ProtocolParserTest" time="0.002"/>
-  <testcase name="parses Hello message" classname="com.inputleaf.android.protocol.ProtocolParserTest" time="0.005"/>
-  <testcase name="parses MouseMoveRel" classname="com.inputleaf.android.protocol.ProtocolParserTest" time="0.04">
+  <testcase name="parses QueryInfo message" classname="com.inputleaf.android.protocol.ProtocolParserTest" time="0.036"/>
+  <testcase name="skips unknown message type" classname="com.inputleaf.android.protocol.ProtocolParserTest" time="0.001"/>
+  <testcase name="parses Hello message" classname="com.inputleaf.android.protocol.ProtocolParserTest" time="0.001"/>
+  <testcase name="parses MouseMoveRel" classname="com.inputleaf.android.protocol.ProtocolParserTest" time="0.016">
     <failure message="value of: readNext()&#10;expected: MouseMoveRel(dx=5, dy=-3)&#10;but was : MouseMoveRel(dx=5, dy=253)" type="com.google.common.truth.ComparisonFailureWithFacts">value of: readNext()
 expected: MouseMoveRel(dx=5, dy=-3)
 but was : MouseMoveRel(dx=5, dy=253)
 	at app//com.inputleaf.android.protocol.ProtocolParserTest.parses MouseMoveRel(ProtocolParserTest.kt:46)
 </failure>
   </testcase>
-  <testcase name="parses KeepAlive message" classname="com.inputleaf.android.protocol.ProtocolParserTest" time="0.004"/>
-  <testcase name="parses KeyDown message" classname="com.inputleaf.android.protocol.ProtocolParserTest" time="0.007">
+  <testcase name="parses KeepAlive message" classname="com.inputleaf.android.protocol.ProtocolParserTest" time="0.0"/>
+  <testcase name="parses KeyDown message" classname="com.inputleaf.android.protocol.ProtocolParserTest" time="0.003">
     <failure message="java.lang.RuntimeException: Method d in android.util.Log not mocked. See https://developer.android.com/r/studio-ui/build/not-mocked for details." type="java.lang.RuntimeException">java.lang.RuntimeException: Method d in android.util.Log not mocked. See https://developer.android.com/r/studio-ui/build/not-mocked for details.
 	at android.util.Log.d(Log.java)
 	at com.inputleaf.android.protocol.ProtocolParser.parse(ProtocolParser.kt:39)

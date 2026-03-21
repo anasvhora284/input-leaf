@@ -49,8 +49,7 @@ fun MainScreen(
     onScan: () -> Unit,
     onConnect: (ServerInfo) -> Unit,
     onAddManual: (String) -> Unit,
-    onRequestShizukuPermission: () -> Unit,
-    onSettingsClick: () -> Unit
+    onRequestShizukuPermission: () -> Unit
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
     var manualIp by remember { mutableStateOf("") }
@@ -58,12 +57,7 @@ fun MainScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Input-Leaf") },
-                actions = {
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Default.Settings, "Settings")
-                    }
-                }
+                title = { Text("Input-Leaf") }
             )
         }
     ) { padding ->

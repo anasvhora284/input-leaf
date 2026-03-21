@@ -1,3 +1,11 @@
 R_DEF: Internal format may change without notice
 local
+color ic_launcher_background
+color splash_background
+drawable ic_launcher_foreground
+drawable ic_logo
+drawable ic_logo_splash
+mipmap ic_launcher
+mipmap ic_launcher_round
 style Theme.InputLeaf
+style Theme.InputLeaf.Splash

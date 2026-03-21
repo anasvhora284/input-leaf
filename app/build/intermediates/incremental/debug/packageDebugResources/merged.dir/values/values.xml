@@ -1,4 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.InputLeaf" parent="android:Theme.Material.Light.NoActionBar"/>
+    <color name="ic_launcher_background">#8B5CF6</color>
+    <color name="splash_background">#8B5CF6</color>
+    <style name="Theme.InputLeaf" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/splash_background</item>
+        <item name="android:navigationBarColor">@color/splash_background</item>
+    </style>
+    <style name="Theme.InputLeaf.Splash" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/splash_background</item>
+        <item name="android:statusBarColor">@color/splash_background</item>
+        <item name="android:navigationBarColor">@color/splash_background</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
 </resources>

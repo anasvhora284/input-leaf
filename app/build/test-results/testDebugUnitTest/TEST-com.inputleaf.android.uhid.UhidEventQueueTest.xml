@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.inputleaf.android.uhid.UhidEventQueueTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-03-20T19:09:13.195Z" hostname="ansh-vhora" time="0.008">
+<testsuite name="com.inputleaf.android.uhid.UhidEventQueueTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-03-20T20:10:49.136Z" hostname="ansh-vhora" time="0.004">
   <properties/>
-  <testcase name="enqueue and dequeue works" classname="com.inputleaf.android.uhid.UhidEventQueueTest" time="0.002"/>
+  <testcase name="enqueue and dequeue works" classname="com.inputleaf.android.uhid.UhidEventQueueTest" time="0.003"/>
   <testcase name="drops oldest when full" classname="com.inputleaf.android.uhid.UhidEventQueueTest" time="0.001"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
