@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,10 +24,13 @@ fun CircularAvatar(
     size: Dp = 56.dp,
     iconSize: Dp = 28.dp,
     background: Brush? = null,
-    backgroundColor: Color = Color(0xFFF5F5F5),
-    iconTint: Color = Color.Black,
+    backgroundColor: Color? = null,
+    iconTint: Color? = null,
     elevation: Dp = 0.dp
 ) {
+    val bgColor = backgroundColor ?: MaterialTheme.colorScheme.surfaceContainerHighest
+    val fgColor = iconTint ?: MaterialTheme.colorScheme.onSurfaceVariant
+
     Box(
         modifier = modifier
             .size(size)
@@ -36,7 +40,7 @@ fun CircularAvatar(
                 if (background != null) {
                     Modifier.background(background)
                 } else {
-                    Modifier.background(backgroundColor)
+                    Modifier.background(bgColor)
                 }
             ),
         contentAlignment = Alignment.Center
@@ -45,7 +49,7 @@ fun CircularAvatar(
             imageVector = icon,
             contentDescription = null,
             modifier = Modifier.size(iconSize),
-            tint = iconTint
+            tint = fgColor
         )
     }
 }

@@ -1,18 +1,14 @@
 package com.inputleaf.android.ui
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -20,8 +16,6 @@ import androidx.compose.ui.unit.dp
 import com.inputleaf.android.ui.components.CircularAvatar
 import com.inputleaf.android.ui.components.GradientCard
 import com.inputleaf.android.ui.components.ShizukuStatusCard
-import com.inputleaf.android.ui.theme.Gradients
-import com.inputleaf.android.ui.theme.Success500
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,8 +97,8 @@ private fun PermissionCard(
 ) {
     GradientCard(
         modifier = Modifier.fillMaxWidth(),
-        backgroundColor = if (isGranted) MaterialTheme.colorScheme.surface 
-                         else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
+        backgroundColor = if (isGranted) MaterialTheme.colorScheme.tertiaryContainer
+                         else MaterialTheme.colorScheme.errorContainer,
         cornerRadius = 24.dp,
         elevation = 1.dp,
         padding = 20.dp
@@ -118,16 +112,20 @@ private fun PermissionCard(
                 icon = if (isGranted) Icons.Rounded.CheckCircle else icon,
                 size = 48.dp,
                 iconSize = 24.dp,
-                backgroundColor = if (isGranted) Success500.copy(alpha = 0.1f) 
+                backgroundColor = if (isGranted) MaterialTheme.colorScheme.tertiary
                                  else MaterialTheme.colorScheme.error.copy(alpha = 0.1f),
-                iconTint = if (isGranted) Success500 else MaterialTheme.colorScheme.error
+                iconTint = if (isGranted) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.error
             )
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isGranted) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onErrorContainer
+                )
                 Text(
                     text = description,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isGranted) MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onErrorContainer
                 )
             }
             if (!isGranted) {
