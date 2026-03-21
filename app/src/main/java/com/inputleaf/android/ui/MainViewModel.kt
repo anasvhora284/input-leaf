@@ -23,6 +23,12 @@ import kotlinx.coroutines.launch
 import android.util.Log
 import rikka.shizuku.Shizuku
 
+enum class ThemeMode {
+    SYSTEM,
+    LIGHT,
+    DARK
+}
+
 class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val prefs = AppPreferences(app)
@@ -51,6 +57,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val screenName: Flow<String> = prefs.screenName
     val autoConnect: Flow<Boolean> = prefs.autoConnect
     val fingerprints: Flow<Map<String, String>> = prefs.allFingerprints()
+    val themeMode: Flow<String> = prefs.themeMode
 
     // TOFU: suspending channel — UI collects this and shows FingerprintDialog
     private val _fingerprintRequest = Channel<FingerprintRequest>(1)
@@ -74,6 +81,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun saveScreenName(name: String) { viewModelScope.launch { prefs.saveScreenName(name) } }
     fun saveAutoConnect(v: Boolean) { viewModelScope.launch { prefs.saveAutoConnect(v) } }
     fun deleteFingerprint(ip: String) { viewModelScope.launch { prefs.removeFingerprint(ip) } }
+    fun saveThemeMode(mode: String) { viewModelScope.launch { prefs.saveThemeMode(mode) } }
 
     // Called by UI after user taps Trust/Cancel in FingerprintDialog
     fun respondToFingerprint(request: FingerprintRequest, trusted: Boolean) {

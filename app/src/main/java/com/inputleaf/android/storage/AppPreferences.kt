@@ -15,6 +15,7 @@ class AppPreferences(private val context: Context) {
         private val KEY_SCREEN_NAME      = stringPreferencesKey("screen_name")
         private val KEY_AUTO_CONNECT     = booleanPreferencesKey("auto_connect")
         private val KEY_SHOW_CURSOR      = booleanPreferencesKey("show_cursor")
+        private val KEY_THEME_MODE       = stringPreferencesKey("theme_mode")
         // Fingerprints stored as "ip:fingerprint" joined by newline
         private val KEY_FINGERPRINTS     = stringPreferencesKey("tls_fingerprints")
     }
@@ -31,6 +32,9 @@ class AppPreferences(private val context: Context) {
     val showCursor: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_SHOW_CURSOR] ?: true }
 
+    val themeMode: Flow<String> =
+        context.dataStore.data.map { it[KEY_THEME_MODE] ?: "SYSTEM" }
+
     suspend fun saveLastServer(ip: String) = context.dataStore.edit {
         it[KEY_LAST_SERVER_IP] = ip
     }
@@ -45,6 +49,10 @@ class AppPreferences(private val context: Context) {
     
     suspend fun saveShowCursor(enabled: Boolean) = context.dataStore.edit {
         it[KEY_SHOW_CURSOR] = enabled
+    }
+
+    suspend fun saveThemeMode(mode: String) = context.dataStore.edit {
+        it[KEY_THEME_MODE] = mode
     }
 
     fun fingerprintFor(ip: String): Flow<String?> =
