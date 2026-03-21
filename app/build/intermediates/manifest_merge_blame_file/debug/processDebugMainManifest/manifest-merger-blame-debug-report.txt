@@ -54,7 +54,7 @@
 30        android:extractNativeLibs="false"
 31        android:icon="@mipmap/ic_launcher"
 31-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:13:9-43
-32        android:label="Input-Leaf"
+32        android:label="Input Leaf"
 32-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:15:9-35
 33        android:roundIcon="@mipmap/ic_launcher_round"
 33-->/home/anshv/Anas/Other/input-leaf-android/app/src/main/AndroidManifest.xml:14:9-54

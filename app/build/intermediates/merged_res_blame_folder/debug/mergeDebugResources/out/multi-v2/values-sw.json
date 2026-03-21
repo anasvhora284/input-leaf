@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.inputleaf.android.app-mergeDebugResources-43:/values-sw/values-sw.xml",
+            "outputFile": "com.inputleaf.android.app-mergeDebugResources-44:/values-sw/values-sw.xml",
             "map": [
                 {
                     "source": "/home/anshv/.gradle/caches/8.13/transforms/9d210be4f0fdc26ef2637e4f0e3149f8/transformed/ui-release/res/values-sw/values-sw.xml",

@@ -12,7 +12,7 @@
         android:name=".InputLeafApplication"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:label="Input-Leaf"
+        android:label="Input Leaf"
         android:theme="@style/Theme.InputLeaf">
         <activity
             android:name=".ui.SplashActivity"

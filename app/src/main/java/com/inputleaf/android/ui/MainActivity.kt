@@ -13,13 +13,15 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Build
+import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Home
-import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.*
@@ -127,6 +129,10 @@ fun AppNavigation(viewModel: MainViewModel) {
     val fingerprints by viewModel.fingerprints.collectAsState(initial = emptyMap())
     val shizukuStatus by viewModel.shizukuStatus.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsState(initial = "SYSTEM")
+    val onboardingComplete by viewModel.onboardingComplete.collectAsState(initial = true)
+    val mouseEnabled by viewModel.mouseEnabled.collectAsState(initial = true)
+    val keyboardEnabled by viewModel.keyboardEnabled.collectAsState(initial = true)
+    val favoriteServers by viewModel.favoriteServers.collectAsState(initial = emptySet())
 
     // TOFU fingerprint dialog
     var pendingFpRequest by remember { mutableStateOf<MainViewModel.FingerprintRequest?>(null) }
@@ -142,10 +148,36 @@ fun AppNavigation(viewModel: MainViewModel) {
         )
     }
 
+    // Show onboarding on first launch
+    if (!onboardingComplete) {
+        OnboardingScreen(
+            shizukuStatus = shizukuStatus,
+            canDrawOverlays = canDrawOverlays,
+            batteryOptimizationExempt = batteryOptimizationExempt,
+            onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
+            onRequestOverlayPermission = {
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:${context.packageName}")
+                )
+                context.startActivity(intent)
+            },
+            onRequestBatteryOptimization = {
+                val intent = Intent(
+                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:${context.packageName}")
+                )
+                context.startActivity(intent)
+            },
+            onComplete = { viewModel.completeOnboarding() }
+        )
+        return
+    }
+
     val navItems = listOf(
         NavItem("Home", Icons.Rounded.Home, "main"),
-        NavItem("Servers", Icons.Rounded.Info, "servers"),
-        NavItem("Permissions", Icons.Rounded.Build, "setup"),
+        NavItem("Servers", Icons.Rounded.Dns, "servers"),
+        NavItem("Permissions", Icons.Rounded.Shield, "setup"),
         NavItem("Settings", Icons.Rounded.Settings, "settings")
     )
     val selectedIndex = when (screen) {
@@ -156,77 +188,88 @@ fun AppNavigation(viewModel: MainViewModel) {
         else -> 0
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        when (screen) {
-            "main" -> MainScreen(
-                connectionState = connectionState,
-                discoveredServers = discoveredServers,
-                isScanning = isScanning,
-                screenName = screenName,
-                shizukuStatus = shizukuStatus,
-                onScan = { viewModel.scan() },
-                onConnect = { viewModel.connect(it) },
-                onAddManual = { viewModel.addManualServer(it) },
-                onRequestShizukuPermission = { viewModel.requestShizukuPermission() }
-            )
-            "servers" -> ServerListScreen(
-                connectionState = connectionState,
-                discoveredServers = discoveredServers,
-                isScanning = isScanning,
-                onScan = { viewModel.scan() },
-                onConnect = { viewModel.connect(it) },
-                onAddManual = { viewModel.addManualServer(it) }
-            )
-            "setup" -> SetupScreen(
-                shizukuStatus = shizukuStatus,
-                canDrawOverlays = canDrawOverlays,
-                batteryOptimizationExempt = batteryOptimizationExempt,
-                onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
-                onRequestOverlayPermission = {
-                    val intent = Intent(
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:${context.packageName}")
-                    )
-                    context.startActivity(intent)
-                },
-                onRequestBatteryOptimization = {
-                    val intent = Intent(
-                        Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                        Uri.parse("package:${context.packageName}")
-                    )
-                    context.startActivity(intent)
+    Scaffold(
+        bottomBar = {
+            AnimatedBottomNavigation(
+                items = navItems,
+                selectedIndex = selectedIndex,
+                onItemSelected = { index ->
+                    screen = navItems[index].route
                 }
             )
-            "settings" -> SettingsScreen(
-                screenName = screenName,
-                autoConnect = autoConnect,
-                showCursor = showCursor,
-                themeMode = themeMode,
-                canDrawOverlays = canDrawOverlays,
-                fingerprints = fingerprints,
-                onScreenNameChange = { viewModel.saveScreenName(it) },
-                onAutoConnectChange = { viewModel.saveAutoConnect(it) },
-                onShowCursorChange = { viewModel.saveShowCursor(it) },
-                onThemeModeChange = { viewModel.saveThemeMode(it) },
-                onRequestOverlayPermission = {
-                    val intent = Intent(
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:${context.packageName}")
-                    )
-                    context.startActivity(intent)
-                },
-                onDeleteFingerprint = { viewModel.deleteFingerprint(it) },
-                onBack = { screen = "main" }
-            )
         }
-
-        AnimatedBottomNavigation(
-            items = navItems,
-            selectedIndex = selectedIndex,
-            onItemSelected = { index ->
-                screen = navItems[index].route
-            },
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
+    ) { innerPadding ->
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            when (screen) {
+                "main" -> MainScreen(
+                    connectionState = connectionState,
+                    discoveredServers = discoveredServers,
+                    isScanning = isScanning,
+                    screenName = screenName,
+                    shizukuStatus = shizukuStatus,
+                    mouseEnabled = mouseEnabled,
+                    keyboardEnabled = keyboardEnabled,
+                    favoriteServers = favoriteServers,
+                    onScan = { viewModel.scan() },
+                    onConnect = { viewModel.connect(it) },
+                    onDisconnect = { viewModel.disconnect() },
+                    onAddManual = { viewModel.addManualServer(it) },
+                    onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
+                    onToggleMouse = { viewModel.toggleMouseEnabled(it) },
+                    onToggleKeyboard = { viewModel.toggleKeyboardEnabled(it) }
+                )
+                "servers" -> ServerListScreen(
+                    connectionState = connectionState,
+                    discoveredServers = discoveredServers,
+                    isScanning = isScanning,
+                    favoriteServers = favoriteServers,
+                    onScan = { viewModel.scan() },
+                    onConnect = { viewModel.connect(it) },
+                    onAddManual = { viewModel.addManualServer(it) },
+                    onToggleFavorite = { viewModel.toggleFavoriteServer(it) }
+                )
+                "setup" -> SetupScreen(
+                    shizukuStatus = shizukuStatus,
+                    canDrawOverlays = canDrawOverlays,
+                    batteryOptimizationExempt = batteryOptimizationExempt,
+                    onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
+                    onRequestOverlayPermission = {
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:${context.packageName}")
+                        )
+                        context.startActivity(intent)
+                    },
+                    onRequestBatteryOptimization = {
+                        val intent = Intent(
+                            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            Uri.parse("package:${context.packageName}")
+                        )
+                        context.startActivity(intent)
+                    }
+                )
+                "settings" -> SettingsScreen(
+                    screenName = screenName,
+                    autoConnect = autoConnect,
+                    showCursor = showCursor,
+                    themeMode = themeMode,
+                    canDrawOverlays = canDrawOverlays,
+                    fingerprints = fingerprints,
+                    onScreenNameChange = { viewModel.saveScreenName(it) },
+                    onAutoConnectChange = { viewModel.saveAutoConnect(it) },
+                    onShowCursorChange = { viewModel.saveShowCursor(it) },
+                    onThemeModeChange = { viewModel.saveThemeMode(it) },
+                    onRequestOverlayPermission = {
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:${context.packageName}")
+                        )
+                        context.startActivity(intent)
+                    },
+                    onDeleteFingerprint = { viewModel.deleteFingerprint(it) },
+                    onBack = { screen = "main" }
+                )
+            }
+        }
     }
 }

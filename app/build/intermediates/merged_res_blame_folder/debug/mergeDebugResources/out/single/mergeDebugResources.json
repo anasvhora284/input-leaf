@@ -1,86 +1,86 @@
 [
     {
-        "merged": "com.inputleaf.android.app-debug-45:/mipmap-mdpi_ic_launcher_round.png.flat",
-        "source": "com.inputleaf.android.app-main-47:/mipmap-mdpi/ic_launcher_round.png"
+        "merged": "com.inputleaf.android.app-debug-46:/mipmap-hdpi_ic_launcher_foreground.png.flat",
+        "source": "com.inputleaf.android.app-main-48:/mipmap-hdpi/ic_launcher_foreground.png"
     },
     {
-        "merged": "/home/anshv/.gradle/daemon/8.13/com.inputleaf.android.app-debug-45:/drawable_ic_logo.xml.flat",
-        "source": "/home/anshv/.gradle/daemon/8.13/com.inputleaf.android.app-main-47:/drawable/ic_logo.xml"
+        "merged": "com.inputleaf.android.app-debug-46:/mipmap-xxxhdpi_ic_launcher.png.flat",
+        "source": "com.inputleaf.android.app-main-48:/mipmap-xxxhdpi/ic_launcher.png"
     },
     {
-        "merged": "com.inputleaf.android.app-debug-45:/mipmap-xhdpi_ic_launcher_round.png.flat",
-        "source": "com.inputleaf.android.app-main-47:/mipmap-xhdpi/ic_launcher_round.png"
+        "merged": "com.inputleaf.android.app-debug-46:/mipmap-xhdpi_ic_launcher_round.png.flat",
+        "source": "com.inputleaf.android.app-main-48:/mipmap-xhdpi/ic_launcher_round.png"
     },
     {
-        "merged": "/home/anshv/.gradle/daemon/8.13/com.inputleaf.android.app-debug-45:/drawable_ic_launcher_foreground.xml.flat",
-        "source": "/home/anshv/.gradle/daemon/8.13/com.inputleaf.android.app-main-47:/drawable/ic_launcher_foreground.xml"
+        "merged": "com.inputleaf.android.app-debug-46:/drawable_ic_logo.xml.flat",
+        "source": "com.inputleaf.android.app-main-48:/drawable/ic_logo.xml"
     },
     {
-        "merged": "com.inputleaf.android.app-debug-45:/mipmap-hdpi_ic_launcher_foreground.png.flat",
-        "source": "com.inputleaf.android.app-main-47:/mipmap-hdpi/ic_launcher_foreground.png"
+        "merged": "com.inputleaf.android.app-debug-46:/mipmap-mdpi_ic_launcher_foreground.png.flat",
+        "source": "com.inputleaf.android.app-main-48:/mipmap-mdpi/ic_launcher_foreground.png"
     },
     {
-        "merged": "com.inputleaf.android.app-debug-45:/mipmap-hdpi_ic_launcher.png.flat",
-        "source": "com.inputleaf.android.app-main-47:/mipmap-hdpi/ic_launcher.png"
+        "merged": "com.inputleaf.android.app-debug-46:/mipmap-xxhdpi_ic_launcher_round.png.flat",
+        "source": "com.inputleaf.android.app-main-48:/mipmap-xxhdpi/ic_launcher_round.png"
     },
     {
-        "merged": "com.inputleaf.android.app-debug-45:/drawable_ic_launcher_foreground.xml.flat",
-        "source": "com.inputleaf.android.app-main-47:/drawable/ic_launcher_foreground.xml"
+        "merged": "com.inputleaf.android.app-debug-46:/mipmap-mdpi_ic_launcher_round.png.flat",
+        "source": "com.inputleaf.android.app-main-48:/mipmap-mdpi/ic_launcher_round.png"
     },
     {
-        "merged": "com.inputleaf.android.app-debug-45:/mipmap-xxhdpi_ic_launcher.png.flat",
-        "source": "com.inputleaf.android.app-main-47:/mipmap-xxhdpi/ic_launcher.png"
+        "merged": "com.inputleaf.android.app-debug-46:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.inputleaf.android.app-main-48:/mipmap-anydpi-v26/ic_launcher_round.xml"
     },
     {
-        "merged": "com.inputleaf.android.app-debug-45:/mipmap-xxxhdpi_ic_launcher_round.png.flat",
-        "source": "com.inputleaf.android.app-main-47:/mipmap-xxxhdpi/ic_launcher_round.png"
+        "merged": "com.inputleaf.android.app-debug-46:/drawable_ic_logo_splash.xml.flat",
+        "source": "com.inputleaf.android.app-main-48:/drawable/ic_logo_splash.xml"
     },
     {
-        "merged": "com.inputleaf.android.app-debug-45:/mipmap-mdpi_ic_launcher.png.flat",
-        "source": "com.inputleaf.android.app-main-47:/mipmap-mdpi/ic_launcher.png"
+        "merged": "com.inputleaf.android.app-debug-46:/drawable-nodpi_ic_splash_text.png.flat",
+        "source": "com.inputleaf.android.app-main-48:/drawable-nodpi/ic_splash_text.png"
     },
     {
-        "merged": "com.inputleaf.android.app-debug-45:/mipmap-xxhdpi_ic_launcher_foreground.png.flat",
-        "source": "com.inputleaf.android.app-main-47:/mipmap-xxhdpi/ic_launcher_foreground.png"
+        "merged": "com.inputleaf.android.app-debug-46:/mipmap-hdpi_ic_launcher.png.flat",
+        "source": "com.inputleaf.android.app-main-48:/mipmap-hdpi/ic_launcher.png"
     },
     {
-        "merged": "com.inputleaf.android.app-debug-45:/mipmap-xxhdpi_ic_launcher_round.png.flat",
-        "source": "com.inputleaf.android.app-main-47:/mipmap-xxhdpi/ic_launcher_round.png"
+        "merged": "com.inputleaf.android.app-debug-46:/mipmap-xxxhdpi_ic_launcher_round.png.flat",
+        "source": "com.inputleaf.android.app-main-48:/mipmap-xxxhdpi/ic_launcher_round.png"
     },
     {
-        "merged": "com.inputleaf.android.app-debug-45:/mipmap-hdpi_ic_launcher_round.png.flat",
-        "source": "com.inputleaf.android.app-main-47:/mipmap-hdpi/ic_launcher_round.png"
+        "merged": "com.inputleaf.android.app-debug-46:/mipmap-mdpi_ic_launcher.png.flat",
+        "source": "com.inputleaf.android.app-main-48:/mipmap-mdpi/ic_launcher.png"
     },
     {
-        "merged": "com.inputleaf.android.app-debug-45:/mipmap-xhdpi_ic_launcher.png.flat",
-        "source": "com.inputleaf.android.app-main-47:/mipmap-xhdpi/ic_launcher.png"
+        "merged": "com.inputleaf.android.app-debug-46:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.inputleaf.android.app-main-48:/mipmap-anydpi-v26/ic_launcher.xml"
     },
     {
-        "merged": "/home/anshv/.gradle/daemon/8.13/com.inputleaf.android.app-debug-45:/mipmap-anydpi-v26_ic_launcher.xml.flat",
-        "source": "/home/anshv/.gradle/daemon/8.13/com.inputleaf.android.app-main-47:/mipmap-anydpi-v26/ic_launcher.xml"
+        "merged": "com.inputleaf.android.app-debug-46:/mipmap-xxhdpi_ic_launcher_foreground.png.flat",
+        "source": "com.inputleaf.android.app-main-48:/mipmap-xxhdpi/ic_launcher_foreground.png"
     },
     {
-        "merged": "/home/anshv/.gradle/daemon/8.13/com.inputleaf.android.app-debug-45:/drawable_ic_logo_splash.xml.flat",
-        "source": "/home/anshv/.gradle/daemon/8.13/com.inputleaf.android.app-main-47:/drawable/ic_logo_splash.xml"
+        "merged": "com.inputleaf.android.app-debug-46:/mipmap-hdpi_ic_launcher_round.png.flat",
+        "source": "com.inputleaf.android.app-main-48:/mipmap-hdpi/ic_launcher_round.png"
     },
     {
-        "merged": "com.inputleaf.android.app-debug-45:/mipmap-mdpi_ic_launcher_foreground.png.flat",
-        "source": "com.inputleaf.android.app-main-47:/mipmap-mdpi/ic_launcher_foreground.png"
+        "merged": "com.inputleaf.android.app-debug-46:/mipmap-xxxhdpi_ic_launcher_foreground.png.flat",
+        "source": "com.inputleaf.android.app-main-48:/mipmap-xxxhdpi/ic_launcher_foreground.png"
     },
     {
-        "merged": "/home/anshv/.gradle/daemon/8.13/com.inputleaf.android.app-debug-45:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
-        "source": "/home/anshv/.gradle/daemon/8.13/com.inputleaf.android.app-main-47:/mipmap-anydpi-v26/ic_launcher_round.xml"
+        "merged": "com.inputleaf.android.app-debug-46:/mipmap-xhdpi_ic_launcher_foreground.png.flat",
+        "source": "com.inputleaf.android.app-main-48:/mipmap-xhdpi/ic_launcher_foreground.png"
     },
     {
-        "merged": "com.inputleaf.android.app-debug-45:/mipmap-xhdpi_ic_launcher_foreground.png.flat",
-        "source": "com.inputleaf.android.app-main-47:/mipmap-xhdpi/ic_launcher_foreground.png"
+        "merged": "com.inputleaf.android.app-debug-46:/drawable_ic_splash_logo.png.flat",
+        "source": "com.inputleaf.android.app-main-48:/drawable/ic_splash_logo.png"
     },
     {
-        "merged": "com.inputleaf.android.app-debug-45:/mipmap-xxxhdpi_ic_launcher.png.flat",
-        "source": "com.inputleaf.android.app-main-47:/mipmap-xxxhdpi/ic_launcher.png"
+        "merged": "com.inputleaf.android.app-debug-46:/mipmap-xxhdpi_ic_launcher.png.flat",
+        "source": "com.inputleaf.android.app-main-48:/mipmap-xxhdpi/ic_launcher.png"
     },
     {
-        "merged": "com.inputleaf.android.app-debug-45:/mipmap-xxxhdpi_ic_launcher_foreground.png.flat",
-        "source": "com.inputleaf.android.app-main-47:/mipmap-xxxhdpi/ic_launcher_foreground.png"
+        "merged": "com.inputleaf.android.app-debug-46:/mipmap-xhdpi_ic_launcher.png.flat",
+        "source": "com.inputleaf.android.app-main-48:/mipmap-xhdpi/ic_launcher.png"
     }
 ]

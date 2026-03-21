@@ -65,6 +65,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val autoConnect: Flow<Boolean> = prefs.autoConnect
     val fingerprints: Flow<Map<String, String>> = prefs.allFingerprints()
     val themeMode: Flow<String> = prefs.themeMode
+    val onboardingComplete: Flow<Boolean> = prefs.onboardingComplete
+    val mouseEnabled: Flow<Boolean> = prefs.mouseEnabled
+    val keyboardEnabled: Flow<Boolean> = prefs.keyboardEnabled
+    val favoriteServers: Flow<Set<String>> = prefs.favoriteServers
 
     // TOFU: suspending channel — UI collects this and shows FingerprintDialog
     private val _fingerprintRequest = Channel<FingerprintRequest>(1)
@@ -89,6 +93,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun saveAutoConnect(v: Boolean) { viewModelScope.launch { prefs.saveAutoConnect(v) } }
     fun deleteFingerprint(ip: String) { viewModelScope.launch { prefs.removeFingerprint(ip) } }
     fun saveThemeMode(mode: String) { viewModelScope.launch { prefs.saveThemeMode(mode) } }
+    fun completeOnboarding() { viewModelScope.launch { prefs.saveOnboardingComplete() } }
+    fun toggleMouseEnabled(enabled: Boolean) { viewModelScope.launch { prefs.saveMouseEnabled(enabled) } }
+    fun toggleKeyboardEnabled(enabled: Boolean) { viewModelScope.launch { prefs.saveKeyboardEnabled(enabled) } }
+    fun toggleFavoriteServer(ip: String) { viewModelScope.launch { prefs.toggleFavoriteServer(ip) } }
 
     // Called by UI after user taps Trust/Cancel in FingerprintDialog
     fun respondToFingerprint(request: FingerprintRequest, trusted: Boolean) {

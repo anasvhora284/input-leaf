@@ -1,12 +1,13 @@
 package com.inputleaf.android.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Build
+import androidx.compose.material.icons.rounded.Computer
 import androidx.compose.material.icons.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -25,7 +26,9 @@ fun ServerListItem(
     server: ServerInfo,
     isConnected: Boolean,
     onServerClick: (ServerInfo) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isFavorite: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null
 ) {
     GradientCard(
         modifier = modifier
@@ -43,7 +46,7 @@ fun ServerListItem(
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             CircularAvatar(
-                icon = Icons.Rounded.Build,
+                icon = Icons.Rounded.Computer,
                 size = 48.dp,
                 iconSize = 24.dp,
                 backgroundColor = if (isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -66,15 +69,36 @@ fun ServerListItem(
                 )
             }
 
+            // Favorite toggle
+            if (onToggleFavorite != null) {
+                IconButton(
+                    onClick = onToggleFavorite,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                        contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                        tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
             if (isConnected) {
                 Box(
                     modifier = Modifier
                         .size(12.dp)
                         .shadow(4.dp, CircleShape, ambientColor = MaterialTheme.colorScheme.primary)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary)
-                )
-            } else {
+                        .then(Modifier.size(12.dp))
+                ) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary
+                    ) {}
+                }
+            } else if (onToggleFavorite == null) {
                 Icon(
                     imageVector = Icons.Rounded.ArrowForward,
                     contentDescription = "Navigate",
