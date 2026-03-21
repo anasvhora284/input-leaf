@@ -145,7 +145,7 @@ fun AppNavigation(viewModel: MainViewModel) {
     val navItems = listOf(
         NavItem("Home", Icons.Rounded.Home, "main"),
         NavItem("Servers", Icons.Rounded.Info, "servers"),
-        NavItem("Setup", Icons.Rounded.Build, "setup"),
+        NavItem("Permissions", Icons.Rounded.Build, "setup"),
         NavItem("Settings", Icons.Rounded.Settings, "settings")
     )
     val selectedIndex = when (screen) {

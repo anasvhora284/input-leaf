@@ -23,6 +23,8 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import android.util.Log
 import rikka.shizuku.Shizuku
+import java.net.InetAddress
+import java.net.NetworkInterface
 
 enum class ThemeMode {
     SYSTEM,
@@ -217,15 +219,46 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun scan() {
         viewModelScope.launch {
             _isScanning.value = true
-            val wm = getApplication<Application>().getSystemService(WifiManager::class.java)
-            val ipInt = wm.connectionInfo.ipAddress
-            val ip = "${ipInt and 0xFF}.${(ipInt shr 8) and 0xFF}.${(ipInt shr 16) and 0xFF}.${(ipInt shr 24) and 0xFF}"
-            Log.d("InputLeaf", "Scanning from IP: $ip (raw=$ipInt)")
-            val results = scanner.scan(ip)
-            Log.d("InputLeaf", "Scan done: ${results.size} servers found: $results")
-            _discoveredServers.value = results
+            val ip = getLocalIpAddress()
+            Log.d("InputLeaf", "Scanning from IP: $ip")
+            if (ip != null) {
+                val results = scanner.scan(ip)
+                Log.d("InputLeaf", "Scan done: ${results.size} servers found: $results")
+                _discoveredServers.value = results
+            } else {
+                Log.e("InputLeaf", "Could not determine local IP address")
+                _discoveredServers.value = emptyList()
+            }
             _isScanning.value = false
         }
+    }
+
+    private fun getLocalIpAddress(): String? {
+        try {
+            val interfaces = NetworkInterface.getNetworkInterfaces()
+            while (interfaces.hasMoreElements()) {
+                val networkInterface = interfaces.nextElement()
+                // Skip loopback and inactive interfaces
+                if (networkInterface.isLoopback || !networkInterface.isUp) continue
+                
+                val addresses = networkInterface.inetAddresses
+                while (addresses.hasMoreElements()) {
+                    val address = addresses.nextElement()
+                    // Look for IPv4 addresses
+                    if (address is InetAddress && !address.isLoopbackAddress) {
+                        val hostAddress = address.hostAddress
+                        // Check if it's a valid IPv4 address (not null, contains dots)
+                        if (hostAddress != null && hostAddress.contains('.')) {
+                            Log.d("InputLeaf", "Found interface: ${networkInterface.name} = $hostAddress")
+                            return hostAddress
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("InputLeaf", "Error getting IP address: ${e.message}")
+        }
+        return null
     }
 
     fun connect(server: ServerInfo) {
