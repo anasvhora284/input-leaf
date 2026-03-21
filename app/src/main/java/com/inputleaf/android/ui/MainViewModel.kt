@@ -8,6 +8,7 @@ import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.net.wifi.WifiManager
 import android.os.IBinder
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -51,6 +52,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // Cursor overlay status
     private val _canDrawOverlays = MutableStateFlow(false)
     val canDrawOverlays: StateFlow<Boolean> = _canDrawOverlays
+    
+    // Battery optimization status
+    private val _batteryOptimizationExempt = MutableStateFlow(false)
+    val batteryOptimizationExempt: StateFlow<Boolean> = _batteryOptimizationExempt
     
     val showCursor: Flow<Boolean> = prefs.showCursor
 
@@ -126,6 +131,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         setupShizukuListeners()
         checkShizukuStatus()
         checkOverlayPermission()
+        checkBatteryOptimization()
         
         // Observe showCursor preference and update service
         viewModelScope.launch {
@@ -188,6 +194,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     
     fun checkOverlayPermission() {
         _canDrawOverlays.value = Settings.canDrawOverlays(getApplication())
+    }
+    
+    fun checkBatteryOptimization() {
+        val app = getApplication<Application>()
+        val powerManager = app.getSystemService(PowerManager::class.java)
+        _batteryOptimizationExempt.value = powerManager.isIgnoringBatteryOptimizations(app.packageName)
     }
     
     fun saveShowCursor(enabled: Boolean) {

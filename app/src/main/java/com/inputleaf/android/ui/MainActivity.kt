@@ -107,6 +107,8 @@ class MainActivity : ComponentActivity() {
         viewModel.checkShizukuStatus()
         // Re-check overlay permission (user may have granted it in settings)
         viewModel.checkOverlayPermission()
+        // Re-check battery optimization
+        viewModel.checkBatteryOptimization()
     }
 }
 
@@ -121,6 +123,7 @@ fun AppNavigation(viewModel: MainViewModel) {
     val autoConnect by viewModel.autoConnect.collectAsState(initial = true)
     val showCursor by viewModel.showCursor.collectAsState(initial = true)
     val canDrawOverlays by viewModel.canDrawOverlays.collectAsStateWithLifecycle()
+    val batteryOptimizationExempt by viewModel.batteryOptimizationExempt.collectAsStateWithLifecycle()
     val fingerprints by viewModel.fingerprints.collectAsState(initial = emptyMap())
     val shizukuStatus by viewModel.shizukuStatus.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsState(initial = "SYSTEM")
@@ -176,7 +179,23 @@ fun AppNavigation(viewModel: MainViewModel) {
             )
             "setup" -> SetupScreen(
                 shizukuStatus = shizukuStatus,
-                onRequestShizukuPermission = { viewModel.requestShizukuPermission() }
+                canDrawOverlays = canDrawOverlays,
+                batteryOptimizationExempt = batteryOptimizationExempt,
+                onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
+                onRequestOverlayPermission = {
+                    val intent = Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:${context.packageName}")
+                    )
+                    context.startActivity(intent)
+                },
+                onRequestBatteryOptimization = {
+                    val intent = Intent(
+                        Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                        Uri.parse("package:${context.packageName}")
+                    )
+                    context.startActivity(intent)
+                }
             )
             "settings" -> SettingsScreen(
                 screenName = screenName,

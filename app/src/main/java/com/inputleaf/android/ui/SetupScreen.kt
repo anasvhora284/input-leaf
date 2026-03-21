@@ -21,12 +21,17 @@ import com.inputleaf.android.ui.components.CircularAvatar
 import com.inputleaf.android.ui.components.GradientCard
 import com.inputleaf.android.ui.components.ShizukuStatusCard
 import com.inputleaf.android.ui.theme.Gradients
+import com.inputleaf.android.ui.theme.Success500
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SetupScreen(
     shizukuStatus: MainViewModel.ShizukuStatus,
-    onRequestShizukuPermission: () -> Unit
+    canDrawOverlays: Boolean,
+    batteryOptimizationExempt: Boolean,
+    onRequestShizukuPermission: () -> Unit,
+    onRequestOverlayPermission: () -> Unit,
+    onRequestBatteryOptimization: () -> Unit
 ) {
     val context = LocalContext.current
 
@@ -46,13 +51,13 @@ fun SetupScreen(
         ) {
             item {
                 Text(
-                    text = "Shizuku Setup",
+                    text = "Permissions",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Shizuku is required for mouse and keyboard input injection on Android.",
+                    text = "Grant all required permissions to use InputLeaf.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -66,36 +71,68 @@ fun SetupScreen(
             }
 
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Setup Steps",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
+                PermissionCard(
+                    icon = Icons.Default.Warning,
+                    title = "Overlay Permission",
+                    description = "Required to show cursor overlay",
+                    isGranted = canDrawOverlays,
+                    onRequestPermission = onRequestOverlayPermission
+                )
+            }
 
-                        SetupStep(
-                            number = "1",
-                            title = "Install Shizuku",
-                            description = "Download Shizuku from Play Store"
-                        )
-                        SetupStep(
-                            number = "2",
-                            title = "Start Shizuku",
-                            description = "Open Shizuku and start it via Wireless Debugging (Android 11+) or ADB"
-                        )
-                        SetupStep(
-                            number = "3",
-                            title = "Grant Permission",
-                            description = "Allow Input-Leaf to use Shizuku for input injection"
-                        )
-                    }
+            item {
+                PermissionCard(
+                    icon = Icons.Default.Warning,
+                    title = "Battery Optimization",
+                    description = "Allow background activity",
+                    isGranted = batteryOptimizationExempt,
+                    onRequestPermission = onRequestBatteryOptimization
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PermissionCard(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    isGranted: Boolean,
+    onRequestPermission: () -> Unit
+) {
+    GradientCard(
+        modifier = Modifier.fillMaxWidth(),
+        backgroundColor = if (isGranted) MaterialTheme.colorScheme.surface 
+                         else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
+        cornerRadius = 24.dp,
+        elevation = 1.dp,
+        padding = 20.dp
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            CircularAvatar(
+                icon = if (isGranted) Icons.Rounded.CheckCircle else icon,
+                size = 48.dp,
+                iconSize = 24.dp,
+                backgroundColor = if (isGranted) Success500.copy(alpha = 0.1f) 
+                                 else MaterialTheme.colorScheme.error.copy(alpha = 0.1f),
+                iconTint = if (isGranted) Success500 else MaterialTheme.colorScheme.error
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (!isGranted) {
+                Button(onClick = onRequestPermission) {
+                    Text("Grant")
                 }
             }
         }
