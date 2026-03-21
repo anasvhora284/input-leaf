@@ -4,61 +4,49 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Leaf body - right side -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:fillAlpha="0.95"
-        android:pathData="M54,18
-            C63,18 78,28 82,46
-            C86,64 76,78 64,82
-            C60,83 57,82 54,80
-            C52,78 50,76 48,72
-            C42,60 44,38 54,18Z" />
+    <group
+        android:pivotX="54"
+        android:pivotY="54">
 
-    <!-- Leaf body - left side -->
-    <path
-        android:fillColor="#DDD6FE"
-        android:fillAlpha="0.85"
-        android:pathData="M54,18
-            C45,20 34,30 32,46
-            C30,62 38,76 50,80
-            C52,81 53,82 54,80
-            C52,78 50,76 48,72
-            C42,60 44,38 54,18Z" />
+        <path
+            android:fillColor="#6DB33F"
+            android:pathData="M54,18
+                C64,18 74,28 78,44
+                C80,58 74,68 64,76
+                C60,78 56,78 54,76
+                C52,74 50,72 48,68
+                C44,58 46,38 54,18Z" />
 
-    <!-- Leaf center vein -->
-    <path
-        android:strokeColor="#7C3AED"
-        android:strokeWidth="2.5"
-        android:strokeAlpha="0.5"
-        android:fillColor="#00000000"
-        android:pathData="M54,22 L54,78" />
+        <path
+            android:fillColor="#8BC34A"
+            android:pathData="M54,18
+                C44,20 34,30 30,44
+                C28,58 34,68 44,76
+                C48,78 52,78 54,76
+                C52,74 50,72 48,68
+                C44,58 46,38 54,18Z" />
 
-    <!-- Side veins -->
-    <path
-        android:strokeColor="#7C3AED"
-        android:strokeWidth="1.5"
-        android:strokeAlpha="0.3"
-        android:fillColor="#00000000"
-        android:pathData="M54,34 L70,30 M54,46 L74,42 M54,58 L70,58 M54,68 L64,70" />
+        <path
+            android:fillColor="#4CAF50"
+            android:pathData="M54,24
+                C50,26 46,32 44,40
+                C42,48 46,54 50,58
+                C52,60 53,60 54,58
+                C53,56 52,54 50,50
+                C48,42 50,32 54,24Z" />
 
-    <path
-        android:strokeColor="#7C3AED"
-        android:strokeWidth="1.5"
-        android:strokeAlpha="0.3"
-        android:fillColor="#00000000"
-        android:pathData="M54,34 L38,30 M54,46 L34,42 M54,58 L38,58 M54,68 L44,70" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M62,28 L56,44 L62,40 L68,52 L72,50 L66,36 L72,30 Z" />
 
-    <!-- Cursor arrow overlay -->
-    <path
-        android:fillColor="#8B5CF6"
-        android:pathData="M60,26 L60,48 L66,42 L72,52 L76,50 L70,38 L76,32Z" />
+        <path
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="1.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:fillColor="#00000000"
+            android:pathData="M54,80 Q54,88 50,90 Q46,92 42,88 Q40,84 44,80" />
 
-    <!-- Cursor arrow outline -->
-    <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="1.8"
-        android:fillColor="#00000000"
-        android:pathData="M60,26 L60,48 L66,42 L72,52 L76,50 L70,38 L76,32Z" />
+    </group>
 
 </vector>
