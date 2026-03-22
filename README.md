@@ -47,9 +47,10 @@ To use Input Leaf, you **must** have the following set up:
 
 | | | |
 |:---:|:---:|:---:|
-| | ![Splash Screen](docs/screenshots/01_splash.jpg) | |
-| ![Shizuku Setup](docs/screenshots/02_shizuku.jpg) | ![Overlay Permission](docs/screenshots/04_overlay.jpg) | ![Allow Background Activity](docs/screenshots/03_battery.jpg) |
-| ![Home Screen](docs/screenshots/05_home.jpg) | ![Settings Screen](docs/screenshots/06_settings.jpg) | |
+| | ![Splash Screen — App logo with tagline](docs/01_splash_screen.jpg) | |
+| | ![Setup Flow Screen](docs/02_setup_flow.jpg) | |
+| ![Shizuku Setup Screen](docs/03_shizuku_setup.jpg) | ![Battery Optimization Screen](docs/05_allow_bg_activity.jpg) | ![Overlay Permission Screen](docs/04_overlay_permission.jpg) |
+| ![Home Screen](docs/06_home_screen.jpg) | ![Settings Screen](docs/07_settings_screen.jpg) | |
 
 ---
 
