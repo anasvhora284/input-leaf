@@ -43,6 +43,16 @@ To use Input Leaf, you **must** have the following set up:
 
 ---
 
+## Screenshots
+
+| | | |
+|:---:|:---:|:---:|
+| | ![Splash Screen](docs/screenshots/01_splash.jpg) | |
+| ![Shizuku Setup](docs/screenshots/02_shizuku.jpg) | ![Battery Optimization](docs/screenshots/03_battery.jpg) | ![Overlay Permission](docs/screenshots/04_overlay.jpg) |
+| ![Home Screen](docs/screenshots/05_home.jpg) | ![Settings Screen](docs/screenshots/06_settings.jpg) | |
+
+---
+
 ## Getting Started / Installation
 
 Ready to build Input Leaf from source?
