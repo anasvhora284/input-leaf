@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import com.inputleaf.android.util.BatteryOptimizationHelper
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -163,11 +164,7 @@ fun AppNavigation(viewModel: MainViewModel) {
                 context.startActivity(intent)
             },
             onRequestBatteryOptimization = {
-                val intent = Intent(
-                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                    Uri.parse("package:${context.packageName}")
-                )
-                context.startActivity(intent)
+                BatteryOptimizationHelper.requestExemption(context)
             },
             onComplete = { viewModel.completeOnboarding() }
         )
@@ -241,11 +238,7 @@ fun AppNavigation(viewModel: MainViewModel) {
                         context.startActivity(intent)
                     },
                     onRequestBatteryOptimization = {
-                        val intent = Intent(
-                            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                            Uri.parse("package:${context.packageName}")
-                        )
-                        context.startActivity(intent)
+                        BatteryOptimizationHelper.requestExemption(context)
                     }
                 )
                 "settings" -> SettingsScreen(
