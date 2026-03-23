@@ -144,7 +144,7 @@ class InputInjectorService : IInputInjector.Stub() {
         }
     }
     
-    override fun injectKeyEvent(action: Int, keyCode: Int, metaState: Int): Boolean {
+    override fun injectKeyEvent(action: Int, keyCode: Int, scanCode: Int, metaState: Int): Boolean {
         return try {
             val now = SystemClock.uptimeMillis()
             
@@ -155,8 +155,8 @@ class InputInjectorService : IInputInjector.Stub() {
                 keyCode,    // keyCode
                 0,          // repeat
                 metaState,  // metaState (modifiers)
-                KeyEvent.KEYCODE_UNKNOWN, // deviceId
-                0,          // scanCode
+                -1,         // deviceId (-1 = virtual device)
+                scanCode,   // scanCode (Linux input event code)
                 KeyEvent.FLAG_FROM_SYSTEM,
                 InputDevice.SOURCE_KEYBOARD
             )

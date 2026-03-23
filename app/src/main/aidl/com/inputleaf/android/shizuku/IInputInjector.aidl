@@ -30,10 +30,11 @@ interface IInputInjector {
      * Inject a key event (keyboard).
      * @param action KeyEvent action (ACTION_DOWN or ACTION_UP)
      * @param keyCode Android KeyEvent keycode
+     * @param scanCode Hardware scan code (Linux input event code, e.g. 125 for KEY_LEFTMETA)
      * @param metaState Modifier state (CTRL, ALT, SHIFT, etc.)
      * @return true if injection succeeded
      */
-    boolean injectKeyEvent(int action, int keyCode, int metaState);
+    boolean injectKeyEvent(int action, int keyCode, int scanCode, int metaState);
     
     /**
      * Destroy the service and release resources.
