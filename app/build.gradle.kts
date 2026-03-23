@@ -9,7 +9,7 @@ android {
     defaultConfig {
         applicationId = "com.inputleaf.android"
         minSdk = 26; targetSdk = 34
-        versionCode = 2; versionName = "2.0.0"
+        versionCode = 2; versionName = "1.1.0"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -19,6 +19,14 @@ android {
     buildFeatures { 
         compose = true
         aidl = true  // Enable AIDL for Shizuku IPC
+    }
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            isUniversalApk = true
+        }
     }
 }
 dependencies {
