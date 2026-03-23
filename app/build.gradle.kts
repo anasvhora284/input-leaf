@@ -3,23 +3,49 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
 android {
     namespace = "com.inputleaf.android"
     compileSdk = 34
+    
     defaultConfig {
         applicationId = "com.inputleaf.android"
-        minSdk = 26; targetSdk = 34
-        versionCode = 2; versionName = "1.1.0"
+        minSdk = 26
+        targetSdk = 34
+        versionCode = 3
+        versionName = "1.2.0"
     }
+    
+    signingConfigs {
+        create("release") {
+            storeFile = file("input-leaf.jks")
+            storePassword = "inputleaf123"
+            keyAlias = "input-leaf"
+            keyPassword = "inputleaf123"
+        }
+    }
+    
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
+        }
+    }
+    
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
+    
+    kotlinOptions { 
+        jvmTarget = "17" 
+    }
+    
     buildFeatures { 
         compose = true
         aidl = true  // Enable AIDL for Shizuku IPC
     }
+    
     splits {
         abi {
             isEnable = true
@@ -28,7 +54,19 @@ android {
             isUniversalApk = true
         }
     }
+    
+    // Custom APK naming
+    applicationVariants.all {
+        val variant = this
+        variant.outputs.all {
+            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            val abiName = output.getFilter(com.android.build.OutputFile.ABI) ?: "universal"
+            val versionName = variant.versionName
+            output.outputFileName = "input-leaf_${versionName}_${abiName}.apk"
+        }
+    }
 }
+
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
     implementation(composeBom)
@@ -52,8 +90,3 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
     testImplementation("com.google.truth:truth:1.4.0")
 }
-
-// UHID server is a fallback for rooted devices - disabled while focusing on Shizuku
-// tasks.matching { it.name.contains("mergeDebugAssets") }.configureEach {
-//     dependsOn(project(":uhid-server").tasks.named("buildDex"))
-// }
