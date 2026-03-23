@@ -33,6 +33,8 @@ class ConnectionService : Service() {
     private var keepAliveJob: Job? = null
     private var retryAttempt = 0
     private var cursorOverlayEnabled = false
+    private var mouseEnabled = true
+    private var keyboardEnabled = true
     private var screenWidth = 0
     private var screenHeight = 0
     private var currentMouseX = 0f
@@ -66,6 +68,28 @@ class ConnectionService : Service() {
             prefs.showCursor.collect { enabled ->
                 cursorOverlayEnabled = enabled
                 Log.d(TAG, "Cursor overlay enabled changed: $enabled")
+            }
+        }
+        
+        // Observe mouse enabled preference
+        scope.launch {
+            mouseEnabled = prefs.mouseEnabled.first()
+            Log.d(TAG, "Mouse enabled initial value: $mouseEnabled")
+            prefs.mouseEnabled.collect { enabled ->
+                mouseEnabled = enabled
+                Log.d(TAG, "Mouse enabled changed: $enabled")
+                // Hide cursor if mouse is disabled while active
+                if (!enabled) hideCursorOverlay()
+            }
+        }
+        
+        // Observe keyboard enabled preference
+        scope.launch {
+            keyboardEnabled = prefs.keyboardEnabled.first()
+            Log.d(TAG, "Keyboard enabled initial value: $keyboardEnabled")
+            prefs.keyboardEnabled.collect { enabled ->
+                keyboardEnabled = enabled
+                Log.d(TAG, "Keyboard enabled changed: $enabled")
             }
         }
         
@@ -136,8 +160,8 @@ class ConnectionService : Service() {
                     }
                     is InputLeapEvent.Enter -> {
                         stateMachine.onActive()
-                        // Show cursor when entering
-                        showCursorOverlay()
+                        // Show cursor when entering (only if mouse is enabled)
+                        if (mouseEnabled) showCursorOverlay()
                     }
                     is InputLeapEvent.Leave -> { 
                         stateMachine.onLeave()
@@ -147,6 +171,7 @@ class ConnectionService : Service() {
                     }
                     is InputLeapEvent.KeepAlive -> { stateMachine.onKeepAlive(); conn.sendKeepAlive() }
                     is InputLeapEvent.MouseMoveAbs -> {
+                        if (!mouseEnabled) return@collect  // Skip if mouse disabled
                         // Update cursor overlay position
                         currentMouseX = event.x.toFloat()
                         currentMouseY = event.y.toFloat()
@@ -161,12 +186,21 @@ class ConnectionService : Service() {
                         }
                     }
                     is InputLeapEvent.MouseMoveRel -> {
+                        if (!mouseEnabled) return@collect  // Skip if mouse disabled
                         // Update cursor overlay position
                         currentMouseX = (currentMouseX + event.dx).coerceIn(0f, screenWidth.toFloat())
                         currentMouseY = (currentMouseY + event.dy).coerceIn(0f, screenHeight.toFloat())
                         updateCursorPosition(currentMouseX, currentMouseY)
                         
                         mouseTracker.updateRelative(event.dx, event.dy)
+                        dispatchInput(event)
+                    }
+                    is InputLeapEvent.MouseDown, is InputLeapEvent.MouseUp, is InputLeapEvent.MouseWheel -> {
+                        if (!mouseEnabled) return@collect  // Skip if mouse disabled
+                        dispatchInput(event)
+                    }
+                    is InputLeapEvent.KeyDown, is InputLeapEvent.KeyUp, is InputLeapEvent.KeyRepeat -> {
+                        if (!keyboardEnabled) return@collect  // Skip if keyboard disabled
                         dispatchInput(event)
                     }
                     is InputLeapEvent.Unhandled -> if (event.tag == "__DISCONNECTED__") {
