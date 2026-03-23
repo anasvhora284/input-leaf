@@ -46,6 +46,12 @@ android {
         aidl = true  // Enable AIDL for Shizuku IPC
     }
     
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+    
     splits {
         abi {
             isEnable = true

@@ -34,22 +34,13 @@ object BatteryOptimizationHelper {
             manufacturer.contains("oneplus") || manufacturer.contains("oppo") ||
             manufacturer.contains("realme") -> {
                 // ColorOS / OxygenOS / Realme UI
-                intents += componentIntent(
-                    "com.coloros.safecenter",
-                    "com.coloros.safecenter.permission.startup.StartupAppListActivity"
-                )
-                intents += componentIntent(
-                    "com.coloros.safecenter",
-                    "com.coloros.safecenter.startupapp.StartupAppListActivity"
-                )
-                intents += componentIntent(
-                    "com.oplus.safecenter",
-                    "com.oplus.safecenter.permission.startup.StartupAppListActivity"
-                )
-                intents += componentIntent(
-                    "com.oneplus.security",
-                    "com.oneplus.security.chainlaunch.view.ChainLaunchAppListActivity"
-                )
+                // ColorOS blocks the standard AOSP battery dialog, so go directly to app settings
+                // which has a Battery section the user can tap
+                intents += Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                }
+                // Also try the battery optimization list as fallback
+                intents += Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
             }
 
             manufacturer.contains("huawei") || manufacturer.contains("honor") -> {
@@ -131,17 +122,17 @@ object BatteryOptimizationHelper {
         // 3. Last resort: open the full battery optimization list
         intents += Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
 
-        // Try each intent in order; first one that resolves wins
+        // Try each intent in order; first one that successfully starts wins
         for (intent in intents) {
             try {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                if (intent.resolveActivity(context.packageManager) != null) {
-                    context.startActivity(intent)
-                    Log.d(TAG, "Launched: ${intent.component ?: intent.action}")
-                    return
-                }
+                // Try to start directly - resolveActivity isn't always reliable for OEM components
+                context.startActivity(intent)
+                Log.d(TAG, "Launched: ${intent.component ?: intent.action}")
+                return
             } catch (e: Exception) {
-                Log.w(TAG, "Intent failed: ${intent.component ?: intent.action}", e)
+                Log.d(TAG, "Intent not available: ${intent.component ?: intent.action}")
+                // Continue to next intent
             }
         }
 

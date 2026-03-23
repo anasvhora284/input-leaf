@@ -78,7 +78,8 @@ fun SetupScreen(
                 PermissionCard(
                     icon = Icons.Default.Warning,
                     title = "Battery Optimization",
-                    description = "Allow background activity",
+                    description = "Go to: Battery usage → Allow background activity",
+                    buttonLabel = "Open App Info",
                     isGranted = batteryOptimizationExempt,
                     onRequestPermission = onRequestBatteryOptimization
                 )
@@ -92,6 +93,7 @@ private fun PermissionCard(
     icon: ImageVector,
     title: String,
     description: String,
+    buttonLabel: String = "Grant",
     isGranted: Boolean,
     onRequestPermission: () -> Unit
 ) {
@@ -130,7 +132,7 @@ private fun PermissionCard(
             }
             if (!isGranted) {
                 Button(onClick = onRequestPermission) {
-                    Text("Grant")
+                    Text(buttonLabel)
                 }
             }
         }

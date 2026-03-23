@@ -89,7 +89,33 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         READY
     }
 
-    fun saveScreenName(name: String) { viewModelScope.launch { prefs.saveScreenName(name) } }
+    fun saveScreenName(name: String) { 
+        viewModelScope.launch { 
+            prefs.saveScreenName(name)
+            // Reconnect with new screen name if currently connected
+            val currentState = _connectionState.value
+            if (currentState is ConnectionState.Idle || 
+                currentState is ConnectionState.Active ||
+                currentState is ConnectionState.Connecting ||
+                currentState is ConnectionState.Handshaking) {
+                // Get the current server IP and reconnect
+                val serverIp = when (currentState) {
+                    is ConnectionState.Idle -> currentState.serverIp
+                    is ConnectionState.Active -> currentState.serverIp
+                    is ConnectionState.Connecting -> currentState.serverIp
+                    is ConnectionState.Handshaking -> currentState.serverIp
+                    else -> null
+                }
+                if (serverIp != null) {
+                    Log.d("InputLeaf", "Screen name changed, reconnecting with new name: $name")
+                    service?.disconnect()
+                    // Small delay to ensure disconnect completes
+                    kotlinx.coroutines.delay(500)
+                    service?.connect(serverIp, name.trim())
+                }
+            }
+        } 
+    }
     fun saveAutoConnect(v: Boolean) { viewModelScope.launch { prefs.saveAutoConnect(v) } }
     fun deleteFingerprint(ip: String) { viewModelScope.launch { prefs.removeFingerprint(ip) } }
     fun saveThemeMode(mode: String) { viewModelScope.launch { prefs.saveThemeMode(mode) } }
