@@ -1,6 +1,7 @@
 package com.inputleaf.android.storage
 
 import android.content.Context
+import android.os.Build
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -22,13 +23,27 @@ class AppPreferences(private val context: Context) {
         private val KEY_FAVORITE_SERVERS = stringPreferencesKey("favorite_servers")
         // Fingerprints stored as "ip:fingerprint" joined by newline
         private val KEY_FINGERPRINTS     = stringPreferencesKey("tls_fingerprints")
+        
+        /**
+         * Get a sanitized device name suitable for use as screen name.
+         * Removes trailing spaces and special characters that might cause issues.
+         */
+        fun getDefaultScreenName(): String {
+            val deviceName = Build.MODEL.trim()
+            // Replace spaces with hyphens and remove any characters that aren't alphanumeric or hyphen
+            return deviceName
+                .replace(Regex("\\s+"), "-")
+                .replace(Regex("[^a-zA-Z0-9\\-]"), "")
+                .lowercase()
+                .ifEmpty { "android-phone" }
+        }
     }
 
     val lastServerIp: Flow<String?> =
         context.dataStore.data.map { it[KEY_LAST_SERVER_IP] }
 
     val screenName: Flow<String> =
-        context.dataStore.data.map { it[KEY_SCREEN_NAME] ?: "android-phone" }
+        context.dataStore.data.map { (it[KEY_SCREEN_NAME] ?: getDefaultScreenName()).trim() }
 
     val autoConnect: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_AUTO_CONNECT] ?: true }
@@ -58,7 +73,7 @@ class AppPreferences(private val context: Context) {
     }
 
     suspend fun saveScreenName(name: String) = context.dataStore.edit {
-        it[KEY_SCREEN_NAME] = name
+        it[KEY_SCREEN_NAME] = name.trim()
     }
 
     suspend fun saveAutoConnect(enabled: Boolean) = context.dataStore.edit {

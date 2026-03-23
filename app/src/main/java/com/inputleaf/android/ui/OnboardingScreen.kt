@@ -129,11 +129,11 @@ fun OnboardingScreen(
                     3 -> PermissionPage(
                         icon = Icons.Rounded.BatteryChargingFull,
                         title = "Battery Optimization",
-                        description = "Prevents Android from killing the connection when your phone goes to sleep.",
+                        description = "Prevents Android from killing the connection when your phone goes to sleep.\n\nGo to: Battery usage → Allow background activity",
                         whyNeeded = "Android aggressively kills background apps to save battery. Exempting Input Leaf ensures your KVM connection stays alive even when the screen is off.",
                         isGranted = batteryOptimizationExempt,
                         statusText = if (batteryOptimizationExempt) "Exempted ✓" else "Not exempted",
-                        actionLabel = if (!batteryOptimizationExempt) "Disable Optimization" else null,
+                        actionLabel = if (!batteryOptimizationExempt) "Open App Info" else null,
                         onAction = onRequestBatteryOptimization
                     )
                 }
