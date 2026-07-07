@@ -115,32 +115,38 @@ class ConnectionService : Service() {
 
     fun connect(serverIp: String, screenName: String) {
         scope.launch {
-            startForeground(NOTIF_ID, NotificationHelper.build(this@ConnectionService, stateMachine.state.value))
-            stateMachine.onConnecting(serverIp)
-            val conn = InputLeapConnection(serverIp) { cert ->
-                val newFp = TlsFingerprintManager.fingerprintOf(cert)
-                val storedFp = prefs.fingerprintFor(serverIp).first()
-                val trusted = when {
-                    storedFp == null -> {
-                        // First connect: ask user to confirm
-                        onFingerprintConfirmationRequired?.invoke(serverIp, newFp, null) ?: false
+            try {
+                startForeground(NOTIF_ID, NotificationHelper.build(this@ConnectionService, stateMachine.state.value))
+                stateMachine.onConnecting(serverIp)
+                val conn = InputLeapConnection(serverIp) { cert ->
+                    val newFp = TlsFingerprintManager.fingerprintOf(cert)
+                    val storedFp = prefs.fingerprintFor(serverIp).first()
+                    val trusted = when {
+                        storedFp == null -> {
+                            // First connect: ask user to confirm
+                            onFingerprintConfirmationRequired?.invoke(serverIp, newFp, null) ?: false
+                        }
+                        storedFp == newFp -> true  // auto-trust — same cert
+                        else -> {
+                            // Cert changed: warn user
+                            onFingerprintConfirmationRequired?.invoke(serverIp, newFp, storedFp) ?: false
+                        }
                     }
-                    storedFp == newFp -> true  // auto-trust — same cert
-                    else -> {
-                        // Cert changed: warn user
-                        onFingerprintConfirmationRequired?.invoke(serverIp, newFp, storedFp) ?: false
-                    }
+                    if (trusted) prefs.saveFingerprint(serverIp, newFp)
+                    trusted
                 }
-                if (trusted) prefs.saveFingerprint(serverIp, newFp)
-                trusted
+                val banner = conn.connect()
+                if (banner == null) { stateMachine.onDisconnected(); scheduleRetry(serverIp, screenName); return@launch }
+                retryAttempt = 0
+                connection = conn
+                stateMachine.onHandshaking(serverIp)
+                withContext(Dispatchers.IO) { conn.sendHelloBack(screenName) }
+                startEventLoop(conn, serverIp, screenName)
+            } catch (e: Exception) {
+                Log.w(TAG, "Connection to $serverIp failed: ${e.javaClass.simpleName}: ${e.message}")
+                stateMachine.onDisconnected()
+                scheduleRetry(serverIp, screenName)
             }
-            val banner = conn.connect()
-            if (banner == null) { stateMachine.onDisconnected(); scheduleRetry(serverIp, screenName); return@launch }
-            retryAttempt = 0
-            connection = conn
-            stateMachine.onHandshaking(serverIp)
-            withContext(Dispatchers.IO) { conn.sendHelloBack(screenName) }
-            startEventLoop(conn, serverIp, screenName)
         }
     }
 
