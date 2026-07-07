@@ -142,8 +142,10 @@ class ConnectionService : Service() {
                 stateMachine.onHandshaking(serverIp)
                 withContext(Dispatchers.IO) { conn.sendHelloBack(screenName) }
                 startEventLoop(conn, serverIp, screenName)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                Log.w(TAG, "Connection to $serverIp failed: ${e.javaClass.simpleName}: ${e.message}")
+                Log.w(TAG, "Connection to $serverIp failed: ${e.javaClass.simpleName}: ${e.message}", e)
                 stateMachine.onDisconnected()
                 scheduleRetry(serverIp, screenName)
             }
