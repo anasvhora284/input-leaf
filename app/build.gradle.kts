@@ -12,8 +12,8 @@ android {
         applicationId = "com.inputleaf.android"
         minSdk = 26
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 4
+        versionName = "1.3.0"
     }
     
     signingConfigs {
@@ -26,6 +26,11 @@ android {
     }
     
     buildTypes {
+        debug {
+            // Use project keystore so debug APKs can always update over each other
+            // regardless of which machine built them
+            signingConfig = signingConfigs.getByName("release")
+        }
         release {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("release")

@@ -27,12 +27,16 @@ fun SettingsScreen(
     autoConnect: Boolean,
     showCursor: Boolean,
     themeMode: String,
+    inputMethod: String,
+    shizukuAvailable: Boolean,
+    accessibilityAvailable: Boolean,
     canDrawOverlays: Boolean,
     fingerprints: Map<String, String>,
     onScreenNameChange: (String) -> Unit,
     onAutoConnectChange: (Boolean) -> Unit,
     onShowCursorChange: (Boolean) -> Unit,
     onThemeModeChange: (String) -> Unit,
+    onInputMethodChange: (String) -> Unit,
     onRequestOverlayPermission: () -> Unit,
     onDeleteFingerprint: (String) -> Unit,
     onBack: () -> Unit
@@ -40,6 +44,7 @@ fun SettingsScreen(
     var editingName by remember(screenName) { mutableStateOf(screenName) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showEditNameDialog by remember { mutableStateOf(false) }
+    var showInputMethodDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -86,13 +91,30 @@ fun SettingsScreen(
                     SettingsRow(
                         icon = Icons.Rounded.Build,
                         title = "Auto-connect on launch",
-                        showDivider = false,
+                        showDivider = true,
                         trailingContent = {
                             MaterialToggleSwitch(
                                 checked = autoConnect,
                                 onCheckedChange = onAutoConnectChange
                             )
                         }
+                    )
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        thickness = 1.dp,
+                        modifier = Modifier.padding(start = 72.dp)
+                    )
+                    // Input Method
+                    SettingsRow(
+                        icon = Icons.Rounded.Keyboard,
+                        title = "Input method",
+                        subtitle = when (inputMethod) {
+                            "shizuku" -> "Shizuku (ADB-level injection)"
+                            "accessibility" -> "Accessibility Service (no extra app)"
+                            else -> "Auto (Recommended)"
+                        },
+                        showDivider = false,
+                        onClick = { showInputMethodDialog = true }
                     )
                 }
             }
@@ -279,6 +301,52 @@ fun SettingsScreen(
         )
     }
 
+    if (showInputMethodDialog) {
+        AlertDialog(
+            onDismissRequest = { showInputMethodDialog = false },
+            title = { Text("Select Input Method") },
+            text = {
+                Column {
+                    InputMethodOption(
+                        text = "Auto (Recommended)",
+                        selected = inputMethod == "auto",
+                        status = "Available",
+                        statusColor = Color.Gray,
+                        onClick = {
+                            onInputMethodChange("auto")
+                            showInputMethodDialog = false
+                        }
+                    )
+                    InputMethodOption(
+                        text = "Shizuku",
+                        selected = inputMethod == "shizuku",
+                        status = if (shizukuAvailable) "Available" else "Not running",
+                        statusColor = if (shizukuAvailable) Color(0xFF4CAF50) else Color.Red,
+                        onClick = {
+                            onInputMethodChange("shizuku")
+                            showInputMethodDialog = false
+                        }
+                    )
+                    InputMethodOption(
+                        text = "Accessibility Service",
+                        selected = inputMethod == "accessibility",
+                        status = if (accessibilityAvailable) "Enabled" else "Disabled",
+                        statusColor = if (accessibilityAvailable) Color(0xFF4CAF50) else Color.Red,
+                        onClick = {
+                            onInputMethodChange("accessibility")
+                            showInputMethodDialog = false
+                        }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showInputMethodDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     if (showEditNameDialog) {
         var newName by remember { mutableStateOf(screenName) }
         AlertDialog(
@@ -407,5 +475,36 @@ private fun ThemeModeOption(
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(text = text)
+    }
+}
+
+@Composable
+private fun InputMethodOption(
+    text: String,
+    selected: Boolean,
+    status: String,
+    statusColor: Color,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(
+            selected = selected,
+            onClick = onClick
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = text, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = status,
+                color = statusColor,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
     }
 }

@@ -1,6 +1,7 @@
 package com.inputleaf.android.ui
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -12,26 +13,22 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Dns
-import androidx.compose.material.icons.rounded.Home
-import androidx.compose.material.icons.rounded.Shield
-import androidx.compose.material3.MaterialTheme
+import android.widget.Toast
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.Lifecycle
+import kotlinx.coroutines.launch
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.inputleaf.android.ui.components.AnimatedBottomNavigation
-import com.inputleaf.android.ui.components.NavItem
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
 
 class MainActivity : ComponentActivity() {
 
@@ -49,6 +46,17 @@ class MainActivity : ComponentActivity() {
         }
 
         viewModel.scan()
+
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.errorState.collect { error ->
+                    error?.let {
+                        Toast.makeText(this@MainActivity, it, Toast.LENGTH_LONG).show()
+                        viewModel.clearError()
+                    }
+                }
+            }
+        }
 
         setContent {
             val themeMode by viewModel.themeMode.collectAsState(initial = "SYSTEM")
@@ -112,157 +120,5 @@ class MainActivity : ComponentActivity() {
         viewModel.checkOverlayPermission()
         // Re-check battery optimization
         viewModel.checkBatteryOptimization()
-    }
-}
-
-@Composable
-fun AppNavigation(viewModel: MainViewModel) {
-    var screen by remember { mutableStateOf("main") }
-    val context = LocalContext.current
-    val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
-    val discoveredServers by viewModel.discoveredServers.collectAsStateWithLifecycle()
-    val isScanning by viewModel.isScanning.collectAsStateWithLifecycle()
-    val screenName by viewModel.screenName.collectAsState(initial = "android-phone")
-    val autoConnect by viewModel.autoConnect.collectAsState(initial = true)
-    val showCursor by viewModel.showCursor.collectAsState(initial = true)
-    val canDrawOverlays by viewModel.canDrawOverlays.collectAsStateWithLifecycle()
-    val batteryOptimizationExempt by viewModel.batteryOptimizationExempt.collectAsStateWithLifecycle()
-    val fingerprints by viewModel.fingerprints.collectAsState(initial = emptyMap())
-    val shizukuStatus by viewModel.shizukuStatus.collectAsStateWithLifecycle()
-    val themeMode by viewModel.themeMode.collectAsState(initial = "SYSTEM")
-    val onboardingComplete by viewModel.onboardingComplete.collectAsState(initial = true)
-    val mouseEnabled by viewModel.mouseEnabled.collectAsState(initial = true)
-    val keyboardEnabled by viewModel.keyboardEnabled.collectAsState(initial = true)
-    val favoriteServers by viewModel.favoriteServers.collectAsState(initial = emptySet())
-
-    // TOFU fingerprint dialog
-    var pendingFpRequest by remember { mutableStateOf<MainViewModel.FingerprintRequest?>(null) }
-    LaunchedEffect(Unit) {
-        viewModel.fingerprintRequest.collect { request -> pendingFpRequest = request }
-    }
-    pendingFpRequest?.let { req ->
-        FingerprintDialog(
-            fingerprint = req.newFp,
-            oldFingerprint = req.oldFp,
-            onConfirm = { viewModel.respondToFingerprint(req, true); pendingFpRequest = null },
-            onDismiss = { viewModel.respondToFingerprint(req, false); pendingFpRequest = null }
-        )
-    }
-
-    // Show onboarding on first launch
-    if (!onboardingComplete) {
-        OnboardingScreen(
-            shizukuStatus = shizukuStatus,
-            canDrawOverlays = canDrawOverlays,
-            batteryOptimizationExempt = batteryOptimizationExempt,
-            onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
-            onRequestOverlayPermission = {
-                val intent = Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:${context.packageName}")
-                )
-                context.startActivity(intent)
-            },
-            onRequestBatteryOptimization = {
-                BatteryOptimizationHelper.requestExemption(context)
-            },
-            onComplete = { viewModel.completeOnboarding() }
-        )
-        return
-    }
-
-    val navItems = listOf(
-        NavItem("Home", Icons.Rounded.Home, "main"),
-        NavItem("Servers", Icons.Rounded.Dns, "servers"),
-        NavItem("Permissions", Icons.Rounded.Shield, "setup"),
-        NavItem("Settings", Icons.Rounded.Settings, "settings")
-    )
-    val selectedIndex = when (screen) {
-        "main" -> 0
-        "servers" -> 1
-        "setup" -> 2
-        "settings" -> 3
-        else -> 0
-    }
-
-    Scaffold(
-        bottomBar = {
-            AnimatedBottomNavigation(
-                items = navItems,
-                selectedIndex = selectedIndex,
-                onItemSelected = { index ->
-                    screen = navItems[index].route
-                }
-            )
-        }
-    ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            when (screen) {
-                "main" -> MainScreen(
-                    connectionState = connectionState,
-                    discoveredServers = discoveredServers,
-                    isScanning = isScanning,
-                    screenName = screenName,
-                    shizukuStatus = shizukuStatus,
-                    mouseEnabled = mouseEnabled,
-                    keyboardEnabled = keyboardEnabled,
-                    favoriteServers = favoriteServers,
-                    onScan = { viewModel.scan() },
-                    onConnect = { viewModel.connect(it) },
-                    onDisconnect = { viewModel.disconnect() },
-                    onAddManual = { viewModel.addManualServer(it) },
-                    onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
-                    onToggleMouse = { viewModel.toggleMouseEnabled(it) },
-                    onToggleKeyboard = { viewModel.toggleKeyboardEnabled(it) }
-                )
-                "servers" -> ServerListScreen(
-                    connectionState = connectionState,
-                    discoveredServers = discoveredServers,
-                    isScanning = isScanning,
-                    favoriteServers = favoriteServers,
-                    onScan = { viewModel.scan() },
-                    onConnect = { viewModel.connect(it) },
-                    onAddManual = { viewModel.addManualServer(it) },
-                    onToggleFavorite = { viewModel.toggleFavoriteServer(it) }
-                )
-                "setup" -> SetupScreen(
-                    shizukuStatus = shizukuStatus,
-                    canDrawOverlays = canDrawOverlays,
-                    batteryOptimizationExempt = batteryOptimizationExempt,
-                    onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
-                    onRequestOverlayPermission = {
-                        val intent = Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:${context.packageName}")
-                        )
-                        context.startActivity(intent)
-                    },
-                    onRequestBatteryOptimization = {
-                        BatteryOptimizationHelper.requestExemption(context)
-                    }
-                )
-                "settings" -> SettingsScreen(
-                    screenName = screenName,
-                    autoConnect = autoConnect,
-                    showCursor = showCursor,
-                    themeMode = themeMode,
-                    canDrawOverlays = canDrawOverlays,
-                    fingerprints = fingerprints,
-                    onScreenNameChange = { viewModel.saveScreenName(it) },
-                    onAutoConnectChange = { viewModel.saveAutoConnect(it) },
-                    onShowCursorChange = { viewModel.saveShowCursor(it) },
-                    onThemeModeChange = { viewModel.saveThemeMode(it) },
-                    onRequestOverlayPermission = {
-                        val intent = Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:${context.packageName}")
-                        )
-                        context.startActivity(intent)
-                    },
-                    onDeleteFingerprint = { viewModel.deleteFingerprint(it) },
-                    onBack = { screen = "main" }
-                )
-            }
-        }
     }
 }

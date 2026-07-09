@@ -16,7 +16,6 @@ import com.inputleaf.android.network.InputLeapConnection
 import com.inputleaf.android.network.TlsFingerprintManager
 import com.inputleaf.android.storage.AppPreferences
 import com.inputleaf.android.shizuku.ShizukuInputInjector
-import com.inputleaf.android.uhid.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -27,12 +26,8 @@ class ConnectionService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val stateMachine = ConnectionStateMachine()
-    private val uhidQueue = UhidEventQueue()
-    private val mouseTracker = MousePositionTracker()
     private var connection: InputLeapConnection? = null
-    private var uhidSocket: UhidEventSocket? = null
-    private var shizukuInjector: ShizukuInputInjector? = null
-    private var useShizuku = false
+    private var injector: com.inputleaf.android.inject.InputInjector? = null
     private var keepAliveJob: Job? = null
     private var retryAttempt = 0
     private var cursorOverlayEnabled = false
@@ -114,6 +109,18 @@ class ConnectionService : Service() {
     var onFingerprintConfirmationRequired: (suspend (ip: String, fp: String, oldFp: String?) -> Boolean)? = null
 
     fun connect(serverIp: String, screenName: String) {
+        val currentState = stateMachine.state.value
+        if (currentState is ConnectionState.Idle || currentState is ConnectionState.Active) {
+            if ((currentState as? ConnectionState.Idle)?.serverIp == serverIp || (currentState as? ConnectionState.Active)?.serverIp == serverIp) {
+                Log.w(TAG, "Ignoring connect request because we are already connected to $serverIp")
+                return
+            }
+        }
+        
+        // Abort any ongoing stale connection attempt
+        connection?.close()
+        keepAliveJob?.cancel()
+        
         scope.launch {
             try {
                 startForeground(NOTIF_ID, NotificationHelper.build(this@ConnectionService, stateMachine.state.value))
@@ -174,7 +181,6 @@ class ConnectionService : Service() {
                     }
                     is InputLeapEvent.Leave -> { 
                         stateMachine.onLeave()
-                        mouseTracker.reset()
                         // Hide cursor when leaving
                         hideCursorOverlay()
                     }
@@ -186,13 +192,7 @@ class ConnectionService : Service() {
                         currentMouseY = event.y.toFloat()
                         updateCursorPosition(currentMouseX, currentMouseY)
                         
-                        // Shizuku uses absolute coordinates directly, UHID needs relative
-                        if (useShizuku) {
-                            dispatchInput(event)
-                        } else {
-                            val (dx, dy) = mouseTracker.updateAbsolute(event.x, event.y)
-                            dispatchInput(InputLeapEvent.MouseMoveRel(dx, dy))
-                        }
+                        dispatchInput(event)
                     }
                     is InputLeapEvent.MouseMoveRel -> {
                         if (!mouseEnabled) return@collect  // Skip if mouse disabled
@@ -201,7 +201,6 @@ class ConnectionService : Service() {
                         currentMouseY = (currentMouseY + event.dy).coerceIn(0f, screenHeight.toFloat())
                         updateCursorPosition(currentMouseX, currentMouseY)
                         
-                        mouseTracker.updateRelative(event.dx, event.dy)
                         dispatchInput(event)
                     }
                     is InputLeapEvent.MouseDown, is InputLeapEvent.MouseUp, is InputLeapEvent.MouseWheel -> {
@@ -259,48 +258,13 @@ class ConnectionService : Service() {
         CursorOverlayService.updatePosition(x, y)
     }
 
-    /**
-     * Connect to Shizuku input injector. Call this before connect() for non-root input injection.
-     * @return true if Shizuku is available and bound successfully
-     */
-    suspend fun connectShizukuInjector(): Boolean = withContext(Dispatchers.IO) {
-        val bounds = getScreenBounds()
-        val injector = ShizukuInputInjector(bounds.width(), bounds.height())
-        
-        if (injector.isAvailable()) {
-            val bound = injector.bind()
-            if (bound) {
-                shizukuInjector = injector
-                useShizuku = true
-                Log.i(TAG, "Shizuku input injector connected")
-                return@withContext true
-            }
-        }
-        Log.w(TAG, "Shizuku not available, will fall back to UHID")
-        false
-    }
-
-    fun connectUhidSocket() {
-        scope.launch(Dispatchers.IO) {
-            val s = UhidEventSocket()
-            if (s.connect()) {
-                uhidSocket = s
-                // Drain queued events that arrived before socket was ready
-                uhidQueue.dequeueAll().forEach { s.send(it) }
-            }
-        }
+    fun setInjector(injector: com.inputleaf.android.inject.InputInjector) {
+        this.injector = injector
+        Log.i(TAG, "Input injector set to: ${injector.name}")
     }
 
     private fun dispatchInput(event: InputLeapEvent) {
-        // Prefer Shizuku if available, fall back to UHID
-        val injector = shizukuInjector
-        if (useShizuku && injector != null) {
-            injector.send(event)
-        } else {
-            val socket = uhidSocket
-            if (socket?.isConnected == true) socket.send(event)
-            else uhidQueue.enqueue(event)
-        }
+        injector?.send(event)
     }
 
     private fun startKeepAliveMonitor(conn: InputLeapConnection) {
@@ -320,9 +284,9 @@ class ConnectionService : Service() {
     }
 
     private fun scheduleRetry(ip: String, screenName: String) {
-        val delays = listOf(5_000L, 10_000L, 20_000L, 40_000L, 60_000L)
+        val delayMs = RetryDelayCalculator.getDelay(retryAttempt++)
         scope.launch {
-            delay(delays[minOf(retryAttempt++, delays.lastIndex)])
+            delay(delayMs)
             connect(ip, screenName)
         }
     }
@@ -331,10 +295,10 @@ class ConnectionService : Service() {
         keepAliveJob?.cancel()
         connection?.close()
         connection = null
-        shizukuInjector?.unbind()
-        shizukuInjector = null
-        useShizuku = false
+        injector?.disconnect()
+        injector = null
         hideCursorOverlay()
+        promptImeSwitchIfActive()
         stateMachine.onDisconnected()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -362,11 +326,24 @@ class ConnectionService : Service() {
         }
     }
 
+    private fun promptImeSwitchIfActive() {
+        try {
+            val currentIme = Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
+            val ourIme = android.content.ComponentName(this, com.inputleaf.android.inject.InputLeafIME::class.java).flattenToShortString()
+            if (currentIme == ourIme) {
+                val imm = getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+                imm.showInputMethodPicker()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to prompt IME switch", e)
+        }
+    }
+
     override fun onDestroy() { 
         scope.cancel()
-        uhidSocket?.close()
-        shizukuInjector?.unbind()
+        injector?.disconnect()
         hideCursorOverlay()
+        promptImeSwitchIfActive()
         stopService(Intent(this, CursorOverlayService::class.java))
         super.onDestroy() 
     }

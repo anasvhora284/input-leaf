@@ -23,6 +23,7 @@ class AppPreferences(private val context: Context) {
         private val KEY_FAVORITE_SERVERS = stringPreferencesKey("favorite_servers")
         // Fingerprints stored as "ip:fingerprint" joined by newline
         private val KEY_FINGERPRINTS     = stringPreferencesKey("tls_fingerprints")
+        private val KEY_INPUT_METHOD     = stringPreferencesKey("input_method")
         
         /**
          * Get a sanitized device name suitable for use as screen name.
@@ -63,6 +64,9 @@ class AppPreferences(private val context: Context) {
     val keyboardEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_KEYBOARD_ENABLED] ?: true }
 
+    val inputMethod: Flow<String> =
+        context.dataStore.data.map { it[KEY_INPUT_METHOD] ?: "auto" }
+
     val favoriteServers: Flow<Set<String>> =
         context.dataStore.data.map { prefs ->
             prefs[KEY_FAVORITE_SERVERS]?.split("\n")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
@@ -98,6 +102,10 @@ class AppPreferences(private val context: Context) {
 
     suspend fun saveKeyboardEnabled(enabled: Boolean) = context.dataStore.edit {
         it[KEY_KEYBOARD_ENABLED] = enabled
+    }
+
+    suspend fun saveInputMethod(method: String) = context.dataStore.edit {
+        it[KEY_INPUT_METHOD] = method
     }
 
     suspend fun toggleFavoriteServer(ip: String) = context.dataStore.edit { prefs ->

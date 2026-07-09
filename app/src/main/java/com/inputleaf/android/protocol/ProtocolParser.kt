@@ -1,14 +1,12 @@
 package com.inputleaf.android.protocol
 
-import android.util.Log
 import com.inputleaf.android.model.InputLeapEvent
 import java.io.DataInputStream
 import java.io.InputStream
 
-private const val TAG = "ProtocolParser"
-
-class ProtocolParser(input: InputStream) {
-    private val din = DataInputStream(input)
+class ProtocolParser(input: DataInputStream) {
+    constructor(input: InputStream) : this(DataInputStream(input))
+    private val din = input
 
     fun readNext(): InputLeapEvent {
         val len = din.readInt()
@@ -33,25 +31,15 @@ class ProtocolParser(input: InputStream) {
         ProtocolConstants.TAG_RESET_OPTIONS -> InputLeapEvent.ResetOptions
         ProtocolConstants.TAG_KEY_DOWN -> {
             // Format: keysym(2), mask(2), scancode(2)
-            // keysym is the X11 key symbol (what the key represents)
-            // scancode is the physical keyboard button
-            if (p.size >= 6) {
-                Log.d(TAG, "KEY_DOWN raw bytes: ${p.take(6).map { "0x%02x".format(it) }}")
-            }
-            val keysym = p.u16(0)  // This is the actual keysym!
-            val mask = p.u16(2)
-            val scancode = p.u16(4)
-            Log.d(TAG, "KEY_DOWN parsed: keysym=0x${keysym.toString(16)}, mask=$mask, scancode=$scancode")
-            InputLeapEvent.KeyDown(keysym, mask, scancode)
-        }
-        ProtocolConstants.TAG_KEY_UP -> {
-            if (p.size >= 6) {
-                Log.d(TAG, "KEY_UP raw bytes: ${p.take(6).map { "0x%02x".format(it) }}")
-            }
             val keysym = p.u16(0)
             val mask = p.u16(2)
             val scancode = p.u16(4)
-            Log.d(TAG, "KEY_UP parsed: keysym=0x${keysym.toString(16)}, mask=$mask, scancode=$scancode")
+            InputLeapEvent.KeyDown(keysym, mask, scancode)
+        }
+        ProtocolConstants.TAG_KEY_UP -> {
+            val keysym = p.u16(0)
+            val mask = p.u16(2)
+            val scancode = p.u16(4)
             InputLeapEvent.KeyUp(keysym, mask, scancode)
         }
         ProtocolConstants.TAG_KEY_REPEAT -> {
@@ -78,5 +66,7 @@ class ProtocolParser(input: InputStream) {
     private fun ByteArray.s16(i: Int) = u16(i).let { if (it > 0x7FFF) it - 0x10000 else it }
     private fun ByteArray.u32(i: Int) = ((u8(i).toLong() shl 24) or (u8(i+1).toLong() shl 16) or
         (u8(i+2).toLong() shl 8) or u8(i+3).toLong()).toInt()
-    private fun ByteArray.s32(i: Int) = u32(i)
+    // s32: read as signed 32-bit integer (sign bit extended correctly)
+    private fun ByteArray.s32(i: Int): Int = java.io.DataInputStream(
+        java.io.ByteArrayInputStream(this, i, 4)).readInt()
 }

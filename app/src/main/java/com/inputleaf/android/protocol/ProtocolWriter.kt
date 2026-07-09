@@ -2,22 +2,21 @@ package com.inputleaf.android.protocol
 
 import java.io.DataOutputStream
 import java.io.OutputStream
-import android.util.Log
 
 class ProtocolWriter(output: OutputStream) {
     private val dout = DataOutputStream(output)
 
     fun writeHelloBack(screenName: String, major: Int, minor: Int) {
         val nameBytes = screenName.toByteArray(Charsets.UTF_8)
-        Log.d("ProtocolWriter", "Sending HelloBack: name=$screenName, major=$major, minor=$minor, nameLen=${nameBytes.size}")
+        // Input Leap HelloBack uses "Barrier" as the frame tag (not "HELO")
         frame("Barrier") {
             writeShort(major); writeShort(minor)
             writeInt(nameBytes.size); write(nameBytes)
         }
-        Log.d("ProtocolWriter", "HelloBack sent successfully")
     }
 
-    // Field order per kMsgDInfo: x, y, w, h, warp_size, mx, my (7 shorts)
+    // Field order per Input Leap kMsgDInfo: sx(2), sy(2), sw(2), sh(2), warp(2), mx(2), my(2)
+    // sx,sy = screen position; sw,sh = screen size; warp = 0 (obsolete); mx,my = mouse pos
     fun writeDataInfo(w: Int, h: Int, x: Int, y: Int, mx: Int, my: Int) {
         frame("DINF") {
             writeShort(x); writeShort(y)

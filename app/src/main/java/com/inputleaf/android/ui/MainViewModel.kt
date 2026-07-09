@@ -44,20 +44,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _discoveredServers = MutableStateFlow<List<ServerInfo>>(emptyList())
     val discoveredServers: StateFlow<List<ServerInfo>> = _discoveredServers
 
+    private val _errorState = MutableStateFlow<String?>(null)
+    val errorState: StateFlow<String?> = _errorState
+
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning
+    private val permissionProvider = PermissionStatusProvider(app)
     
     // Shizuku status
-    private val _shizukuStatus = MutableStateFlow(ShizukuStatus.CHECKING)
-    val shizukuStatus: StateFlow<ShizukuStatus> = _shizukuStatus
+    val shizukuStatus: StateFlow<ShizukuStatus> = permissionProvider.shizukuStatus
     
     // Cursor overlay status
-    private val _canDrawOverlays = MutableStateFlow(false)
-    val canDrawOverlays: StateFlow<Boolean> = _canDrawOverlays
+    val canDrawOverlays: StateFlow<Boolean> = permissionProvider.canDrawOverlays
     
     // Battery optimization status
-    private val _batteryOptimizationExempt = MutableStateFlow(false)
-    val batteryOptimizationExempt: StateFlow<Boolean> = _batteryOptimizationExempt
+    val batteryOptimizationExempt: StateFlow<Boolean> = permissionProvider.batteryOptimizationExempt
     
     val showCursor: Flow<Boolean> = prefs.showCursor
 
@@ -69,6 +70,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val mouseEnabled: Flow<Boolean> = prefs.mouseEnabled
     val keyboardEnabled: Flow<Boolean> = prefs.keyboardEnabled
     val favoriteServers: Flow<Set<String>> = prefs.favoriteServers
+    val inputMethod: Flow<String> = prefs.inputMethod
+
+    val shizukuAvailable: Flow<Boolean> = permissionProvider.shizukuAvailable
+    val accessibilityAvailable: Flow<Boolean> = permissionProvider.accessibilityAvailable
+    val imeEnabledAndSelected: Flow<Boolean> = permissionProvider.imeEnabledAndSelected
 
     // TOFU: suspending channel — UI collects this and shows FingerprintDialog
     private val _fingerprintRequest = Channel<FingerprintRequest>(1)
@@ -80,14 +86,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val oldFp: String?,
         val response: kotlinx.coroutines.CompletableDeferred<Boolean>
     )
-    
-    enum class ShizukuStatus {
-        CHECKING,
-        NOT_INSTALLED,
-        NOT_RUNNING,
-        PERMISSION_REQUIRED,
-        READY
-    }
+
 
     fun saveScreenName(name: String) { 
         viewModelScope.launch { 
@@ -123,17 +122,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleMouseEnabled(enabled: Boolean) { viewModelScope.launch { prefs.saveMouseEnabled(enabled) } }
     fun toggleKeyboardEnabled(enabled: Boolean) { viewModelScope.launch { prefs.saveKeyboardEnabled(enabled) } }
     fun toggleFavoriteServer(ip: String) { viewModelScope.launch { prefs.toggleFavoriteServer(ip) } }
+    fun saveInputMethod(method: String) { viewModelScope.launch { prefs.saveInputMethod(method) } }
 
     // Called by UI after user taps Trust/Cancel in FingerprintDialog
     fun respondToFingerprint(request: FingerprintRequest, trusted: Boolean) {
         request.response.complete(trusted)
     }
 
+    private var hasAutoConnected = false
+
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
-            service = (binder as ConnectionService.LocalBinder).getService()
+            val localService = (binder as ConnectionService.LocalBinder).getService()
+            service = localService
+            
+            // Push current service state immediately to avoid race conditions
+            _connectionState.value = localService.state.value
+
             viewModelScope.launch {
-                service!!.state.collect { _connectionState.value = it }
+                localService.state.collect { _connectionState.value = it }
             }
             // Wire TOFU callback: bridge service's suspend callback → UI Channel
             service!!.onFingerprintConfirmationRequired = { ip, newFp, oldFp ->
@@ -141,33 +148,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 _fingerprintRequest.send(FingerprintRequest(ip, newFp, oldFp, deferred))
                 deferred.await()
             }
+            
+            // Auto-connect to last server if enabled
+            if (!hasAutoConnected) {
+                hasAutoConnected = true
+                viewModelScope.launch {
+                    val auto = prefs.autoConnect.first()
+                    val lastIp = prefs.lastServerIp.first()
+                    val currentState = service?.state?.value ?: ConnectionState.Disconnected
+                    if (auto && !lastIp.isNullOrBlank() && currentState !is ConnectionState.Idle && currentState !is ConnectionState.Active) {
+                        Log.i("InputLeaf", "Auto-connecting to last server: $lastIp")
+                        connect(ServerInfo(ip = lastIp))
+                    }
+                }
+            }
         }
         override fun onServiceDisconnected(name: ComponentName) { service = null }
     }
-    
-    // Shizuku permission listener
-    private val shizukuPermissionListener = Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
-        Log.d("InputLeaf", "Shizuku permission result: $grantResult")
-        checkShizukuStatus()
-    }
-    
-    // Shizuku binder lifecycle listener
-    private val shizukuBinderListener = Shizuku.OnBinderReceivedListener {
-        Log.d("InputLeaf", "Shizuku binder received")
-        checkShizukuStatus()
-    }
-    
-    private val shizukuBinderDeadListener = Shizuku.OnBinderDeadListener {
-        Log.d("InputLeaf", "Shizuku binder dead")
-        _shizukuStatus.value = ShizukuStatus.NOT_RUNNING
-    }
-
     init {
         bindService()
-        setupShizukuListeners()
-        checkShizukuStatus()
-        checkOverlayPermission()
-        checkBatteryOptimization()
         
         // Observe showCursor preference and update service
         viewModelScope.launch {
@@ -176,67 +175,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
-    
-    private fun setupShizukuListeners() {
-        try {
-            Shizuku.addRequestPermissionResultListener(shizukuPermissionListener)
-            Shizuku.addBinderReceivedListener(shizukuBinderListener)
-            Shizuku.addBinderDeadListener(shizukuBinderDeadListener)
-        } catch (e: Exception) {
-            Log.e("InputLeaf", "Failed to setup Shizuku listeners", e)
-        }
-    }
-    
-    fun checkShizukuStatus() {
-        viewModelScope.launch {
-            _shizukuStatus.value = try {
-                if (!Shizuku.pingBinder()) {
-                    // Check if Shizuku is installed
-                    val pm = getApplication<Application>().packageManager
-                    val shizukuInstalled = try {
-                        pm.getPackageInfo("moe.shizuku.privileged.api", 0)
-                        true
-                    } catch (e: PackageManager.NameNotFoundException) {
-                        false
-                    }
-                    if (shizukuInstalled) ShizukuStatus.NOT_RUNNING else ShizukuStatus.NOT_INSTALLED
-                } else if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-                    ShizukuStatus.PERMISSION_REQUIRED
-                } else {
-                    ShizukuStatus.READY
-                }
-            } catch (e: Exception) {
-                Log.e("InputLeaf", "Error checking Shizuku status", e)
-                ShizukuStatus.NOT_INSTALLED
-            }
-        }
-    }
-    
-    fun requestShizukuPermission() {
-        try {
-            if (Shizuku.pingBinder()) {
-                if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-                    if (Shizuku.shouldShowRequestPermissionRationale()) {
-                        // User previously denied - show explanation in UI
-                        Log.w("InputLeaf", "Shizuku permission was previously denied")
-                    }
-                    Shizuku.requestPermission(0)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("InputLeaf", "Error requesting Shizuku permission", e)
-        }
-    }
-    
-    fun checkOverlayPermission() {
-        _canDrawOverlays.value = Settings.canDrawOverlays(getApplication())
-    }
-    
-    fun checkBatteryOptimization() {
-        val app = getApplication<Application>()
-        val powerManager = app.getSystemService(PowerManager::class.java)
-        _batteryOptimizationExempt.value = powerManager.isIgnoringBatteryOptimizations(app.packageName)
-    }
+    fun checkShizukuStatus() = permissionProvider.checkShizukuStatus()
+    fun requestShizukuPermission() = permissionProvider.requestShizukuPermission()
+    fun checkOverlayPermission() = permissionProvider.checkOverlayPermission()
+    fun checkBatteryOptimization() = permissionProvider.checkBatteryOptimization()
     
     fun saveShowCursor(enabled: Boolean) {
         viewModelScope.launch { 
@@ -253,7 +195,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun scan() {
         viewModelScope.launch {
             _isScanning.value = true
-            val ip = getLocalIpAddress()
+            val ip = com.inputleaf.android.network.NetworkUtils.getLocalIpAddress(getApplication())
             Log.d("InputLeaf", "Scanning from IP: $ip")
             if (ip != null) {
                 val results = scanner.scan(ip)
@@ -267,112 +209,29 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /**
-     * Get the local IP address for network scanning.
-     * Uses a prioritized approach to find the correct interface:
-     * 1. Wi-Fi interfaces (wlan0, swlan0) - for regular Wi-Fi client mode
-     * 2. Hotspot interfaces (ap0, swlan0) - for when phone is a hotspot
-     * 3. WifiManager fallback - for older Android or edge cases
-     * 4. Any private network interface - last resort
-     */
-    private fun getLocalIpAddress(): String? {
-        // Priority 1: Look for Wi-Fi/hotspot interfaces by name
-        val wifiInterfaceNames = listOf("wlan0", "wlan1", "swlan0", "ap0", "eth0")
-        
-        try {
-            val interfaces = NetworkInterface.getNetworkInterfaces()?.toList() ?: emptyList()
-            
-            // Log all interfaces for debugging
-            interfaces.forEach { iface ->
-                if (iface.isUp && !iface.isLoopback) {
-                    val addrs = iface.inetAddresses.toList()
-                        .filter { it.hostAddress?.contains('.') == true }
-                        .mapNotNull { it.hostAddress }
-                    if (addrs.isNotEmpty()) {
-                        Log.d("InputLeaf", "Interface ${iface.name}: $addrs")
-                    }
-                }
-            }
-            
-            // First pass: Look for preferred Wi-Fi interfaces
-            for (ifaceName in wifiInterfaceNames) {
-                val iface = interfaces.find { it.name == ifaceName && it.isUp && !it.isLoopback }
-                if (iface != null) {
-                    val ip = getIPv4FromInterface(iface)
-                    if (ip != null) {
-                        Log.d("InputLeaf", "Using preferred interface ${iface.name}: $ip")
-                        return ip
-                    }
-                }
-            }
-            
-            // Second pass: WifiManager fallback (works for regular Wi-Fi)
-            val wifiIp = getWifiManagerIp()
-            if (wifiIp != null && wifiIp != "0.0.0.0") {
-                Log.d("InputLeaf", "Using WifiManager IP: $wifiIp")
-                return wifiIp
-            }
-            
-            // Third pass: Any private network interface (except cellular)
-            val cellularPrefixes = listOf("rmnet", "ccmni", "pdp", "ppp", "uwbr")
-            for (iface in interfaces) {
-                if (iface.isLoopback || !iface.isUp) continue
-                // Skip cellular interfaces
-                if (cellularPrefixes.any { iface.name.startsWith(it) }) continue
-                
-                val ip = getIPv4FromInterface(iface)
-                if (ip != null && isPrivateIP(ip)) {
-                    Log.d("InputLeaf", "Using fallback interface ${iface.name}: $ip")
-                    return ip
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("InputLeaf", "Error getting IP address: ${e.message}", e)
-        }
-        
-        Log.e("InputLeaf", "Could not determine local IP address")
-        return null
+
+
+    fun clearError() {
+        _errorState.value = null
     }
-    
-    private fun getIPv4FromInterface(iface: NetworkInterface): String? {
-        val addresses = iface.inetAddresses
-        while (addresses.hasMoreElements()) {
-            val address = addresses.nextElement()
-            if (!address.isLoopbackAddress) {
-                val hostAddress = address.hostAddress
-                // Must be IPv4 (contains dots, no colons for IPv6)
-                if (hostAddress != null && hostAddress.contains('.') && !hostAddress.contains(':')) {
-                    // Strip any zone ID suffix (e.g., %wlan0)
-                    return hostAddress.substringBefore('%')
-                }
-            }
-        }
-        return null
-    }
-    
-    @Suppress("DEPRECATION")
-    private fun getWifiManagerIp(): String? {
-        return try {
-            val wm = getApplication<Application>().getSystemService(WifiManager::class.java)
-            val ipInt = wm.connectionInfo.ipAddress
-            if (ipInt == 0) return null
-            "${ipInt and 0xFF}.${(ipInt shr 8) and 0xFF}.${(ipInt shr 16) and 0xFF}.${(ipInt shr 24) and 0xFF}"
-        } catch (e: Exception) {
-            Log.w("InputLeaf", "WifiManager fallback failed: ${e.message}")
-            null
-        }
-    }
-    
-    private fun isPrivateIP(ip: String): Boolean {
-        val parts = ip.split('.')
-        if (parts.size != 4) return false
-        val first = parts[0].toIntOrNull() ?: return false
-        val second = parts[1].toIntOrNull() ?: return false
-        return when {
-            first == 10 -> true  // 10.0.0.0/8
-            first == 172 && second in 16..31 -> true  // 172.16.0.0/12
-            first == 192 && second == 168 -> true  // 192.168.0.0/16
-            else -> false
+
+    private suspend fun resolveInjector(): com.inputleaf.android.inject.InputInjector? {
+        val method = prefs.inputMethod.first()
+        val wm = getApplication<Application>().getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
+        val bounds = wm.currentWindowMetrics.bounds
+        val shizukuInjector = com.inputleaf.android.shizuku.ShizukuInputInjector(bounds.width(), bounds.height())
+        val accessibilityInjector = com.inputleaf.android.inject.AccessibilityInputInjector(getApplication(), bounds.width(), bounds.height())
+
+        val resolved = com.inputleaf.android.inject.InputMethodResolver.resolve(
+            preferredMethod = method,
+            isShizukuAvailable = shizukuInjector.isAvailable(),
+            isAccessibilityAvailable = accessibilityInjector.isAvailable()
+        )
+
+        return when (resolved) {
+            com.inputleaf.android.inject.ResolvedMethod.SHIZUKU -> shizukuInjector
+            com.inputleaf.android.inject.ResolvedMethod.ACCESSIBILITY -> accessibilityInjector
+            com.inputleaf.android.inject.ResolvedMethod.NONE -> null
         }
     }
 
@@ -381,12 +240,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val name = prefs.screenName.first()
             prefs.saveLastServer(server.ip)
             
-            // Try to connect Shizuku injector before connecting to server
-            if (_shizukuStatus.value == ShizukuStatus.READY) {
-                val shizukuConnected = service?.connectShizukuInjector() ?: false
-                Log.d("InputLeaf", "Shizuku injector connected: $shizukuConnected")
+            val injector = resolveInjector()
+            if (injector == null) {
+                _errorState.value = "No input method available. Enable Shizuku or Accessibility Service."
+                return@launch
             }
             
+            val connected = injector.connect()
+            if (!connected) {
+                _errorState.value = "Failed to connect to input method: ${injector.name}"
+                return@launch
+            }
+            
+            service?.setInjector(injector)
             service?.connect(server.ip, name)
         }
     }
@@ -398,13 +264,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
-        try {
-            Shizuku.removeRequestPermissionResultListener(shizukuPermissionListener)
-            Shizuku.removeBinderReceivedListener(shizukuBinderListener)
-            Shizuku.removeBinderDeadListener(shizukuBinderDeadListener)
-        } catch (e: Exception) {
-            // Ignore
-        }
+        permissionProvider.cleanup()
         getApplication<Application>().unbindService(serviceConnection)
     }
 }

@@ -16,17 +16,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.inputleaf.android.ui.MainViewModel
+import com.inputleaf.android.ui.ShizukuStatus
 
 @Composable
 fun ShizukuStatusCard(
-    status: MainViewModel.ShizukuStatus,
+    status: ShizukuStatus,
     onRequestPermission: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     
     when (status) {
-        MainViewModel.ShizukuStatus.READY -> {
+        ShizukuStatus.READY -> {
             GradientCard(
                 modifier = modifier.fillMaxWidth(),
                 backgroundColor = MaterialTheme.colorScheme.tertiaryContainer,
@@ -72,12 +73,12 @@ fun ShizukuStatusCard(
             val action: (() -> Unit)?
 
             when (status) {
-                MainViewModel.ShizukuStatus.CHECKING -> {
+                ShizukuStatus.CHECKING -> {
                     icon = null; color = MaterialTheme.colorScheme.onSurfaceVariant; title = "Checking Shizuku..."
                     description = ""; actionLabel = null; action = null
                 }
-                MainViewModel.ShizukuStatus.NOT_INSTALLED -> {
-                    icon = Icons.Default.Warning; color = MaterialTheme.colorScheme.error
+                ShizukuStatus.NOT_INSTALLED -> {
+                    icon = Icons.Default.Warning; color = MaterialTheme.colorScheme.secondary
                     title = "Shizuku Not Installed"
                     description = "Install Shizuku from Play Store to enable mouse/keyboard input."
                     actionLabel = "Install Shizuku"
@@ -86,8 +87,8 @@ fun ShizukuStatusCard(
                             Uri.parse("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api")))
                     }
                 }
-                MainViewModel.ShizukuStatus.NOT_RUNNING -> {
-                    icon = Icons.Default.Warning; color = MaterialTheme.colorScheme.tertiary
+                ShizukuStatus.NOT_RUNNING -> {
+                    icon = Icons.Default.Warning; color = MaterialTheme.colorScheme.secondary
                     title = "Shizuku Not Running"
                     description = "Open Shizuku app and start it via Wireless Debugging (Android 11+) or ADB."
                     actionLabel = "Open Shizuku"
@@ -97,8 +98,8 @@ fun ShizukuStatusCard(
                         }
                     }
                 }
-                MainViewModel.ShizukuStatus.PERMISSION_REQUIRED -> {
-                    icon = Icons.Default.Warning; color = MaterialTheme.colorScheme.tertiary
+                ShizukuStatus.PERMISSION_REQUIRED -> {
+                    icon = Icons.Default.Warning; color = MaterialTheme.colorScheme.secondary
                     title = "Permission Required"
                     description = "Grant Input Leaf permission to use Shizuku for input injection."
                     actionLabel = "Grant Permission"; action = onRequestPermission
@@ -111,9 +112,9 @@ fun ShizukuStatusCard(
             
             GradientCard(
                 modifier = modifier.fillMaxWidth(),
-                backgroundColor = MaterialTheme.colorScheme.surface,
+                backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
                 cornerRadius = 24.dp,
-                elevation = 1.dp,
+                elevation = 0.dp,
                 padding = 20.dp
             ) {
                 Column {

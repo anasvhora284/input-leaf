@@ -32,7 +32,7 @@ private const val TAG = "CursorOverlayService"
 class CursorOverlayService : Service() {
     
     private var windowManager: WindowManager? = null
-    private var cursorView: CursorView? = null
+    private var cursorView: android.view.View? = null
     private var isShowing = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private var statusBarHeight = 0
@@ -55,7 +55,11 @@ class CursorOverlayService : Service() {
             _cursorY.value = y
             // Post to main thread
             mainHandler.post {
-                instance?.moveCursorInternal(x, y)
+                if (com.inputleaf.android.inject.AccessibilityInputService.isServiceRunning()) {
+                    com.inputleaf.android.inject.AccessibilityInputService.getInstance()?.moveCursorInternal(x, y)
+                } else {
+                    instance?.moveCursorInternal(x, y)
+                }
             }
         }
         
@@ -64,7 +68,12 @@ class CursorOverlayService : Service() {
             _isVisible.value = true
             // Post to main thread
             mainHandler.post {
-                instance?.showCursorInternal()
+                if (com.inputleaf.android.inject.AccessibilityInputService.isServiceRunning()) {
+                    instance?.hideCursorInternal() // Hide fallback
+                    com.inputleaf.android.inject.AccessibilityInputService.getInstance()?.showCursorInternal()
+                } else {
+                    instance?.showCursorInternal()
+                }
             }
         }
         
@@ -73,7 +82,11 @@ class CursorOverlayService : Service() {
             _isVisible.value = false
             // Post to main thread
             mainHandler.post {
-                instance?.hideCursorInternal()
+                if (com.inputleaf.android.inject.AccessibilityInputService.isServiceRunning()) {
+                    com.inputleaf.android.inject.AccessibilityInputService.getInstance()?.hideCursorInternal()
+                } else {
+                    instance?.hideCursorInternal()
+                }
             }
         }
         
@@ -118,7 +131,11 @@ class CursorOverlayService : Service() {
         Log.d(TAG, "showCursorInternal() called - isShowing=$isShowing, canDrawOverlays=${Settings.canDrawOverlays(this)}")
         if (isShowing || !Settings.canDrawOverlays(this)) return
         
-        cursorView = CursorView(this)
+        val view = android.widget.ImageView(this).apply {
+            setImageResource(com.inputleaf.android.R.drawable.cursor)
+            scaleX = -1f
+        }
+        cursorView = view
         
         val params = WindowManager.LayoutParams(
             CURSOR_SIZE,
@@ -155,7 +172,6 @@ class CursorOverlayService : Service() {
         if (!isShowing) return
         try {
             cursorView?.let { view ->
-                (view as? CursorView)?.cleanup()
                 windowManager?.removeView(view)
             }
             cursorView = null
@@ -188,108 +204,6 @@ class CursorOverlayService : Service() {
     }
     
     override fun onBind(intent: Intent?): IBinder? = null
-    
-    /**
-     * Custom view that draws a cursor pointer.
-     */
-    private class CursorView(context: Context) : View(context) {
-        
-        // Purple color for Material You theme
-        private val purpleLight = Color.parseColor("#A78BFA")
-        private val purpleMedium = Color.parseColor("#8B5CF6")
-        
-        // Ripple paint with RadialGradient
-        private val ripplePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = RadialGradient(
-                0f, 0f,
-                120f,
-                intArrayOf(
-                    Color.argb(51, 139, 92, 246),   // 20% alpha
-                    Color.argb(26, 139, 92, 246),   // 10% alpha
-                    Color.argb(0, 139, 92, 246)     // 0% alpha
-                ),
-                floatArrayOf(0f, 0.5f, 1f),
-                Shader.TileMode.CLAMP
-            )
-        }
-        
-        // Middle ring paint
-        private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.argb(102, 167, 139, 250)  // 40% alpha purple
-            style = Paint.Style.STROKE
-            strokeWidth = 4f
-        }
-        
-        // Center dot paint
-        private val centerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = purpleMedium
-            style = Paint.Style.FILL
-        }
-        
-        // White border paint
-        private val whiteBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
-            style = Paint.Style.STROKE
-            strokeWidth = 4f
-        }
-        
-        // Ripple animation state
-        private var rippleScale = 0.5f
-        private var rippleAlpha = 1f
-        
-        private var rippleAnimator: ValueAnimator? = null
-        
-        init {
-            // Setup ripple animation
-            rippleAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-                duration = 1000
-                repeatCount = ValueAnimator.INFINITE
-                interpolator = DecelerateInterpolator()
-                addUpdateListener { animation ->
-                    val progress = animation.animatedValue as Float
-                    rippleScale = 0.5f + (progress * 1.0f)
-                    rippleAlpha = 1f - progress
-                    invalidate()
-                }
-            }
-            rippleAnimator?.start()
-        }
-        
-        override fun onDraw(canvas: Canvas) {
-            super.onDraw(canvas)
-            val cx = width / 2f
-            val cy = height / 2f
-            
-            // Draw outer ripple
-            canvas.save()
-            canvas.translate(cx, cy)
-            canvas.scale(rippleScale, rippleScale)
-            ripplePaint.alpha = (255 * rippleAlpha).toInt()
-            canvas.drawCircle(0f, 0f, OUTER_RADIUS, ripplePaint)
-            canvas.restore()
-            
-            // Draw middle ring
-            canvas.drawCircle(cx, cy, RING_RADIUS, ringPaint)
-            
-            // Draw center dot
-            canvas.drawCircle(cx, cy, CENTER_RADIUS, centerPaint)
-            
-            // Draw white border around center dot
-            canvas.drawCircle(cx, cy, CENTER_BORDER_RADIUS, whiteBorderPaint)
-        }
-        
-        fun cleanup() {
-            rippleAnimator?.cancel()
-            rippleAnimator = null
-        }
-        
-        companion object {
-            private const val OUTER_RADIUS = 120f  // 40dp (80dp diameter)
-            private const val RING_RADIUS = 72f    // 24dp (48dp diameter)
-            private const val CENTER_RADIUS = 24f  // 8dp (16dp diameter)
-            private const val CENTER_BORDER_RADIUS = 18f  // 6dp (12dp diameter)
-        }
-    }
 }
 
 // Constants
