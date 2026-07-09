@@ -1,5 +1,6 @@
 package com.inputleaf.android.ui
 
+import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -16,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,16 +35,19 @@ import com.inputleaf.android.R
 
 @Composable
 fun OnboardingScreen(
-    shizukuStatus: MainViewModel.ShizukuStatus,
+    shizukuStatus: ShizukuStatus,
+    accessibilityAvailable: Boolean,
     canDrawOverlays: Boolean,
     batteryOptimizationExempt: Boolean,
+    imeEnabledAndSelected: Boolean,
     onRequestShizukuPermission: () -> Unit,
     onRequestOverlayPermission: () -> Unit,
     onRequestBatteryOptimization: () -> Unit,
+    onRequestImeSetup: () -> Unit,
     onComplete: () -> Unit
 ) {
     var currentPage by remember { mutableIntStateOf(0) }
-    val totalPages = 4
+    val totalPages = 6
     val context = LocalContext.current
 
     Scaffold { padding ->
@@ -84,39 +89,69 @@ fun OnboardingScreen(
                     0 -> WelcomePage()
                     1 -> PermissionPage(
                         icon = Icons.Rounded.Security,
-                        title = "Shizuku Setup",
-                        description = "Input Leaf uses Shizuku to inject mouse & keyboard events on your device — this is how your computer controls your phone.",
-                        whyNeeded = "Without Shizuku, the app cannot receive mouse movements or keyboard input from your computer. Shizuku provides a secure, rootless way to enable system-level input injection.",
-                        isGranted = shizukuStatus == MainViewModel.ShizukuStatus.READY,
+                        title = "Shizuku Setup (Optional)",
+                        description = "Shizuku lets Input Leaf inject mouse & keyboard events at the system level — the most powerful input method. Skip if you prefer Accessibility Service instead.",
+                        whyNeeded = "Shizuku provides low-latency, root-equivalent input injection without actually rooting your device. If Shizuku is unavailable, you can use the Accessibility Service on the next page.",
+                        isGranted = shizukuStatus == ShizukuStatus.READY,
                         statusText = when (shizukuStatus) {
-                            MainViewModel.ShizukuStatus.READY -> "Ready ✓"
-                            MainViewModel.ShizukuStatus.NOT_INSTALLED -> "Not installed"
-                            MainViewModel.ShizukuStatus.NOT_RUNNING -> "Not running"
-                            MainViewModel.ShizukuStatus.PERMISSION_REQUIRED -> "Permission needed"
-                            MainViewModel.ShizukuStatus.CHECKING -> "Checking..."
+                            ShizukuStatus.READY -> "Ready ✓"
+                            ShizukuStatus.NOT_INSTALLED -> "Not installed"
+                            ShizukuStatus.NOT_RUNNING -> "Not running"
+                            ShizukuStatus.PERMISSION_REQUIRED -> "Permission needed"
+                            ShizukuStatus.CHECKING -> "Checking..."
                         },
                         actionLabel = when (shizukuStatus) {
-                            MainViewModel.ShizukuStatus.NOT_INSTALLED -> "Install Shizuku"
-                            MainViewModel.ShizukuStatus.NOT_RUNNING -> "Open Shizuku"
-                            MainViewModel.ShizukuStatus.PERMISSION_REQUIRED -> "Grant Permission"
+                            ShizukuStatus.NOT_INSTALLED -> "Install Shizuku"
+                            ShizukuStatus.NOT_RUNNING -> "Open Shizuku"
+                            ShizukuStatus.PERMISSION_REQUIRED -> "Grant Permission"
                             else -> null
                         },
                         onAction = when (shizukuStatus) {
-                            MainViewModel.ShizukuStatus.NOT_INSTALLED -> ({
+                            ShizukuStatus.NOT_INSTALLED -> ({
                                 context.startActivity(Intent(Intent.ACTION_VIEW,
                                     Uri.parse("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api")))
                             })
-                            MainViewModel.ShizukuStatus.NOT_RUNNING -> ({
+                            ShizukuStatus.NOT_RUNNING -> ({
                                 context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")?.let {
                                     context.startActivity(it)
                                 }
                                 Unit
                             })
-                            MainViewModel.ShizukuStatus.PERMISSION_REQUIRED -> onRequestShizukuPermission
+                            ShizukuStatus.PERMISSION_REQUIRED -> onRequestShizukuPermission
                             else -> ({})
                         }
                     )
                     2 -> PermissionPage(
+                        icon = Icons.Rounded.Accessibility,
+                        title = "Accessibility Service",
+                        description = "Enable Input Leaf's Accessibility Service — a no-root, no-Shizuku way to inject touch events. Works on any Android device.",
+                        whyNeeded = "The Accessibility Service lets Input Leaf simulate taps without Shizuku. It works on stock Android with zero extra apps.",
+                        isGranted = accessibilityAvailable,
+                        statusText = if (accessibilityAvailable) "Enabled ✓" else "Disabled",
+                        actionLabel = if (!accessibilityAvailable) "Open Accessibility Settings" else null,
+                        onAction = {
+                            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                val comp = ComponentName(
+                                    context.packageName,
+                                    com.inputleaf.android.inject.AccessibilityInputService::class.java.name
+                                )
+                                putExtra(":settings:show_fragment_args",
+                                    android.os.Bundle().apply { putString(":settings:fragment_args_key", comp.flattenToString()) })
+                            }
+                            context.startActivity(intent)
+                        }
+                    )
+                    3 -> PermissionPage(
+                        icon = Icons.Default.Warning,
+                        title = "Virtual Keyboard",
+                        description = "Required to inject hardware keyboard shortcuts like Ctrl+C and Alt+Tab.",
+                        whyNeeded = "To fully mimic a physical keyboard without Shizuku, Input Leaf uses a custom Virtual Keyboard. You need to enable it and set it as your active keyboard.",
+                        isGranted = imeEnabledAndSelected,
+                        statusText = if (imeEnabledAndSelected) "Selected ✓" else "Not selected",
+                        actionLabel = if (!imeEnabledAndSelected) "Select Keyboard" else null,
+                        onAction = onRequestImeSetup
+                    )
+                    4 -> PermissionPage(
                         icon = Icons.Rounded.Visibility,
                         title = "Overlay Permission",
                         description = "Allows Input Leaf to display a cursor on your screen when your computer's mouse moves to this device.",
@@ -126,7 +161,7 @@ fun OnboardingScreen(
                         actionLabel = if (!canDrawOverlays) "Grant Permission" else null,
                         onAction = onRequestOverlayPermission
                     )
-                    3 -> PermissionPage(
+                    5 -> PermissionPage(
                         icon = Icons.Rounded.BatteryChargingFull,
                         title = "Battery Optimization",
                         description = "Prevents Android from killing the connection when your phone goes to sleep.\n\nGo to: Battery usage → Allow background activity",
@@ -266,6 +301,19 @@ private fun PermissionPage(
     onAction: () -> Unit
 ) {
     var showWhy by remember { mutableStateOf(false) }
+    
+    val bgColor by androidx.compose.animation.animateColorAsState(
+        targetValue = if (isGranted) MaterialTheme.colorScheme.tertiaryContainer
+                      else MaterialTheme.colorScheme.secondaryContainer,
+        animationSpec = androidx.compose.animation.core.tween(300),
+        label = "bg_color"
+    )
+    val iconTintColor by androidx.compose.animation.animateColorAsState(
+        targetValue = if (isGranted) MaterialTheme.colorScheme.onTertiaryContainer
+                      else MaterialTheme.colorScheme.onSecondaryContainer,
+        animationSpec = androidx.compose.animation.core.tween(300),
+        label = "icon_tint_color"
+    )
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -278,16 +326,14 @@ private fun PermissionPage(
             Surface(
                 modifier = Modifier.size(80.dp),
                 shape = CircleShape,
-                color = if (isGranted) MaterialTheme.colorScheme.tertiaryContainer
-                        else MaterialTheme.colorScheme.secondaryContainer
+                color = bgColor
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        imageVector = icon,
+                        imageVector = if (isGranted) Icons.Rounded.CheckCircle else icon,
                         contentDescription = null,
                         modifier = Modifier.size(40.dp),
-                        tint = if (isGranted) MaterialTheme.colorScheme.onTertiaryContainer
-                               else MaterialTheme.colorScheme.onSecondaryContainer
+                        tint = iconTintColor
                     )
                 }
             }
@@ -306,16 +352,14 @@ private fun PermissionPage(
 
         // Status chip
         Surface(
-            color = if (isGranted) MaterialTheme.colorScheme.tertiaryContainer
-                    else MaterialTheme.colorScheme.errorContainer,
+            color = bgColor,
             shape = RoundedCornerShape(20.dp)
         ) {
             Text(
                 text = statusText,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                 style = MaterialTheme.typography.labelMedium,
-                color = if (isGranted) MaterialTheme.colorScheme.onTertiaryContainer
-                        else MaterialTheme.colorScheme.onErrorContainer
+                color = iconTintColor
             )
         }
 

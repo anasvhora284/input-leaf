@@ -6,7 +6,7 @@ import org.junit.Test
 class ServerScannerTest {
     @Test fun `derives correct subnet from IP`() {
         val hosts = ServerScanner.subnetHosts("192.168.1.47")
-        assertThat(hosts).hasSize(254)
+        assertThat(hosts).hasSize(253) // 254 minus the device's own IP (.47)
         assertThat(hosts).contains("192.168.1.1")
         assertThat(hosts).contains("192.168.1.254")
         assertThat(hosts).doesNotContain("192.168.1.0")

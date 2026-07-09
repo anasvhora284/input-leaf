@@ -29,7 +29,7 @@ fun MainScreen(
     discoveredServers: List<ServerInfo>,
     isScanning: Boolean,
     screenName: String,
-    shizukuStatus: MainViewModel.ShizukuStatus,
+    shizukuStatus: ShizukuStatus,
     mouseEnabled: Boolean,
     keyboardEnabled: Boolean,
     favoriteServers: Set<String>,
@@ -107,7 +107,7 @@ fun MainScreen(
             }
 
             // Shizuku warning if not ready
-            if (shizukuStatus != MainViewModel.ShizukuStatus.READY) {
+            if (shizukuStatus != ShizukuStatus.READY) {
                 item {
                     com.inputleaf.android.ui.components.ShizukuStatusCard(
                         status = shizukuStatus,

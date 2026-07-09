@@ -40,7 +40,9 @@ class ProtocolParserTest {
     }
 
     @Test fun `parses MouseMoveRel`() {
-        val payload = byteArrayOf(0,0,0,5, 0,0,0,(-3).toByte())
+        // Input Leap sends DMRM as two signed 32-bit big-endian integers
+        // -3 in big-endian signed int32 = 0xFF,0xFF,0xFF,0xFD
+        val payload = byteArrayOf(0,0,0,5, 0xFF.toByte(),0xFF.toByte(),0xFF.toByte(),0xFD.toByte())
         val frame = frameOf("DMRM", *payload)
         val parser = ProtocolParser(ByteArrayInputStream(frame))
         assertThat(parser.readNext()).isEqualTo(InputLeapEvent.MouseMoveRel(5, -3))

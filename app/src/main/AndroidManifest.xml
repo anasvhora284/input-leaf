@@ -34,6 +34,32 @@
             android:name=".service.CursorOverlayService"
             android:exported="false"/>
         
+        <service
+            android:name=".inject.AccessibilityInputService"
+            android:exported="false"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+        
+        <!-- Input Method Service for Rootless Keyboard Injection -->
+        <service
+            android:name=".inject.InputLeafIME"
+            android:label="Input Leaf Keyboard"
+            android:permission="android.permission.BIND_INPUT_METHOD"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/method" />
+        </service>
+        
         <!-- Shizuku provider for privileged input injection -->
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
