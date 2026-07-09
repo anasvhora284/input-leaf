@@ -2,7 +2,10 @@ package com.inputleaf.android.service
 
 import android.app.Service
 import android.content.Intent
+import android.graphics.Point
+import android.graphics.Rect
 import android.os.Binder
+import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
 import android.util.Log
@@ -53,8 +56,7 @@ class ConnectionService : Service() {
         observeState()
         
         // Get screen dimensions
-        val wm = getSystemService(WindowManager::class.java)
-        val bounds = wm.currentWindowMetrics.bounds
+        val bounds = getScreenBounds()
         screenWidth = bounds.width()
         screenHeight = bounds.height()
         
@@ -113,39 +115,46 @@ class ConnectionService : Service() {
 
     fun connect(serverIp: String, screenName: String) {
         scope.launch {
-            startForeground(NOTIF_ID, NotificationHelper.build(this@ConnectionService, stateMachine.state.value))
-            stateMachine.onConnecting(serverIp)
-            val conn = InputLeapConnection(serverIp) { cert ->
-                val newFp = TlsFingerprintManager.fingerprintOf(cert)
-                val storedFp = prefs.fingerprintFor(serverIp).first()
-                val trusted = when {
-                    storedFp == null -> {
-                        // First connect: ask user to confirm
-                        onFingerprintConfirmationRequired?.invoke(serverIp, newFp, null) ?: false
+            try {
+                startForeground(NOTIF_ID, NotificationHelper.build(this@ConnectionService, stateMachine.state.value))
+                stateMachine.onConnecting(serverIp)
+                val conn = InputLeapConnection(serverIp) { cert ->
+                    val newFp = TlsFingerprintManager.fingerprintOf(cert)
+                    val storedFp = prefs.fingerprintFor(serverIp).first()
+                    val trusted = when {
+                        storedFp == null -> {
+                            // First connect: ask user to confirm
+                            onFingerprintConfirmationRequired?.invoke(serverIp, newFp, null) ?: false
+                        }
+                        storedFp == newFp -> true  // auto-trust — same cert
+                        else -> {
+                            // Cert changed: warn user
+                            onFingerprintConfirmationRequired?.invoke(serverIp, newFp, storedFp) ?: false
+                        }
                     }
-                    storedFp == newFp -> true  // auto-trust — same cert
-                    else -> {
-                        // Cert changed: warn user
-                        onFingerprintConfirmationRequired?.invoke(serverIp, newFp, storedFp) ?: false
-                    }
+                    if (trusted) prefs.saveFingerprint(serverIp, newFp)
+                    trusted
                 }
-                if (trusted) prefs.saveFingerprint(serverIp, newFp)
-                trusted
+                val banner = conn.connect()
+                if (banner == null) { stateMachine.onDisconnected(); scheduleRetry(serverIp, screenName); return@launch }
+                retryAttempt = 0
+                connection = conn
+                stateMachine.onHandshaking(serverIp)
+                withContext(Dispatchers.IO) { conn.sendHelloBack(screenName) }
+                startEventLoop(conn, serverIp, screenName)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Connection to $serverIp failed: ${e.javaClass.simpleName}: ${e.message}", e)
+                stateMachine.onDisconnected()
+                scheduleRetry(serverIp, screenName)
             }
-            val banner = conn.connect()
-            if (banner == null) { stateMachine.onDisconnected(); scheduleRetry(serverIp, screenName); return@launch }
-            retryAttempt = 0
-            connection = conn
-            stateMachine.onHandshaking(serverIp)
-            withContext(Dispatchers.IO) { conn.sendHelloBack(screenName) }
-            startEventLoop(conn, serverIp, screenName)
         }
     }
 
     private fun startEventLoop(conn: InputLeapConnection, ip: String, screenName: String) {
         scope.launch(Dispatchers.IO) {
-            val wm = getSystemService(WindowManager::class.java)
-            val bounds = wm.currentWindowMetrics.bounds
+            val bounds = getScreenBounds()
             var serverName = ""
             conn.events.collect { event ->
                 when (event) {
@@ -255,8 +264,7 @@ class ConnectionService : Service() {
      * @return true if Shizuku is available and bound successfully
      */
     suspend fun connectShizukuInjector(): Boolean = withContext(Dispatchers.IO) {
-        val wm = getSystemService(WindowManager::class.java)
-        val bounds = wm.currentWindowMetrics.bounds
+        val bounds = getScreenBounds()
         val injector = ShizukuInputInjector(bounds.width(), bounds.height())
         
         if (injector.isAvailable()) {
@@ -335,6 +343,23 @@ class ConnectionService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_DISCONNECT) disconnect()
         return START_STICKY
+    }
+
+    /**
+     * Returns the screen bounds in a backward-compatible way.
+     * Uses WindowManager.currentWindowMetrics (API 30+) when available,
+     * otherwise falls back to the deprecated Display.getSize().
+     */
+    @Suppress("DEPRECATION")
+    private fun getScreenBounds(): Rect {
+        val wm = getSystemService(WindowManager::class.java)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            wm.currentWindowMetrics.bounds
+        } else {
+            val size = Point()
+            wm.defaultDisplay.getSize(size)
+            Rect(0, 0, size.x, size.y)
+        }
     }
 
     override fun onDestroy() { 
