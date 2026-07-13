@@ -108,18 +108,21 @@ fun AppNavigation(viewModel: MainViewModel) {
         "servers" -> 1
         "setup" -> 2
         "settings" -> 3
+        "root" -> 3
         else -> 0
     }
 
     Scaffold(
         bottomBar = {
-            AnimatedBottomNavigation(
-                items = navItems,
-                selectedIndex = selectedIndex,
-                onItemSelected = { index ->
-                    screen = navItems[index].route
-                }
-            )
+            if (screen != "root") {
+                AnimatedBottomNavigation(
+                    items = navItems,
+                    selectedIndex = selectedIndex,
+                    onItemSelected = { index ->
+                        screen = navItems[index].route
+                    }
+                )
+            }
         }
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
@@ -139,7 +142,11 @@ fun AppNavigation(viewModel: MainViewModel) {
                     onAddManual = { viewModel.addManualServer(it) },
                     onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
                     onToggleMouse = { viewModel.toggleMouseEnabled(it) },
-                    onToggleKeyboard = { viewModel.toggleKeyboardEnabled(it) }
+                    onToggleKeyboard = { viewModel.toggleKeyboardEnabled(it) },
+                    onOpenRootCompanion = { screen = "root" }
+                )
+                "root" -> com.inputleaf.android.ui.root.RootCompanionScreen(
+                    onBack = { screen = "main" }
                 )
                 "servers" -> ServerListScreen(
                     connectionState = connectionState,

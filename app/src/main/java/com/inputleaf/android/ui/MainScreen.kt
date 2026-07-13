@@ -39,7 +39,8 @@ fun MainScreen(
     onAddManual: (String) -> Unit,
     onRequestShizukuPermission: () -> Unit,
     onToggleMouse: (Boolean) -> Unit,
-    onToggleKeyboard: (Boolean) -> Unit
+    onToggleKeyboard: (Boolean) -> Unit,
+    onOpenRootCompanion: () -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -58,6 +59,17 @@ fun MainScreen(
                     screenName = screenName,
                     onDisconnect = onDisconnect
                 )
+            }
+
+            item {
+                OutlinedButton(
+                    onClick = onOpenRootCompanion,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                ) {
+                    Text("Input Root companion")
+                }
             }
 
             // Mouse & Keyboard toggle cards
