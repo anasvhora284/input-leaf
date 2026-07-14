@@ -2,6 +2,7 @@ package com.inputleaf.android.ui.components
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
@@ -29,7 +30,11 @@ fun ShizukuStatusCard(
     when (status) {
         ShizukuStatus.READY -> {
             GradientCard(
-                modifier = modifier.fillMaxWidth(),
+                modifier = modifier.fillMaxWidth().clickable {
+                    context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")?.let {
+                        context.startActivity(it)
+                    }
+                },
                 backgroundColor = MaterialTheme.colorScheme.tertiaryContainer,
                 cornerRadius = 24.dp,
                 elevation = 0.dp,

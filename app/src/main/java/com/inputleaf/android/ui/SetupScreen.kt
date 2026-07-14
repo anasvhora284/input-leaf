@@ -1,5 +1,6 @@
 package com.inputleaf.android.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -160,6 +161,7 @@ private fun PermissionCard(
     GradientCard(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { onRequestPermission() }
             .animateContentSize(
                 animationSpec = tween(300)
             ),

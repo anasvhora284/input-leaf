@@ -331,8 +331,17 @@ class ConnectionService : Service() {
             val currentIme = Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
             val ourIme = android.content.ComponentName(this, com.inputleaf.android.inject.InputLeafIME::class.java).flattenToShortString()
             if (currentIme == ourIme) {
-                val imm = getSystemService(android.view.inputmethod.InputMethodManager::class.java)
-                imm.showInputMethodPicker()
+                // Open Accessibility Settings so user can disable the service
+                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                startActivity(intent)
+
+                // Show the IME picker over the settings screen after a slight delay
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    val imm = getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+                    imm.showInputMethodPicker()
+                }, 400)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to prompt IME switch", e)
