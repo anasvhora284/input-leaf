@@ -8,10 +8,8 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -64,8 +62,10 @@ fun RootCompanionScreen(onBack: () -> Unit) {
         )
 
         GradientCard {
-            Text("Status: $status", style = MaterialTheme.typography.titleMedium)
-            selectedName?.let { Text("Device: $it") }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Status: $status", style = MaterialTheme.typography.titleMedium)
+                selectedName?.let { Text("Device: $it") }
+            }
         }
 
         Text("Paired PCs", style = MaterialTheme.typography.titleSmall)
@@ -112,9 +112,11 @@ fun RootCompanionScreen(onBack: () -> Unit) {
             Text("Open Bluetooth / audio settings")
         }
 
-        OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(
+            onClick = onBack,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
             Text("Back")
         }
-        Spacer(Modifier = Modifier.height(24.dp))
     }
 }
