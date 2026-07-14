@@ -69,6 +69,13 @@ fun RootCompanionScreen(onBack: () -> Unit) {
         }
 
         Text("Paired PCs", style = MaterialTheme.typography.titleSmall)
+        if (bonded.isEmpty()) {
+            Text(
+                "No bonded Bluetooth devices yet. Pair “Input Root” in system Bluetooth settings first.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         bonded.forEach { device ->
             OutlinedButton(
                 onClick = {
