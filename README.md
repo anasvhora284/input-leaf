@@ -80,20 +80,20 @@ Here’s a more organized and visually balanced layout for your screenshots tabl
 
 
 App Screenshots
+### Splash & Setup
 
+| <img src="docs/01_splash_screen.jpg" width="200"> | <img src="docs/02_setup_flow.jpg" width="200"> |
+|:---:|:---:|
 
-| **Splash & Setup** | **Permissions** | **Main App** |
-|:------------------:|:---------------:|:------------:|
-| ![Splash Screen — App logo with tagline](docs/01_splash_screen.jpg) | ![Shizuku Setup Screen](docs/03_shizuku_setup.jpg) | ![Home Screen](docs/06_home_screen.jpg) |
-| ![Setup Flow Screen](docs/02_setup_flow.jpg) | ![Battery Optimization Screen](docs/05_allow_bg_activity.jpg) | ![Settings Screen](docs/07_settings_screen.jpg) |
-|  | ![Overlay Permission Screen](docs/04_overlay_permission.jpg) |  |
+### Permissions
 
-## Getting Started / Installation
+| <img src="docs/03_shizuku_setup.jpg" width="200"> | <img src="docs/04_overlay_permission.jpg" width="200"> | <img src="docs/05_allow_bg_activity.jpg" width="200"> |
+|:---:|:---:|:---:|
 
-Ready to build Input Leaf from source?
+### Main App
 
-Check out the **[Installation & Build Wiki](https://github.com/anasvhora284/input-leaf/blob/master/docs/WIKI_INSTALL_GUIDE.md)** for step-by-step instructions on setting up your build environment (JDK, Gradle, ADB) and compiling the APK.
-
+| <img src="docs/06_home_screen.jpg" width="200"> | <img src="docs/07_settings_screen.jpg" width="200"> |
+|:---:|:---:|
 ---
 
 ## Contributing
