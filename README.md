@@ -76,17 +76,17 @@ This is a pure plug-and-play fallback. It uses Android's Accessibility APIs to e
 * **Cons:** Because it's a software keyboard, it cannot capture hardware-level OS shortcuts like `Alt+Tab` or `Meta` key combinations. Mouse movement is simulated via touch gestures, which can feel slightly different than true hardware injection.
 
 ---
+Here’s a more organized and visually balanced layout for your screenshots table:
 
-## Screenshots
 
-| | | |
-|:---:|:---:|:---:|
-| | ![Splash Screen — App logo with tagline](docs/01_splash_screen.jpg) | |
-| | ![Setup Flow Screen](docs/02_setup_flow.jpg) | |
-| ![Shizuku Setup Screen](docs/03_shizuku_setup.jpg) | ![Battery Optimization Screen](docs/05_allow_bg_activity.jpg) | ![Overlay Permission Screen](docs/04_overlay_permission.jpg) |
-| ![Home Screen](docs/06_home_screen.jpg) | ![Settings Screen](docs/07_settings_screen.jpg) | |
+App Screenshots
 
----
+
+| **Splash & Setup** | **Permissions** | **Main App** |
+|:------------------:|:---------------:|:------------:|
+| ![Splash Screen — App logo with tagline](docs/01_splash_screen.jpg) | ![Shizuku Setup Screen](docs/03_shizuku_setup.jpg) | ![Home Screen](docs/06_home_screen.jpg) |
+| ![Setup Flow Screen](docs/02_setup_flow.jpg) | ![Battery Optimization Screen](docs/05_allow_bg_activity.jpg) | ![Settings Screen](docs/07_settings_screen.jpg) |
+|  | ![Overlay Permission Screen](docs/04_overlay_permission.jpg) |  |
 
 ## Getting Started / Installation
 
