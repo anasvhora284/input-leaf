@@ -66,7 +66,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val autoConnect: Flow<Boolean> = prefs.autoConnect
     val fingerprints: Flow<Map<String, String>> = prefs.allFingerprints()
     val themeMode: Flow<String> = prefs.themeMode
-    val onboardingComplete: Flow<Boolean> = prefs.onboardingComplete
+    val cursorStyle: Flow<String> = prefs.cursorStyle
+    val leafOnboardingComplete: Flow<Boolean> = prefs.leafOnboardingComplete
+    val onboardingComplete: Flow<Boolean> = prefs.leafOnboardingComplete
+
     val mouseEnabled: Flow<Boolean> = prefs.mouseEnabled
     val keyboardEnabled: Flow<Boolean> = prefs.keyboardEnabled
     val favoriteServers: Flow<Set<String>> = prefs.favoriteServers
@@ -107,10 +110,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 if (serverIp != null) {
                     Log.d("InputLeaf", "Screen name changed, reconnecting with new name: $name")
-                    service?.disconnect()
-                    // Small delay to ensure disconnect completes
-                    kotlinx.coroutines.delay(500)
-                    service?.connect(serverIp, name.trim())
+                    service?.reconnect(serverIp, name.trim())
                 }
             }
         } 
@@ -118,11 +118,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun saveAutoConnect(v: Boolean) { viewModelScope.launch { prefs.saveAutoConnect(v) } }
     fun deleteFingerprint(ip: String) { viewModelScope.launch { prefs.removeFingerprint(ip) } }
     fun saveThemeMode(mode: String) { viewModelScope.launch { prefs.saveThemeMode(mode) } }
-    fun completeOnboarding() { viewModelScope.launch { prefs.saveOnboardingComplete() } }
+    fun completeOnboarding() { viewModelScope.launch { prefs.saveLeafOnboardingComplete() } }
     fun toggleMouseEnabled(enabled: Boolean) { viewModelScope.launch { prefs.saveMouseEnabled(enabled) } }
     fun toggleKeyboardEnabled(enabled: Boolean) { viewModelScope.launch { prefs.saveKeyboardEnabled(enabled) } }
     fun toggleFavoriteServer(ip: String) { viewModelScope.launch { prefs.toggleFavoriteServer(ip) } }
     fun saveInputMethod(method: String) { viewModelScope.launch { prefs.saveInputMethod(method) } }
+    fun saveCursorStyle(style: String) { viewModelScope.launch { prefs.saveCursorStyle(style) } }
 
     // Called by UI after user taps Trust/Cancel in FingerprintDialog
     fun respondToFingerprint(request: FingerprintRequest, trusted: Boolean) {
@@ -130,6 +131,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private var hasAutoConnected = false
+
+    private var serviceBound = false
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
@@ -147,6 +150,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val deferred = kotlinx.coroutines.CompletableDeferred<Boolean>()
                 _fingerprintRequest.send(FingerprintRequest(ip, newFp, oldFp, deferred))
                 deferred.await()
+            }
+            service!!.onConnectionRejected = {
+                _errorState.value = "Connection not trusted"
             }
             
             // Auto-connect to last server if enabled
@@ -167,7 +173,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
     init {
         bindService()
-        
+
         // Observe showCursor preference and update service
         viewModelScope.launch {
             prefs.showCursor.collect { enabled ->
@@ -188,8 +194,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun bindService() {
+        if (serviceBound) return
         val intent = Intent(getApplication(), ConnectionService::class.java)
         getApplication<Application>().bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        serviceBound = true
     }
 
     fun scan() {
@@ -237,6 +245,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun connect(server: ServerInfo) {
         viewModelScope.launch {
+            val state = _connectionState.value
+            if (state is ConnectionState.Connecting || state is ConnectionState.Handshaking) {
+                Log.d("InputLeaf", "Ignoring connect — already connecting to ${server.ip}")
+                return@launch
+            }
             val name = prefs.screenName.first()
             prefs.saveLastServer(server.ip)
             
@@ -265,6 +278,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         permissionProvider.cleanup()
-        getApplication<Application>().unbindService(serviceConnection)
+        if (serviceBound) {
+            getApplication<Application>().unbindService(serviceConnection)
+        }
     }
 }

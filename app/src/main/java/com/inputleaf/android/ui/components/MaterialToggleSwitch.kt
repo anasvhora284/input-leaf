@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -22,7 +23,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.inputleaf.android.ui.theme.Gradients
 
 @Composable
 fun MaterialToggleSwitch(
@@ -37,15 +37,18 @@ fun MaterialToggleSwitch(
         label = "thumb_offset"
     )
 
+    val scheme = MaterialTheme.colorScheme
     Box(
         modifier = modifier
             .width(52.dp)
             .height(32.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(
-                if (checked) Gradients.Primary else Brush.linearGradient(
-                    listOf(Color(0xFFE5E7EB), Color(0xFFD1D5DB))
-                )
+                if (checked) Brush.linearGradient(
+                    listOf(scheme.primary, scheme.primary.copy(alpha = 0.85f)),
+                ) else Brush.linearGradient(
+                    listOf(scheme.surfaceVariant, scheme.outlineVariant.copy(alpha = 0.5f)),
+                ),
             )
             .clickable(
                 enabled = enabled,
@@ -63,7 +66,7 @@ fun MaterialToggleSwitch(
                 .shadow(
                     elevation = if (checked) 6.dp else 3.dp,
                     shape = CircleShape,
-                    ambientColor = if (checked) Color(0xFF8B5CF6).copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.2f)
+                    ambientColor = if (checked) scheme.primary.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.2f)
                 )
                 .clip(CircleShape)
                 .background(Color.White)

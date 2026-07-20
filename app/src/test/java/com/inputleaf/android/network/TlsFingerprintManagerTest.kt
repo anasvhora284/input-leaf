@@ -31,7 +31,13 @@ class TlsFingerprintManagerTest {
         assertThat(ctx).isNotNull()
         assertThat(ctx.protocol).isEqualTo("TLS")
         assertThat(ctx.socketFactory).isNotNull()
-        // The callback fires during a TLS handshake when checkServerTrusted is called.
-        // Full loopback TLS verification is covered by integration tests (Task 19).
+    }
+
+    @Test fun `buildPinningSSLContext returns initialized TLS context`() {
+        val cert = loadTestCert()
+        val fp = TlsFingerprintManager.fingerprintOf(cert)
+        val ctx = TlsFingerprintManager.buildPinningSSLContext(fp)
+        assertThat(ctx.protocol).isEqualTo("TLS")
+        assertThat(ctx.socketFactory).isNotNull()
     }
 }

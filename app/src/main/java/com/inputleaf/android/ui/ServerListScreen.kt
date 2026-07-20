@@ -9,7 +9,9 @@ import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.inputleaf.android.model.ConnectionState
 import com.inputleaf.android.model.ServerInfo
 
@@ -33,7 +35,16 @@ fun ServerListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Servers") })
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Servers",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleLarge,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+            )
         }
     ) { padding ->
         LazyColumn(

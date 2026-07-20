@@ -7,6 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +20,15 @@ import androidx.compose.ui.unit.sp
 import com.inputleaf.android.ui.components.CircularAvatar
 import com.inputleaf.android.ui.components.GradientCard
 import com.inputleaf.android.ui.components.MaterialToggleSwitch
+import com.inputleaf.android.ui.components.SectionHeader
+import com.inputleaf.android.ui.components.SettingsRow
+import com.inputleaf.android.ui.components.ThemeModeOption
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,6 +38,7 @@ fun SettingsScreen(
     showCursor: Boolean,
     themeMode: String,
     inputMethod: String,
+    cursorStyle: String,
     shizukuAvailable: Boolean,
     accessibilityAvailable: Boolean,
     canDrawOverlays: Boolean,
@@ -37,22 +48,31 @@ fun SettingsScreen(
     onShowCursorChange: (Boolean) -> Unit,
     onThemeModeChange: (String) -> Unit,
     onInputMethodChange: (String) -> Unit,
+    onCursorStyleChange: (String) -> Unit,
     onRequestOverlayPermission: () -> Unit,
     onDeleteFingerprint: (String) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
 ) {
     var editingName by remember(screenName) { mutableStateOf(screenName) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showEditNameDialog by remember { mutableStateOf(false) }
     var showInputMethodDialog by remember { mutableStateOf(false) }
+    var showCursorStyleDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = {
+                    Text(
+                        text = "Settings",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleLarge,
+                        letterSpacing = 0.5.sp
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Rounded.ArrowBack, "Back")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back")
                     }
                 }
             )
@@ -91,7 +111,6 @@ fun SettingsScreen(
                     SettingsRow(
                         icon = Icons.Rounded.Build,
                         title = "Auto-connect on launch",
-                        showDivider = true,
                         trailingContent = {
                             MaterialToggleSwitch(
                                 checked = autoConnect,
@@ -113,7 +132,6 @@ fun SettingsScreen(
                             "accessibility" -> "Accessibility Service (no extra app)"
                             else -> "Auto (Recommended)"
                         },
-                        showDivider = false,
                         onClick = { showInputMethodDialog = true }
                     )
                 }
@@ -174,7 +192,6 @@ fun SettingsScreen(
                         icon = Icons.Rounded.Info,
                         title = "Show cursor overlay",
                         subtitle = if (canDrawOverlays) "Display cursor when active" else "Grant permission first",
-                        showDivider = true,
                         trailingContent = {
                             MaterialToggleSwitch(
                                 checked = showCursor,
@@ -183,6 +200,14 @@ fun SettingsScreen(
                             )
                         }
                     )
+                    if (showCursor && canDrawOverlays) {
+                        SettingsRow(
+                            icon = Icons.Rounded.Edit,
+                            title = "Cursor style",
+                            subtitle = if (cursorStyle == "leaf") "Input Leaf custom" else "Android default",
+                            onClick = { showCursorStyleDialog = true }
+                        )
+                    }
                     // Theme setting
                     SettingsRow(
                         icon = Icons.Rounded.Settings,
@@ -192,7 +217,6 @@ fun SettingsScreen(
                             "DARK" -> "Dark"
                             else -> "System default"
                         },
-                        showDivider = false,
                         onClick = { showThemeDialog = true }
                     )
                 }
@@ -200,9 +224,8 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Security Section
             SectionHeader("SECURITY")
-            
+
             GradientCard(
                 modifier = Modifier.fillMaxWidth(),
                 backgroundColor = MaterialTheme.colorScheme.surface,
@@ -215,7 +238,6 @@ fun SettingsScreen(
                         icon = Icons.Rounded.Lock,
                         title = "Trusted servers",
                         subtitle = "${fingerprints.size} server${if (fingerprints.size != 1) "s" else ""}",
-                        showDivider = fingerprints.isNotEmpty()
                     )
                     // Server entries
                     fingerprints.entries.forEachIndexed { index, (ip, fp) ->
@@ -381,102 +403,151 @@ fun SettingsScreen(
             }
         )
     }
-}
 
-@Composable
-private fun SectionHeader(text: String) {
-    Text(
-        text = text,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 4.dp, bottom = 12.dp, top = 8.dp)
-    )
-}
-
-@Composable
-private fun SettingsRow(
-    icon: ImageVector,
-    title: String,
-    subtitle: String? = null,
-    showDivider: Boolean = true,
-    onClick: (() -> Unit)? = null,
-    trailingContent: @Composable (() -> Unit)? = null
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(
-                if (onClick != null) {
-                    Modifier.clickable { onClick() }
-                } else Modifier
-            )
-            .padding(16.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            CircularAvatar(
-                icon = icon,
-                size = 40.dp,
-                iconSize = 22.dp,
-                backgroundColor = MaterialTheme.colorScheme.secondaryContainer,
-                iconTint = MaterialTheme.colorScheme.onSecondaryContainer
-            )
-
-            Column(modifier = Modifier.weight(1f)) {
+    if (showCursorStyleDialog) {
+        AlertDialog(
+            onDismissRequest = { showCursorStyleDialog = false },
+            title = {
                 Text(
-                    text = title,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    style = MaterialTheme.typography.bodyMedium
+                    text = "Select Cursor Style",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-                if (subtitle != null) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = subtitle,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall
-                    )
+            },
+            text = {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Option 1: Android Default
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(140.dp)
+                            .clickable {
+                                onCursorStyleChange("default")
+                                showCursorStyleDialog = false
+                            },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (cursorStyle == "default")
+                                MaterialTheme.colorScheme.primaryContainer
+                            else
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ),
+                        border = if (cursorStyle == "default")
+                            BorderStroke(2.2.dp, MaterialTheme.colorScheme.primary)
+                        else
+                            null
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxSize().padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .background(
+                                        color = Color.LightGray.copy(alpha = 0.2f),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(id = com.inputleaf.android.R.drawable.ic_cursor_aosp),
+                                    contentDescription = "Default Cursor",
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .graphicsLayer(scaleX = 1f)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Default",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = if (cursorStyle == "default")
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                else
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // Option 2: Input Leaf Custom
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(140.dp)
+                            .clickable {
+                                onCursorStyleChange("leaf")
+                                showCursorStyleDialog = false
+                            },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (cursorStyle == "leaf")
+                                MaterialTheme.colorScheme.primaryContainer
+                            else
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ),
+                        border = if (cursorStyle == "leaf")
+                            BorderStroke(2.2.dp, MaterialTheme.colorScheme.primary)
+                        else
+                            null
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxSize().padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .background(
+                                        brush = Brush.linearGradient(
+                                            colors = listOf(
+                                                Color(0xFF8B5CF6).copy(alpha = 0.15f),
+                                                Color(0xFFD8B4FE).copy(alpha = 0.15f)
+                                            )
+                                        ),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(id = com.inputleaf.android.R.drawable.cursor),
+                                    contentDescription = "Leaf Cursor",
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .graphicsLayer(scaleX = -1f)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Input Leaf",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = if (cursorStyle == "leaf")
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                else
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showCursorStyleDialog = false }) {
+                    Text("Close", color = MaterialTheme.colorScheme.primary)
                 }
             }
-
-            if (trailingContent != null) {
-                trailingContent()
-            } else if (onClick != null) {
-                Icon(
-                    imageVector = Icons.Rounded.ArrowForward,
-                    contentDescription = "Navigate",
-                    tint = MaterialTheme.colorScheme.outline
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ThemeModeOption(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        RadioButton(
-            selected = selected,
-            onClick = onClick
         )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(text = text)
     }
 }
+
 
 @Composable
 private fun InputMethodOption(

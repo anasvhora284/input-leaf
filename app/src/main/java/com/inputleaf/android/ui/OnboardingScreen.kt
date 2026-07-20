@@ -215,7 +215,7 @@ private fun WelcomePage() {
         Spacer(modifier = Modifier.height(32.dp))
 
         Image(
-            painter = painterResource(id = R.drawable.ic_splash_logo),
+            painter = painterResource(id = R.drawable.ic_logo),
             contentDescription = "Input Leaf Logo",
             modifier = Modifier.size(120.dp)
         )

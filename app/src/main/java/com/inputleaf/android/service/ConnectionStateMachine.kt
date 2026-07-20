@@ -44,7 +44,7 @@ class ConnectionStateMachine {
 
     fun onKeepAliveMiss(): Boolean {
         keepAliveMissed++
-        return keepAliveMissed >= 3
+        return keepAliveMissed >= 4
     }
 
     fun onDisconnected() {

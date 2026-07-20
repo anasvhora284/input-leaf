@@ -22,6 +22,7 @@ import android.view.View
 import android.view.WindowManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.*
 
 private const val TAG = "CursorOverlayService"
 
@@ -36,6 +37,10 @@ class CursorOverlayService : Service() {
     private var isShowing = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private var statusBarHeight = 0
+    
+    private lateinit var prefs: com.inputleaf.android.storage.AppPreferences
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
+    private var currentCursorStyle = "default"
     
     companion object {
         private var instance: CursorOverlayService? = null
@@ -100,6 +105,14 @@ class CursorOverlayService : Service() {
         instance = this
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         
+        prefs = com.inputleaf.android.storage.AppPreferences(this)
+        scope.launch {
+            prefs.cursorStyle.collect { style ->
+                currentCursorStyle = style
+                updateCursorImage()
+            }
+        }
+        
         // Get status bar height for Y offset correction
         val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
         if (resourceId > 0) {
@@ -112,6 +125,17 @@ class CursorOverlayService : Service() {
             Log.d(TAG, "isVisible was true on create, showing cursor")
             showCursorInternal()
         }
+    }
+    
+    private fun updateCursorImage() {
+        val imageView = cursorView as? android.widget.ImageView ?: return
+        val resId = if (currentCursorStyle == "leaf") {
+            com.inputleaf.android.R.drawable.cursor
+        } else {
+            com.inputleaf.android.R.drawable.ic_cursor_aosp
+        }
+        imageView.setImageResource(resId)
+        imageView.scaleX = if (currentCursorStyle == "leaf") -1f else 1f
     }
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -131,9 +155,15 @@ class CursorOverlayService : Service() {
         Log.d(TAG, "showCursorInternal() called - isShowing=$isShowing, canDrawOverlays=${Settings.canDrawOverlays(this)}")
         if (isShowing || !Settings.canDrawOverlays(this)) return
         
+        val resId = if (currentCursorStyle == "leaf") {
+            com.inputleaf.android.R.drawable.cursor
+        } else {
+            com.inputleaf.android.R.drawable.ic_cursor_aosp
+        }
+        val scaleXValue = if (currentCursorStyle == "leaf") -1f else 1f
         val view = android.widget.ImageView(this).apply {
-            setImageResource(com.inputleaf.android.R.drawable.cursor)
-            scaleX = -1f
+            setImageResource(resId)
+            scaleX = scaleXValue
         }
         cursorView = view
         
@@ -198,6 +228,9 @@ class CursorOverlayService : Service() {
     }
     
     override fun onDestroy() {
+        try {
+            scope.cancel()
+        } catch (e: Exception) {}
         hideCursorInternal()
         instance = null
         super.onDestroy()

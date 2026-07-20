@@ -8,6 +8,7 @@ import android.os.Build
 import android.util.Log
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
+import kotlinx.coroutines.*
 
 private const val TAG = "AccessibilityInputService"
 
@@ -19,6 +20,9 @@ class AccessibilityInputService : AccessibilityService() {
         fun getInstance(): AccessibilityInputService? = instance
 
         fun isServiceRunning(): Boolean = instance != null
+
+        @kotlin.jvm.Volatile
+        var targetImeLabelToSelect: String? = null
     }
 
     private var isDragging = false
@@ -29,11 +33,34 @@ class AccessibilityInputService : AccessibilityService() {
     private var windowManager: android.view.WindowManager? = null
     private var cursorView: android.view.View? = null
 
+    private lateinit var prefs: com.inputleaf.android.storage.AppPreferences
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
+    private var currentCursorStyle = "default"
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
         windowManager = getSystemService(WINDOW_SERVICE) as android.view.WindowManager
         Log.d(TAG, "AccessibilityInputService connected")
+        
+        prefs = com.inputleaf.android.storage.AppPreferences(this)
+        scope.launch {
+            prefs.cursorStyle.collect { style ->
+                currentCursorStyle = style
+                updateCursorImage()
+            }
+        }
+    }
+
+    private fun updateCursorImage() {
+        val imageView = cursorView as? android.widget.ImageView ?: return
+        val resId = if (currentCursorStyle == "leaf") {
+            com.inputleaf.android.R.drawable.cursor
+        } else {
+            com.inputleaf.android.R.drawable.ic_cursor_aosp
+        }
+        imageView.setImageResource(resId)
+        imageView.scaleX = if (currentCursorStyle == "leaf") -1f else 1f
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
@@ -43,13 +70,33 @@ class AccessibilityInputService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        try {
+            scope.cancel()
+        } catch (e: Exception) {}
         hideCursorInternal()
         instance = null
         super.onDestroy()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // No-op: we inject only, don't process events
+        val target = targetImeLabelToSelect ?: return
+        val rootNode = rootInActiveWindow ?: return
+        val nodes = rootNode.findAccessibilityNodeInfosByText(target)
+        if (!nodes.isNullOrEmpty()) {
+            for (node in nodes) {
+                var current: android.view.accessibility.AccessibilityNodeInfo? = node
+                while (current != null) {
+                    if (current.isClickable) {
+                        current.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+                        Log.i(TAG, "Accessibility service auto-clicked input method item: $target")
+                        targetImeLabelToSelect = null // Clear target so we stop matching
+                        break
+                    }
+                    current = current.parent
+                }
+                if (targetImeLabelToSelect == null) break
+            }
+        }
     }
 
     override fun onInterrupt() {
@@ -60,9 +107,15 @@ class AccessibilityInputService : AccessibilityService() {
 
     fun showCursorInternal() {
         if (cursorView != null) return
+        val resId = if (currentCursorStyle == "leaf") {
+            com.inputleaf.android.R.drawable.cursor
+        } else {
+            com.inputleaf.android.R.drawable.ic_cursor_aosp
+        }
+        val scaleXValue = if (currentCursorStyle == "leaf") -1f else 1f
         val view = android.widget.ImageView(this).apply {
-            setImageResource(com.inputleaf.android.R.drawable.cursor)
-            scaleX = -1f
+            setImageResource(resId)
+            scaleX = scaleXValue
         }
         cursorView = view
         

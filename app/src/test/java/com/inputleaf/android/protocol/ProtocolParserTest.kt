@@ -15,6 +15,14 @@ class ProtocolParserTest {
         ) + body
     }
 
+    private fun frameOfBody(body: ByteArray): ByteArray {
+        val len = body.size
+        return byteArrayOf(
+            (len shr 24).toByte(), (len shr 16).toByte(),
+            (len shr 8).toByte(), len.toByte()
+        ) + body
+    }
+
     @Test fun `parses Hello message`() {
         val name = "work-pc"
         val nameBytes = name.toByteArray(Charsets.US_ASCII)
@@ -24,6 +32,27 @@ class ProtocolParserTest {
         val parser = ProtocolParser(ByteArrayInputStream(frame))
         val event = parser.readNext()
         assertThat(event).isEqualTo(InputLeapEvent.Hello(1, 6, "work-pc"))
+    }
+
+    @Test fun `parses Barrier hello from Input Leap server`() {
+        val body = "Barrier".toByteArray(Charsets.US_ASCII) + byteArrayOf(0, 1, 0, 8)
+        val frame = frameOfBody(body)
+        val parser = ProtocolParser(ByteArrayInputStream(frame))
+        val event = parser.readNext()
+        assertThat(event).isEqualTo(InputLeapEvent.Hello(1, 8, ""))
+    }
+
+    @Test fun `parses Barrier hello with server name`() {
+        val name = "work-pc"
+        val nameBytes = name.toByteArray(Charsets.US_ASCII)
+        val body = "Barrier".toByteArray(Charsets.US_ASCII) +
+            byteArrayOf(0, 1, 0, 8) +
+            byteArrayOf(0, 0, 0, nameBytes.size.toByte()) +
+            nameBytes
+        val frame = frameOfBody(body)
+        val parser = ProtocolParser(ByteArrayInputStream(frame))
+        val event = parser.readNext()
+        assertThat(event).isEqualTo(InputLeapEvent.Hello(1, 8, "work-pc"))
     }
 
     @Test fun `parses KeepAlive message`() {
@@ -40,8 +69,6 @@ class ProtocolParserTest {
     }
 
     @Test fun `parses MouseMoveRel`() {
-        // Input Leap sends DMRM as two signed 32-bit big-endian integers
-        // -3 in big-endian signed int32 = 0xFF,0xFF,0xFF,0xFD
         val payload = byteArrayOf(0,0,0,5, 0xFF.toByte(),0xFF.toByte(),0xFF.toByte(),0xFD.toByte())
         val frame = frameOf("DMRM", *payload)
         val parser = ProtocolParser(ByteArrayInputStream(frame))

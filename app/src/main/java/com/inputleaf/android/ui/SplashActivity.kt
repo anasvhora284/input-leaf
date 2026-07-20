@@ -25,6 +25,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import com.inputleaf.android.ui.theme.MistGreen
+import com.inputleaf.android.ui.theme.MistGreenDim
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -91,14 +93,14 @@ fun SplashScreen(onTimeout: () -> Unit) {
 
         Text(
             text = "Android extension of Input Leap",
-            color = Color(0xFF7CB8A8),
+            color = MistGreen,
             fontSize = 13.sp,
             modifier = Modifier.alpha(alphaAnim)
         )
 
         Text(
             text = "Open Source KVM Software",
-            color = Color(0xFF5A9A8A),
+            color = MistGreenDim,
             fontSize = 12.sp,
             modifier = Modifier.alpha(alphaAnim)
         )

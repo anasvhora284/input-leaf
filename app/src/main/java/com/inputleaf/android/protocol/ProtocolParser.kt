@@ -12,9 +12,47 @@ class ProtocolParser(input: DataInputStream) {
         val len = din.readInt()
         require(len in 4..ProtocolConstants.MAX_MESSAGE_LEN) { "Bad message length: $len" }
         val body = ByteArray(len).also { din.readFully(it) }
+        if (body.size >= 7 && String(body, 0, 7, Charsets.US_ASCII) == "Barrier") {
+            return parseBarrierHello(body)
+        }
+        if (body.size >= 7 && String(body, 0, 7, Charsets.US_ASCII) == "Synergy") {
+            return parseSynergyHello(body)
+        }
         val tag = String(body, 0, 4, Charsets.US_ASCII)
         val payload = body.drop(4).toByteArray()
         return parse(tag, payload)
+    }
+
+    private fun parseBarrierHello(body: ByteArray): InputLeapEvent {
+        val major = body.u16(7)
+        val minor = body.u16(9)
+        val name = if (body.size > 11) {
+            val nameLen = body.u32(11)
+            if (nameLen > 0 && body.size >= 15 + nameLen) {
+                String(body, 15, nameLen, Charsets.UTF_8)
+            } else {
+                ""
+            }
+        } else {
+            ""
+        }
+        return InputLeapEvent.Hello(major, minor, name)
+    }
+
+    private fun parseSynergyHello(body: ByteArray): InputLeapEvent {
+        val major = body.u16(7)
+        val minor = body.u16(9)
+        val name = if (body.size > 11) {
+            val nameLen = body.u32(11)
+            if (nameLen > 0 && body.size >= 15 + nameLen) {
+                String(body, 15, nameLen, Charsets.UTF_8)
+            } else {
+                ""
+            }
+        } else {
+            ""
+        }
+        return InputLeapEvent.Hello(major, minor, name)
     }
 
     private fun parse(tag: String, p: ByteArray): InputLeapEvent = when (tag) {

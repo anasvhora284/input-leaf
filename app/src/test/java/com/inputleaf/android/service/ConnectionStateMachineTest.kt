@@ -54,8 +54,9 @@ class ConnectionStateMachineTest {
         assertThat(sm.state.value).isEqualTo(ConnectionState.Idle("192.168.1.10", "work-pc"))
     }
 
-    @Test fun `keepalive miss returns false twice then true on third`() {
+    @Test fun `keepalive miss returns false three times then true on fourth`() {
         val sm = ConnectionStateMachine()
+        assertThat(sm.onKeepAliveMiss()).isFalse()
         assertThat(sm.onKeepAliveMiss()).isFalse()
         assertThat(sm.onKeepAliveMiss()).isFalse()
         assertThat(sm.onKeepAliveMiss()).isTrue()

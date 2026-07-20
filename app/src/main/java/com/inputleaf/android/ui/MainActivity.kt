@@ -78,22 +78,22 @@ class MainActivity : ComponentActivity() {
                 // Fallback for older Android versions
                 if (isDarkTheme) {
                     androidx.compose.material3.darkColorScheme(
-                        primary = com.inputleaf.android.ui.theme.Purple400,
-                        primaryContainer = com.inputleaf.android.ui.theme.Purple700,
+                        primary = com.inputleaf.android.ui.theme.LeafBright,
+                        primaryContainer = com.inputleaf.android.ui.theme.LeafForest,
                         onPrimary = androidx.compose.ui.graphics.Color.White,
-                        secondary = com.inputleaf.android.ui.theme.Purple300,
+                        secondary = com.inputleaf.android.ui.theme.LeafLight,
                         tertiary = com.inputleaf.android.ui.theme.Success400,
-                        background = androidx.compose.ui.graphics.Color(0xFF121212),
-                        surface = androidx.compose.ui.graphics.Color(0xFF1E1E1E),
-                        onBackground = androidx.compose.ui.graphics.Color(0xFFE1E1E1),
-                        onSurface = androidx.compose.ui.graphics.Color(0xFFE1E1E1)
+                        background = com.inputleaf.android.ui.theme.TealDark,
+                        surface = com.inputleaf.android.ui.theme.TealDeep,
+                        onBackground = androidx.compose.ui.graphics.Color(0xFFE8F5E9),
+                        onSurface = androidx.compose.ui.graphics.Color(0xFFE8F5E9)
                     )
                 } else {
                     lightColorScheme(
-                        primary = com.inputleaf.android.ui.theme.Purple500,
+                        primary = com.inputleaf.android.ui.theme.LeafGreen,
                         primaryContainer = com.inputleaf.android.ui.theme.Purple100,
                         onPrimary = androidx.compose.ui.graphics.Color.White,
-                        secondary = com.inputleaf.android.ui.theme.Purple400,
+                        secondary = com.inputleaf.android.ui.theme.LeafBright,
                         tertiary = com.inputleaf.android.ui.theme.Success500,
                         background = com.inputleaf.android.ui.theme.Background,
                         surface = com.inputleaf.android.ui.theme.Surface

@@ -12,6 +12,7 @@ private val Context.dataStore by preferencesDataStore("inputleaf_prefs")
 class AppPreferences(private val context: Context) {
 
     companion object {
+        private val KEY_LEAF_ONBOARDING_DONE = booleanPreferencesKey("leaf_onboarding_complete")
         private val KEY_LAST_SERVER_IP   = stringPreferencesKey("last_server_ip")
         private val KEY_SCREEN_NAME      = stringPreferencesKey("screen_name")
         private val KEY_AUTO_CONNECT     = booleanPreferencesKey("auto_connect")
@@ -23,8 +24,10 @@ class AppPreferences(private val context: Context) {
         private val KEY_FAVORITE_SERVERS = stringPreferencesKey("favorite_servers")
         // Fingerprints stored as "ip:fingerprint" joined by newline
         private val KEY_FINGERPRINTS     = stringPreferencesKey("tls_fingerprints")
+        private val KEY_TRANSPORT_MODES  = stringPreferencesKey("server_transport_modes")
         private val KEY_INPUT_METHOD     = stringPreferencesKey("input_method")
-        
+        private val KEY_CURSOR_STYLE     = stringPreferencesKey("cursor_style")
+
         /**
          * Get a sanitized device name suitable for use as screen name.
          * Removes trailing spaces and special characters that might cause issues.
@@ -55,8 +58,14 @@ class AppPreferences(private val context: Context) {
     val themeMode: Flow<String> =
         context.dataStore.data.map { it[KEY_THEME_MODE] ?: "SYSTEM" }
 
-    val onboardingComplete: Flow<Boolean> =
-        context.dataStore.data.map { it[KEY_ONBOARDING_DONE] ?: false }
+    val leafOnboardingComplete: Flow<Boolean> =
+        context.dataStore.data.map { prefs ->
+            prefs[KEY_LEAF_ONBOARDING_DONE]
+                ?: prefs[KEY_ONBOARDING_DONE]
+                ?: false
+        }
+
+    val onboardingComplete: Flow<Boolean> = leafOnboardingComplete
 
     val mouseEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_MOUSE_ENABLED] ?: true }
@@ -66,6 +75,9 @@ class AppPreferences(private val context: Context) {
 
     val inputMethod: Flow<String> =
         context.dataStore.data.map { it[KEY_INPUT_METHOD] ?: "auto" }
+
+    val cursorStyle: Flow<String> =
+        context.dataStore.data.map { it[KEY_CURSOR_STYLE] ?: "default" }
 
     val favoriteServers: Flow<Set<String>> =
         context.dataStore.data.map { prefs ->
@@ -92,9 +104,12 @@ class AppPreferences(private val context: Context) {
         it[KEY_THEME_MODE] = mode
     }
 
-    suspend fun saveOnboardingComplete() = context.dataStore.edit {
+    suspend fun saveLeafOnboardingComplete() = context.dataStore.edit {
+        it[KEY_LEAF_ONBOARDING_DONE] = true
         it[KEY_ONBOARDING_DONE] = true
     }
+
+    suspend fun saveOnboardingComplete() = saveLeafOnboardingComplete()
 
     suspend fun saveMouseEnabled(enabled: Boolean) = context.dataStore.edit {
         it[KEY_MOUSE_ENABLED] = enabled
@@ -106,6 +121,10 @@ class AppPreferences(private val context: Context) {
 
     suspend fun saveInputMethod(method: String) = context.dataStore.edit {
         it[KEY_INPUT_METHOD] = method
+    }
+
+    suspend fun saveCursorStyle(style: String) = context.dataStore.edit {
+        it[KEY_CURSOR_STYLE] = style
     }
 
     suspend fun toggleFavoriteServer(ip: String) = context.dataStore.edit { prefs ->
@@ -142,4 +161,24 @@ class AppPreferences(private val context: Context) {
                 ?.associate { it.substringBefore(":") to it.substringAfter(":") }
                 ?: emptyMap()
         }
+
+    fun transportFor(ip: String): Flow<String?> =
+        context.dataStore.data.map { prefs ->
+            prefs[KEY_TRANSPORT_MODES]?.lines()
+                ?.firstOrNull { it.startsWith("$ip:") }
+                ?.substringAfter(":")
+        }
+
+    suspend fun saveTransport(ip: String, mode: String) = context.dataStore.edit { prefs ->
+        val lines = prefs[KEY_TRANSPORT_MODES]?.lines()?.toMutableList() ?: mutableListOf()
+        lines.removeAll { it.startsWith("$ip:") }
+        lines.add("$ip:$mode")
+        prefs[KEY_TRANSPORT_MODES] = lines.joinToString("\n")
+    }
+
+    suspend fun clearTransport(ip: String) = context.dataStore.edit { prefs ->
+        val lines = prefs[KEY_TRANSPORT_MODES]?.lines()?.toMutableList() ?: return@edit
+        lines.removeAll { it.startsWith("$ip:") }
+        prefs[KEY_TRANSPORT_MODES] = lines.joinToString("\n")
+    }
 }

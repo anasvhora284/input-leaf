@@ -3,6 +3,7 @@ package com.inputleaf.android.network
 import java.security.MessageDigest
 import java.security.cert.X509Certificate
 import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLException
 import javax.net.ssl.X509TrustManager
 
 object TlsFingerprintManager {
@@ -11,6 +12,21 @@ object TlsFingerprintManager {
         val digest = MessageDigest.getInstance("SHA-256")
         val hash = digest.digest(cert.encoded)
         return hash.joinToString("") { "%02x".format(it) }
+    }
+
+    fun buildPinningSSLContext(expectedFingerprint: String): SSLContext {
+        val trustManager = object : X509TrustManager {
+            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
+                if (fingerprintOf(chain[0]) != expectedFingerprint) {
+                    throw SSLException("Certificate fingerprint mismatch")
+                }
+            }
+        }
+        return SSLContext.getInstance("TLS").also {
+            it.init(null, arrayOf(trustManager), null)
+        }
     }
 
     /**

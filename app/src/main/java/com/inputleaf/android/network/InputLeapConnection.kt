@@ -1,108 +1,268 @@
 package com.inputleaf.android.network
 
+import android.util.Log
 import com.inputleaf.android.model.InputLeapEvent
 import com.inputleaf.android.protocol.ProtocolParser
 import com.inputleaf.android.protocol.ProtocolWriter
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.DataInputStream
 import java.net.InetSocketAddress
-import java.security.cert.X509Certificate
-import android.util.Log
 import java.net.Socket
+import java.security.cert.X509Certificate
 import javax.net.ssl.SSLSocket
 
 private const val TAG = "InputLeapConnection"
+private const val HANDSHAKE_READ_TIMEOUT_MS = 15_000
+private const val TLS_CONNECT_TIMEOUT_CACHED_MS = 800
+private const val TLS_CONNECT_TIMEOUT_MS = 2_000
+private const val TLS_HANDSHAKE_TIMEOUT_MS = 1_500
+private const val PLAIN_CONNECT_TIMEOUT_CACHED_MS = 800
+private const val PLAIN_CONNECT_TIMEOUT_MS = 2_000
 
 class InputLeapConnection(
     private val ip: String,
     private val port: Int = 24800,
-    private val onCertificate: suspend (X509Certificate) -> Boolean
+    private val preferredTransport: ServerTransport? = null,
+    private val pinnedFingerprint: String? = null,
+    private val onCertificate: suspend (X509Certificate) -> Boolean,
 ) {
     private val _events = MutableSharedFlow<InputLeapEvent>(replay = 0, extraBufferCapacity = 64)
     val events: SharedFlow<InputLeapEvent> = _events
 
     private var socket: Socket? = null
     private var writer: ProtocolWriter? = null
-    // Single shared DataInputStream — MUST NOT create a second wrapper on the same socket stream
-    private var sharedDin: java.io.DataInputStream? = null
+    private var sharedDin: DataInputStream? = null
+    private var sharedParser: ProtocolParser? = null
     private val readerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var readJob: Job? = null
 
     data class ServerBanner(val major: Int, val minor: Int)
 
-    suspend fun connect(): ServerBanner? = withContext(Dispatchers.IO) {
-        var rawSocket: Socket? = null
-        try {
-            var capturedCert: X509Certificate? = null
-            val sslContext = TlsFingerprintManager.buildCapturingSSLContext { cert ->
-                capturedCert = cert
+    suspend fun connect(screenName: String, screenWidth: Int, screenHeight: Int): ConnectResult =
+        withContext(Dispatchers.IO) {
+            val transports = buildTransportOrder()
+            var lastError: Exception? = null
+            for (transport in transports) {
+                when (val opened = openSocket(transport)) {
+                    is SocketOpenResult.Ok -> {
+                        val result = runHandshake(
+                            opened.socket,
+                            opened.transport,
+                            screenName,
+                            screenWidth,
+                            screenHeight,
+                        )
+                        if (result != null) {
+                            return@withContext result
+                        }
+                        lastError = Exception("Handshake failed on $transport")
+                    }
+                    is SocketOpenResult.Rejected -> return@withContext ConnectResult.RejectedByUser
+                    is SocketOpenResult.Failed -> lastError = opened.error
+                }
             }
-            val sslSock = sslContext.socketFactory.createSocket() as SSLSocket
-            sslSock.connect(InetSocketAddress(ip, port), 5000)
-            sslSock.startHandshake()
-            
-            val cert = capturedCert ?: run { sslSock.close(); return@withContext null }
-            val accepted = onCertificate(cert)
-            if (!accepted) { sslSock.close(); return@withContext null }
-            
-            rawSocket = sslSock
-        } catch (e: Exception) {
-            Log.w(TAG, "SSL connection failed, falling back to plain-text: ${e.message}")
-            try {
-                val plainSock = Socket()
-                plainSock.connect(InetSocketAddress(ip, port), 5000)
-                rawSocket = plainSock
-            } catch (fallbackE: Exception) {
-                Log.e(TAG, "Plain-text fallback failed: ${fallbackE.message}")
-                return@withContext null
+            Log.e(TAG, "All transports failed for $ip: ${lastError?.message}")
+            ConnectResult.NetworkError
+        }
+
+    private fun buildTransportOrder(): List<ServerTransport> {
+        preferredTransport?.let { cached ->
+            val fallback = when (cached) {
+                ServerTransport.TLS -> ServerTransport.PLAIN
+                ServerTransport.PLAIN -> ServerTransport.TLS
             }
+            return listOf(cached, fallback)
         }
-        
-        val connectedSocket = rawSocket ?: return@withContext null
-        socket = connectedSocket
-        writer = ProtocolWriter(connectedSocket.outputStream)
-
-        // ONE shared DataInputStream for the entire lifetime of this connection.
-        // Creating two DataInputStream wrappers on the same socket InputStream causes
-        // each to buffer independently — bytes consumed by one become invisible to the other,
-        // which is exactly what caused the connect/disconnect loop.
-        val din = java.io.DataInputStream(connectedSocket.inputStream)
-        sharedDin = din
-
-        // Read the server's initial Banner: [4-byte len]["Barrier" + version string]
-        // Input Leap banner format: len(4) body starts with "Barrier" (7 bytes) then " " major/minor
-        val bannerLen = din.readInt()
-        if (bannerLen < 11 || bannerLen > 1024) {
-            Log.e(TAG, "Banner length invalid: $bannerLen bytes")
-            connectedSocket.close(); return@withContext null
+        // No stored TLS fingerprint — plain server is likely; avoid a doomed TLS attempt first.
+        if (pinnedFingerprint == null) {
+            return listOf(ServerTransport.PLAIN, ServerTransport.TLS)
         }
-        val bannerBody = ByteArray(bannerLen)
-        din.readFully(bannerBody)
-        val bannerTag = String(bannerBody, 0, 4, Charsets.US_ASCII)
-        if (bannerTag != "Barr") {
-            Log.e(TAG, "Unexpected server greeting: $bannerTag")
-            connectedSocket.close(); return@withContext null
-        }
-        val major = ((bannerBody[7].toInt() and 0xFF) shl 8) or (bannerBody[8].toInt() and 0xFF)
-        val minor = ((bannerBody[9].toInt() and 0xFF) shl 8) or (bannerBody[10].toInt() and 0xFF)
-        Log.d(TAG, "Server banner: InputLeap $major.$minor")
-
-        readerScope.launch { readLoop(connectedSocket, din) }
-        ServerBanner(major, minor)
+        return listOf(ServerTransport.TLS, ServerTransport.PLAIN)
     }
 
-    private suspend fun readLoop(sock: Socket, din: java.io.DataInputStream) {
+    private sealed class SocketOpenResult {
+        data class Ok(val socket: Socket, val transport: ServerTransport) : SocketOpenResult()
+        data object Rejected : SocketOpenResult()
+        data class Failed(val error: Exception) : SocketOpenResult()
+    }
+
+    private suspend fun openSocket(transport: ServerTransport): SocketOpenResult = try {
+        when (transport) {
+            ServerTransport.TLS -> openTlsSocket()
+            ServerTransport.PLAIN -> SocketOpenResult.Ok(openPlainSocket(), ServerTransport.PLAIN)
+        }
+    } catch (e: Exception) {
+        SocketOpenResult.Failed(e)
+    }
+
+    private suspend fun openTlsSocket(): SocketOpenResult {
+        val connectTimeout = if (preferredTransport == ServerTransport.TLS) {
+            TLS_CONNECT_TIMEOUT_CACHED_MS
+        } else {
+            TLS_CONNECT_TIMEOUT_MS
+        }
+        return try {
+            val rawSocket = if (pinnedFingerprint != null) {
+                val sslContext = TlsFingerprintManager.buildPinningSSLContext(pinnedFingerprint)
+                val sslSock = sslContext.socketFactory.createSocket() as SSLSocket
+                sslSock.connect(InetSocketAddress(ip, port), connectTimeout)
+                sslSock.soTimeout = TLS_HANDSHAKE_TIMEOUT_MS
+                sslSock.startHandshake()
+                sslSock.soTimeout = HANDSHAKE_READ_TIMEOUT_MS
+                sslSock
+            } else {
+                var capturedCert: X509Certificate? = null
+                val sslContext = TlsFingerprintManager.buildCapturingSSLContext { cert ->
+                    capturedCert = cert
+                }
+                val sslSock = sslContext.socketFactory.createSocket() as SSLSocket
+                sslSock.connect(InetSocketAddress(ip, port), connectTimeout)
+                sslSock.soTimeout = TLS_HANDSHAKE_TIMEOUT_MS
+                sslSock.startHandshake()
+                sslSock.soTimeout = HANDSHAKE_READ_TIMEOUT_MS
+                val cert = capturedCert ?: run {
+                    sslSock.close()
+                    return SocketOpenResult.Failed(IllegalStateException("No certificate captured"))
+                }
+                if (!onCertificate(cert)) {
+                    sslSock.close()
+                    return SocketOpenResult.Rejected
+                }
+                sslSock
+            }
+            SocketOpenResult.Ok(rawSocket, ServerTransport.TLS)
+        } catch (e: Exception) {
+            Log.w(TAG, "TLS open failed for $ip: ${e.message}")
+            SocketOpenResult.Failed(e)
+        }
+    }
+
+    private fun openPlainSocket(): Socket {
+        val connectTimeout = if (preferredTransport == ServerTransport.PLAIN) {
+            PLAIN_CONNECT_TIMEOUT_CACHED_MS
+        } else {
+            PLAIN_CONNECT_TIMEOUT_MS
+        }
+        return Socket().apply {
+            connect(InetSocketAddress(ip, port), connectTimeout)
+            tcpNoDelay = true
+            soTimeout = HANDSHAKE_READ_TIMEOUT_MS
+        }
+    }
+
+  /**
+   * Run the Input Leap handshake synchronously before returning.
+   * Matches schengen client: server hello → client hello → QINF → DINF → LSYN/CIAK/CROP/DSOP.
+   */
+    private fun runHandshake(
+        rawSocket: Socket,
+        transport: ServerTransport,
+        screenName: String,
+        screenWidth: Int,
+        screenHeight: Int,
+    ): ConnectResult? {
+        rawSocket.tcpNoDelay = true
+        socket = rawSocket
+        writer = ProtocolWriter(rawSocket.outputStream)
+        val din = DataInputStream(rawSocket.inputStream)
+        sharedDin = din
+        val parser = ProtocolParser(din)
+        sharedParser = parser
+
+        var helloSent = false
+        var dinfSent = false
+        var sawPostDinf = false
+        var bannerMajor = 1
+        var bannerMinor = 6
+
         try {
-            val parser = ProtocolParser(din)  // reuses the already-positioned shared stream
+            repeat(32) {
+                val event = parser.readNext()
+                Log.d(TAG, "Handshake recv: $event")
+                when (event) {
+                    is InputLeapEvent.Hello -> {
+                        bannerMajor = event.majorVersion
+                        bannerMinor = event.minorVersion
+                        if (!helloSent) {
+                            writer?.writeHelloBack(screenName, 1, 6)
+                            helloSent = true
+                            Log.d(TAG, "Handshake sent client hello as $screenName")
+                        }
+                    }
+                    is InputLeapEvent.QueryInfo -> {
+                        writer?.writeDataInfo(screenWidth, screenHeight, 0, 0, 0, 0)
+                        dinfSent = true
+                        Log.d(TAG, "Handshake sent DINF ${screenWidth}x$screenHeight")
+                    }
+                    is InputLeapEvent.KeepAlive -> {
+                        writer?.writeKeepAlive()
+                    }
+                    is InputLeapEvent.ResetOptions -> {
+                        if (dinfSent) sawPostDinf = true
+                    }
+                    is InputLeapEvent.Unhandled -> {
+                        when (event.tag) {
+                            "CIAK", "CROP", "DSOP", "LSYN" -> if (dinfSent) sawPostDinf = true
+                        }
+                    }
+                    is InputLeapEvent.Incompatible, is InputLeapEvent.Busy -> {
+                        Log.e(TAG, "Server rejected handshake: $event")
+                        close()
+                        return null
+                    }
+                    else -> Unit
+                }
+                if (helloSent && dinfSent && sawPostDinf) {
+                    rawSocket.soTimeout = 0
+                    readJob = readerScope.launch { readLoop(parser) }
+                    Log.d(TAG, "Handshake complete via $transport")
+                    return ConnectResult.Ok(ServerBanner(bannerMajor, bannerMinor), transport)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Handshake error: ${e.javaClass.simpleName}: ${e.message}")
+            close()
+            return null
+        }
+
+        // Lenient: some servers omit LSYN/CIAK/CROP/DSOP but accept DINF.
+        if (helloSent && dinfSent) {
+            rawSocket.soTimeout = 0
+            readJob = readerScope.launch { readLoop(parser) }
+            Log.d(TAG, "Handshake complete (lenient) via $transport")
+            return ConnectResult.Ok(ServerBanner(bannerMajor, bannerMinor), transport)
+        }
+
+        Log.e(TAG, "Handshake incomplete hello=$helloSent dinf=$dinfSent post=$sawPostDinf")
+        close()
+        return null
+    }
+
+    private suspend fun readLoop(parser: ProtocolParser) {
+        try {
             while (true) {
                 val event = parser.readNext()
                 Log.d(TAG, "Read event: $event")
                 _events.emit(event)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Read loop ended: ${e.javaClass.simpleName}: ${e.message}")
             _events.emit(InputLeapEvent.Unhandled("__DISCONNECTED__"))
         }
+    }
+
+    fun clearHandshakeTimeout() {
+        runCatching { socket?.soTimeout = 0 }
     }
 
     fun sendHelloBack(screenName: String) = writer?.writeHelloBack(screenName, 1, 6)
@@ -111,8 +271,12 @@ class InputLeapConnection(
     fun sendInfoAck() = writer?.writeInfoAck()
 
     fun close() {
-        readerScope.coroutineContext[Job]?.cancel()
+        readJob?.cancel()
+        readJob = null
         runCatching { socket?.close() }
-        socket = null; writer = null; sharedDin = null
+        socket = null
+        writer = null
+        sharedDin = null
+        sharedParser = null
     }
 }
