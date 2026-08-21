@@ -66,7 +66,7 @@ A small emulator smoke suite and coverage guardrails are planned as later, separ
 
 The initial baseline was verified with JDK 17 and Android SDK 34 when the fast CI workflow was introduced:
 
-- `:app:testDebugUnitTest` passes.
-- `:uhid-server:test` is configured and currently reports `NO-SOURCE`; UHID tests are planned as follow-up work.
+- `:app:testDebugUnitTest` passes and runs the app’s Kotlin behavior tests.
+- `:uhid-server:test` passes and runs the UHID module’s Java behavior tests.
 
 Before making changes, run the complete fast suite and treat failures as real regressions or document them explicitly. Do not skip, mute, or retry failing tests merely to produce a green build. GitHub Actions retains available test reports when the `fast-jvm` job fails.

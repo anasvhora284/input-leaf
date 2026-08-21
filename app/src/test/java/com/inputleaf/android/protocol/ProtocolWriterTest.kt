@@ -6,38 +6,54 @@ import java.io.ByteArrayOutputStream
 
 class ProtocolWriterTest {
     private fun writerWith(): Pair<ProtocolWriter, ByteArrayOutputStream> {
-        val out = ByteArrayOutputStream()
-        return ProtocolWriter(out) to out
+        val output = ByteArrayOutputStream()
+        return ProtocolWriter(output) to output
     }
 
-    @Test fun `writes HelloBack`() {
-        val (writer, out) = writerWith()
-        writer.writeHelloBack("android-phone", 1, 6)
-        val bytes = out.toByteArray()
-        val tag = String(bytes, 4, 7, Charsets.US_ASCII)
-        assertThat(tag).isEqualTo("Barrier")
+    private fun frame(tag: String, payload: ByteArray = byteArrayOf()): ByteArray {
+        val body = tag.toByteArray(Charsets.US_ASCII) + payload
+        val length = body.size
+        return byteArrayOf(
+            (length shr 24).toByte(), (length shr 16).toByte(),
+            (length shr 8).toByte(), length.toByte()
+        ) + body
     }
 
-    @Test fun `writes DataInfo with x,y,w,h order`() {
-        val (writer, out) = writerWith()
-        writer.writeDataInfo(1080, 2400, 50, 100, 0, 0)
-        val bytes = out.toByteArray()
-        assertThat(String(bytes, 4, 4, Charsets.US_ASCII)).isEqualTo("DINF")
-        // protocol: [x(2), y(2), w(2), h(2), wx(2), wy(2)]
-        val x = ((bytes[8].toInt() and 0xFF) shl 8) or (bytes[9].toInt() and 0xFF)
-        assertThat(x).isEqualTo(50)
-        val y = ((bytes[10].toInt() and 0xFF) shl 8) or (bytes[11].toInt() and 0xFF)
-        assertThat(y).isEqualTo(100)
-        val width = ((bytes[12].toInt() and 0xFF) shl 8) or (bytes[13].toInt() and 0xFF)
-        assertThat(width).isEqualTo(1080)
-        val height = ((bytes[14].toInt() and 0xFF) shl 8) or (bytes[15].toInt() and 0xFF)
-        assertThat(height).isEqualTo(2400)
+    private fun u16(value: Int) = byteArrayOf((value shr 8).toByte(), value.toByte())
+    private fun u32(value: Int) = byteArrayOf(
+        (value shr 24).toByte(), (value shr 16).toByte(),
+        (value shr 8).toByte(), value.toByte()
+    )
+
+    @Test fun `writes complete Barrier hello frame with Unicode name`() {
+        val (writer, output) = writerWith()
+        val name = "手机"
+        val nameBytes = name.toByteArray(Charsets.UTF_8)
+
+        writer.writeHelloBack(name, 1, 6)
+
+        assertThat(output.toByteArray()).isEqualTo(
+            frame("Barrier", u16(1) + u16(6) + u32(nameBytes.size) + nameBytes)
+        )
     }
 
-    @Test fun `writes KeepAlive`() {
-        val (writer, out) = writerWith()
+    @Test fun `writes complete data information frame in protocol order`() {
+        val (writer, output) = writerWith()
+
+        writer.writeDataInfo(1080, 2400, 50, 100, -1, 32767)
+
+        assertThat(output.toByteArray()).isEqualTo(
+            frame("DINF", u16(50) + u16(100) + u16(1080) + u16(2400) +
+                u16(0) + u16(-1) + u16(32767))
+        )
+    }
+
+    @Test fun `writes complete empty keepalive and information acknowledgement frames`() {
+        val (writer, output) = writerWith()
+
         writer.writeKeepAlive()
-        val bytes = out.toByteArray()
-        assertThat(String(bytes, 4, 4, Charsets.US_ASCII)).isEqualTo("CALV")
+        writer.writeInfoAck()
+
+        assertThat(output.toByteArray()).isEqualTo(frame("CALV") + frame("CIAK"))
     }
 }
