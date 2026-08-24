@@ -54,4 +54,17 @@ public class KeyboardDeviceTest {
 
         assertThat(reportAt(output, 6)).isEqualTo(new byte[] {0, 0, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09});
     }
+
+    @Test public void retainsHeldBackspaceUntilItIsReleased() throws Exception {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        KeyboardDevice keyboard = new KeyboardDevice(output);
+
+        keyboard.keyDown(0x2A, (byte) 0);
+        keyboard.keyDown(0x04, (byte) 0);
+        keyboard.keyUp(0x2A);
+
+        assertThat(reportAt(output, 0)).isEqualTo(new byte[] {0, 0, 0x2A, 0, 0, 0, 0, 0});
+        assertThat(reportAt(output, 1)).isEqualTo(new byte[] {0, 0, 0x2A, 0x04, 0, 0, 0, 0});
+        assertThat(reportAt(output, 2)).isEqualTo(new byte[] {0, 0, 0, 0x04, 0, 0, 0, 0});
+    }
 }
