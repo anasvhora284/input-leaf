@@ -1,12 +1,17 @@
 package com.inputleaf.uhid;
 
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import org.junit.Test;
 
 public class KeyboardDeviceTest {
     private static final int PACKET_SIZE = 4 + 4 + 4096;
+    private static final int CREATE_PACKET_SIZE = 4 + 4 + 128 + 4 + 4096 + 16;
 
     private byte[] reportAt(ByteArrayOutputStream output, int index) {
         byte[] bytes = output.toByteArray();
@@ -25,15 +30,49 @@ public class KeyboardDeviceTest {
             | ((bytes[offset + 3] & 0xFF) << 24);
     }
 
-    @Test public void emitsKeyDownUpAndModifierReports() throws Exception {
+    @Test public void writesCreatePacketWithKeyboardNameAndDescriptor() throws Exception {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+        assertThat(KeyboardDevice.initializeOutput(output)).isSameInstanceAs(output);
+
+        byte[] packet = output.toByteArray();
+        assertThat(packet).hasLength(CREATE_PACKET_SIZE);
+        assertThat(littleEndianInt(packet, 0)).isEqualTo(11);
+        assertThat(new String(packet, 4, "InputLeaf Keyboard".length(), StandardCharsets.UTF_8))
+            .isEqualTo("InputLeaf Keyboard");
+        assertThat(littleEndianInt(packet, 132)).isGreaterThan(0);
+    }
+
+    @Test public void closesOutputWhenCreatePacketCannotBeWritten() {
+        FailingOutputStream output = new FailingOutputStream();
+
+        assertThrows(IOException.class, () -> KeyboardDevice.initializeOutput(output));
+
+        assertThat(output.closed).isTrue();
+    }
+
+    @Test public void emitsKeyDownUpAndCurrentModifierState() throws Exception {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         KeyboardDevice keyboard = new KeyboardDevice(output);
 
         keyboard.keyDown(0x04, (byte) 0x02);
-        keyboard.keyUp(0x04);
+        keyboard.keyUp(0x04, (byte) 0);
 
         assertThat(reportAt(output, 0)).isEqualTo(new byte[] {0x02, 0, 0x04, 0, 0, 0, 0, 0});
-        assertThat(reportAt(output, 1)).isEqualTo(new byte[] {0x02, 0, 0, 0, 0, 0, 0, 0});
+        assertThat(reportAt(output, 1)).isEqualTo(new byte[] {0, 0, 0, 0, 0, 0, 0, 0});
+    }
+
+    @Test public void representsModifiersOnlyInTheModifierByte() throws Exception {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        KeyboardDevice keyboard = new KeyboardDevice(output);
+
+        keyboard.keyDown(0xE1, (byte) 0x02);
+        keyboard.keyDown(0x04, (byte) 0x02);
+        keyboard.keyUp(0xE1, (byte) 0);
+
+        assertThat(reportAt(output, 0)).isEqualTo(new byte[] {0x02, 0, 0, 0, 0, 0, 0, 0});
+        assertThat(reportAt(output, 1)).isEqualTo(new byte[] {0x02, 0, 0x04, 0, 0, 0, 0, 0});
+        assertThat(reportAt(output, 2)).isEqualTo(new byte[] {0, 0, 0x04, 0, 0, 0, 0, 0});
     }
 
     @Test public void keepsAKeyInOneSlotAndDoesNotDuplicateIt() throws Exception {
@@ -46,7 +85,7 @@ public class KeyboardDeviceTest {
         assertThat(reportAt(output, 1)).isEqualTo(new byte[] {0, 0, 0x04, 0, 0, 0, 0, 0});
     }
 
-    @Test public void retainsOnlySixConcurrentKeys() throws Exception {
+    @Test public void intentionallyIgnoresASeventhConcurrentKey() throws Exception {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         KeyboardDevice keyboard = new KeyboardDevice(output);
 
@@ -61,10 +100,22 @@ public class KeyboardDeviceTest {
 
         keyboard.keyDown(0x2A, (byte) 0);
         keyboard.keyDown(0x04, (byte) 0);
-        keyboard.keyUp(0x2A);
+        keyboard.keyUp(0x2A, (byte) 0);
 
         assertThat(reportAt(output, 0)).isEqualTo(new byte[] {0, 0, 0x2A, 0, 0, 0, 0, 0});
         assertThat(reportAt(output, 1)).isEqualTo(new byte[] {0, 0, 0x2A, 0x04, 0, 0, 0, 0});
         assertThat(reportAt(output, 2)).isEqualTo(new byte[] {0, 0, 0, 0x04, 0, 0, 0, 0});
+    }
+
+    private static class FailingOutputStream extends OutputStream {
+        boolean closed;
+
+        @Override public void write(int value) throws IOException {
+            throw new IOException("write failed");
+        }
+
+        @Override public void close() {
+            closed = true;
+        }
     }
 }

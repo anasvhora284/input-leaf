@@ -7,7 +7,7 @@ import java.io.IOException;
 public class UhidEventDispatcher {
     public interface EventSink {
         void keyDown(int hidUsage, byte modifiers) throws IOException;
-        void keyUp(int hidUsage) throws IOException;
+        void keyUp(int hidUsage, byte modifiers) throws IOException;
         void mouseMove(int dx, int dy) throws IOException;
         void mouseButtonDown(byte button) throws IOException;
         void mouseButtonUp(byte button) throws IOException;
@@ -49,7 +49,7 @@ public class UhidEventDispatcher {
         if (action == EventProtocol.ACTION_DOWN) {
             sink.keyDown(hid, modifiers);
         } else {
-            sink.keyUp(hid);
+            sink.keyUp(hid, modifiers);
         }
     }
 

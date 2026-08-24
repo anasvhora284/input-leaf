@@ -18,8 +18,8 @@ public class UhidServer implements Closeable {
                 keyboard.keyDown(hidUsage, modifiers);
             }
 
-            @Override public void keyUp(int hidUsage) throws IOException {
-                keyboard.keyUp(hidUsage);
+            @Override public void keyUp(int hidUsage, byte modifiers) throws IOException {
+                keyboard.keyUp(hidUsage, modifiers);
             }
 
             @Override public void mouseMove(int dx, int dy) throws IOException {

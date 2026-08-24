@@ -18,7 +18,7 @@ public class UhidEventDispatcherTest {
         byte modifiers;
 
         @Override public void keyDown(int hidUsage, byte modifiers) { event = "keyDown"; first = hidUsage; this.modifiers = modifiers; }
-        @Override public void keyUp(int hidUsage) { event = "keyUp"; first = hidUsage; }
+        @Override public void keyUp(int hidUsage, byte modifiers) { event = "keyUp"; first = hidUsage; this.modifiers = modifiers; }
         @Override public void mouseMove(int dx, int dy) { event = "move"; first = dx; second = dy; }
         @Override public void mouseButtonDown(byte button) { event = "buttonDown"; first = button; }
         @Override public void mouseButtonUp(byte button) { event = "buttonUp"; first = button; }
@@ -49,6 +49,7 @@ public class UhidEventDispatcherTest {
             out.writeInt('A'); out.writeByte(EventProtocol.ACTION_UP); out.writeByte(0);
         }));
         assertThat(sink.event).isEqualTo("keyUp");
+        assertThat(sink.modifiers).isEqualTo((byte) 0);
 
         sink.event = null;
         dispatcher.dispatch(EventProtocol.TYPE_KEY_EVENT, input(out -> {
