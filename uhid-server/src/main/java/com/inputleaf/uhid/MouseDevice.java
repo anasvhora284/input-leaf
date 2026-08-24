@@ -40,13 +40,21 @@ public class MouseDevice implements Closeable {
 
     // button: 1-indexed (1=left, 2=right, 3=middle) per Input-Leap protocol
     public void buttonDown(int button) throws IOException {
+        validateButton(button);
         buttonState |= (byte) (1 << (button - 1));
         sendReport(buttonState, (byte) 0, (byte) 0, (byte) 0);
     }
 
     public void buttonUp(int button) throws IOException {
+        validateButton(button);
         buttonState &= (byte) ~(1 << (button - 1));
         sendReport(buttonState, (byte) 0, (byte) 0, (byte) 0);
+    }
+
+    private void validateButton(int button) {
+        if (button < 1 || button > 3) {
+            throw new IllegalArgumentException("Unsupported mouse button: " + button);
+        }
     }
 
     public void wheel(int delta) throws IOException {

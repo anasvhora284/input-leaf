@@ -1,6 +1,7 @@
 package com.inputleaf.uhid;
 
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
 
 import java.io.ByteArrayOutputStream;
 import org.junit.Test;
@@ -25,17 +26,34 @@ public class MouseDeviceTest {
             | ((bytes[offset + 3] & 0xFF) << 24);
     }
 
-    @Test public void retainsButtonStateAcrossMovementAndRelease() throws Exception {
+    @Test public void retainsAllSupportedButtonStatesAcrossMovementAndRelease() throws Exception {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         MouseDevice mouse = new MouseDevice(output);
 
         mouse.buttonDown(1);
+        mouse.buttonDown(2);
+        mouse.buttonDown(3);
         mouse.move(5, -3);
+        mouse.buttonUp(2);
         mouse.buttonUp(1);
+        mouse.buttonUp(3);
 
         assertThat(reportAt(output, 0)).isEqualTo(new byte[] {1, 0, 0, 0});
-        assertThat(reportAt(output, 1)).isEqualTo(new byte[] {1, 5, -3, 0});
-        assertThat(reportAt(output, 2)).isEqualTo(new byte[] {0, 0, 0, 0});
+        assertThat(reportAt(output, 1)).isEqualTo(new byte[] {3, 0, 0, 0});
+        assertThat(reportAt(output, 2)).isEqualTo(new byte[] {7, 0, 0, 0});
+        assertThat(reportAt(output, 3)).isEqualTo(new byte[] {7, 5, -3, 0});
+        assertThat(reportAt(output, 4)).isEqualTo(new byte[] {5, 0, 0, 0});
+        assertThat(reportAt(output, 5)).isEqualTo(new byte[] {4, 0, 0, 0});
+        assertThat(reportAt(output, 6)).isEqualTo(new byte[] {0, 0, 0, 0});
+    }
+
+    @Test public void rejectsUnsupportedMouseButtons() throws Exception {
+        MouseDevice mouse = new MouseDevice(new ByteArrayOutputStream());
+
+        assertThrows(IllegalArgumentException.class, () -> mouse.buttonDown(0));
+        assertThrows(IllegalArgumentException.class, () -> mouse.buttonUp(0));
+        assertThrows(IllegalArgumentException.class, () -> mouse.buttonDown(4));
+        assertThrows(IllegalArgumentException.class, () -> mouse.buttonUp(4));
     }
 
     @Test public void clampsMovementAndWheelToHidReportRange() throws Exception {
