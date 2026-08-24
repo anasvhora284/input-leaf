@@ -27,7 +27,7 @@ class ProtocolWriterTest {
 
     @Test fun `writes complete Barrier hello frame with Unicode name`() {
         val (writer, output) = writerWith()
-        val name = "手机"
+        val name = "café"
         val nameBytes = name.toByteArray(Charsets.UTF_8)
 
         writer.writeHelloBack(name, 1, 6)
