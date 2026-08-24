@@ -54,7 +54,7 @@ public class UhidEventDispatcher {
     }
 
     private void dispatchButton(byte button, byte action) throws IOException {
-        if (button < 1 || button > 3) {
+        if (button < MouseDevice.MIN_BUTTON || button > MouseDevice.MAX_BUTTON) {
             throw new IOException("Unsupported mouse button: " + (button & 0xFF));
         }
         if (action == EventProtocol.ACTION_DOWN) {

@@ -4,16 +4,20 @@ import java.io.Closeable;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 
 public class MouseDevice implements Closeable {
+    static final int MIN_BUTTON = 1;
+    static final int MAX_BUTTON = 3;
+
     private static final int UHID_CREATE2 = 11;
     private static final int UHID_INPUT2 = 12;
 
     private static final byte[] MOUSE_DESCRIPTOR = {
         0x05, 0x01, 0x09, 0x02, (byte) 0xA1, 0x01, 0x09, 0x01,
         (byte) 0xA1, 0x00,
-        0x05, 0x09, 0x19, 0x01, 0x29, 0x03, 0x15, 0x00, 0x25, 0x01,
-        0x75, 0x01, (byte) 0x95, 0x03, (byte) 0x81, 0x02,
+        0x05, 0x09, 0x19, MIN_BUTTON, 0x29, MAX_BUTTON, 0x15, 0x00, 0x25, 0x01,
+        0x75, 0x01, (byte) 0x95, MAX_BUTTON, (byte) 0x81, 0x02,
         0x75, 0x05, (byte) 0x95, 0x01, (byte) 0x81, 0x03,
         0x05, 0x01, 0x09, 0x30, 0x09, 0x31, 0x15, (byte) 0x81, 0x25, 0x7F,
         0x75, 0x08, (byte) 0x95, 0x02, (byte) 0x81, 0x06,
@@ -26,12 +30,25 @@ public class MouseDevice implements Closeable {
     private byte buttonState = 0;
 
     public MouseDevice() throws IOException {
-        this(new FileOutputStream("/dev/uhid"));
-        writeCreate2("InputLeaf Mouse", MOUSE_DESCRIPTOR);
+        this(initializeOutput(new FileOutputStream("/dev/uhid")));
     }
 
     MouseDevice(OutputStream uhid) {
         this.uhid = uhid;
+    }
+
+    static OutputStream initializeOutput(OutputStream uhid) throws IOException {
+        try {
+            writeCreate2(uhid, "InputLeaf Mouse", MOUSE_DESCRIPTOR);
+            return uhid;
+        } catch (IOException createFailure) {
+            try {
+                uhid.close();
+            } catch (IOException closeFailure) {
+                createFailure.addSuppressed(closeFailure);
+            }
+            throw createFailure;
+        }
     }
 
     public void move(int dx, int dy) throws IOException {
@@ -52,7 +69,7 @@ public class MouseDevice implements Closeable {
     }
 
     private void validateButton(int button) {
-        if (button < 1 || button > 3) {
+        if (button < MIN_BUTTON || button > MAX_BUTTON) {
             throw new IllegalArgumentException("Unsupported mouse button: " + button);
         }
     }
@@ -74,17 +91,17 @@ public class MouseDevice implements Closeable {
         uhid.write(pkt);
     }
 
-    private void writeCreate2(String name, byte[] descriptor) throws IOException {
+    private static void writeCreate2(OutputStream uhid, String name, byte[] descriptor) throws IOException {
         byte[] pkt = new byte[4 + 4 + 128 + 4 + 4096 + 16];
         writeInt(pkt, 0, UHID_CREATE2);
-        byte[] nameBytes = name.getBytes("UTF-8");
+        byte[] nameBytes = name.getBytes(StandardCharsets.UTF_8);
         System.arraycopy(nameBytes, 0, pkt, 4, Math.min(nameBytes.length, 127));
         writeInt(pkt, 132, descriptor.length);
         System.arraycopy(descriptor, 0, pkt, 136, descriptor.length);
         uhid.write(pkt);
     }
 
-    private void writeInt(byte[] buf, int offset, int value) {
+    private static void writeInt(byte[] buf, int offset, int value) {
         buf[offset] = (byte) (value & 0xFF);
         buf[offset + 1] = (byte) ((value >> 8) & 0xFF);
         buf[offset + 2] = (byte) ((value >> 16) & 0xFF);

@@ -4,10 +4,14 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import org.junit.Test;
 
 public class MouseDeviceTest {
     private static final int PACKET_SIZE = 4 + 4 + 4096;
+    private static final int CREATE_PACKET_SIZE = 4 + 4 + 128 + 4 + 4096 + 16;
 
     private byte[] reportAt(ByteArrayOutputStream output, int index) {
         byte[] bytes = output.toByteArray();
@@ -24,6 +28,27 @@ public class MouseDeviceTest {
             | ((bytes[offset + 1] & 0xFF) << 8)
             | ((bytes[offset + 2] & 0xFF) << 16)
             | ((bytes[offset + 3] & 0xFF) << 24);
+    }
+
+    @Test public void writesCreatePacketWithMouseNameAndDescriptor() throws Exception {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+        assertThat(MouseDevice.initializeOutput(output)).isSameInstanceAs(output);
+
+        byte[] packet = output.toByteArray();
+        assertThat(packet).hasLength(CREATE_PACKET_SIZE);
+        assertThat(littleEndianInt(packet, 0)).isEqualTo(11);
+        assertThat(new String(packet, 4, "InputLeaf Mouse".length(), StandardCharsets.UTF_8))
+            .isEqualTo("InputLeaf Mouse");
+        assertThat(littleEndianInt(packet, 132)).isGreaterThan(0);
+    }
+
+    @Test public void closesOutputWhenCreatePacketCannotBeWritten() {
+        FailingOutputStream output = new FailingOutputStream();
+
+        assertThrows(IOException.class, () -> MouseDevice.initializeOutput(output));
+
+        assertThat(output.closed).isTrue();
     }
 
     @Test public void retainsAllSupportedButtonStatesAcrossMovementAndRelease() throws Exception {
@@ -67,5 +92,17 @@ public class MouseDeviceTest {
         assertThat(reportAt(output, 0)).isEqualTo(new byte[] {0, 127, -127, 0});
         assertThat(reportAt(output, 1)).isEqualTo(new byte[] {0, 0, 0, 127});
         assertThat(reportAt(output, 2)).isEqualTo(new byte[] {0, 0, 0, -127});
+    }
+
+    private static class FailingOutputStream extends OutputStream {
+        boolean closed;
+
+        @Override public void write(int value) throws IOException {
+            throw new IOException("write failed");
+        }
+
+        @Override public void close() {
+            closed = true;
+        }
     }
 }
