@@ -22,7 +22,7 @@ public class UhidEventDispatcherTest {
         @Override public void mouseMove(int dx, int dy) { event = "move"; first = dx; second = dy; }
         @Override public void mouseButtonDown(byte button) { event = "buttonDown"; first = button; }
         @Override public void mouseButtonUp(byte button) { event = "buttonUp"; first = button; }
-        @Override public void mouseWheel(short delta) { event = "wheel"; first = delta; }
+        @Override public void mouseWheel(short deltaX, short deltaY) { event = "wheel"; first = deltaX; second = deltaY; }
     }
 
     private DataInputStream input(ThrowingConsumer<DataOutputStream> writer) throws Exception {
@@ -75,7 +75,8 @@ public class UhidEventDispatcherTest {
 
         dispatcher.dispatch(EventProtocol.TYPE_MOUSE_WHEEL, input(out -> { out.writeShort(4); out.writeShort(-8); }));
         assertThat(sink.event).isEqualTo("wheel");
-        assertThat(sink.first).isEqualTo(-8);
+        assertThat(sink.first).isEqualTo(4);
+        assertThat(sink.second).isEqualTo(-8);
     }
 
     @Test public void rejectsMalformedAndUnsupportedEvents() {

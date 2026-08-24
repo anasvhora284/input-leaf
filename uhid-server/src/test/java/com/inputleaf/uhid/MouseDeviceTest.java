@@ -17,8 +17,8 @@ public class MouseDeviceTest {
         byte[] bytes = output.toByteArray();
         int packetOffset = index * PACKET_SIZE;
         assertThat(littleEndianInt(bytes, packetOffset)).isEqualTo(12);
-        assertThat(littleEndianInt(bytes, packetOffset + 4)).isEqualTo(4);
-        byte[] report = new byte[4];
+        assertThat(littleEndianInt(bytes, packetOffset + 4)).isEqualTo(5);
+        byte[] report = new byte[5];
         System.arraycopy(bytes, packetOffset + 8, report, 0, report.length);
         return report;
     }
@@ -40,7 +40,11 @@ public class MouseDeviceTest {
         assertThat(littleEndianInt(packet, 0)).isEqualTo(11);
         assertThat(new String(packet, 4, "InputLeaf Mouse".length(), StandardCharsets.UTF_8))
             .isEqualTo("InputLeaf Mouse");
-        assertThat(littleEndianInt(packet, 132)).isGreaterThan(0);
+        int descriptorLength = littleEndianInt(packet, 132);
+        assertThat(descriptorLength).isGreaterThan(0);
+        byte[] descriptor = new byte[descriptorLength];
+        System.arraycopy(packet, 136, descriptor, 0, descriptorLength);
+        assertThat(containsSequence(descriptor, new byte[] {0x05, 0x0C, 0x0A, 0x38, 0x02})).isTrue();
     }
 
     @Test public void closesOutputWhenCreatePacketCannotBeWritten() {
@@ -63,13 +67,13 @@ public class MouseDeviceTest {
         mouse.buttonUp(1);
         mouse.buttonUp(3);
 
-        assertThat(reportAt(output, 0)).isEqualTo(new byte[] {1, 0, 0, 0});
-        assertThat(reportAt(output, 1)).isEqualTo(new byte[] {3, 0, 0, 0});
-        assertThat(reportAt(output, 2)).isEqualTo(new byte[] {7, 0, 0, 0});
-        assertThat(reportAt(output, 3)).isEqualTo(new byte[] {7, 5, -3, 0});
-        assertThat(reportAt(output, 4)).isEqualTo(new byte[] {5, 0, 0, 0});
-        assertThat(reportAt(output, 5)).isEqualTo(new byte[] {4, 0, 0, 0});
-        assertThat(reportAt(output, 6)).isEqualTo(new byte[] {0, 0, 0, 0});
+        assertThat(reportAt(output, 0)).isEqualTo(new byte[] {1, 0, 0, 0, 0});
+        assertThat(reportAt(output, 1)).isEqualTo(new byte[] {3, 0, 0, 0, 0});
+        assertThat(reportAt(output, 2)).isEqualTo(new byte[] {7, 0, 0, 0, 0});
+        assertThat(reportAt(output, 3)).isEqualTo(new byte[] {7, 5, -3, 0, 0});
+        assertThat(reportAt(output, 4)).isEqualTo(new byte[] {5, 0, 0, 0, 0});
+        assertThat(reportAt(output, 5)).isEqualTo(new byte[] {4, 0, 0, 0, 0});
+        assertThat(reportAt(output, 6)).isEqualTo(new byte[] {0, 0, 0, 0, 0});
     }
 
     @Test public void rejectsUnsupportedMouseButtons() throws Exception {
@@ -81,17 +85,31 @@ public class MouseDeviceTest {
         assertThrows(IllegalArgumentException.class, () -> mouse.buttonUp(4));
     }
 
-    @Test public void clampsMovementAndWheelToHidReportRange() throws Exception {
+    @Test public void clampsMovementAndBothWheelAxesToHidReportRange() throws Exception {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         MouseDevice mouse = new MouseDevice(output);
 
         mouse.move(1000, -1000);
-        mouse.wheel(1000);
-        mouse.wheel(-1000);
+        mouse.wheel(1000, -1000);
+        mouse.wheel(-1000, 1000);
 
-        assertThat(reportAt(output, 0)).isEqualTo(new byte[] {0, 127, -127, 0});
-        assertThat(reportAt(output, 1)).isEqualTo(new byte[] {0, 0, 0, 127});
-        assertThat(reportAt(output, 2)).isEqualTo(new byte[] {0, 0, 0, -127});
+        assertThat(reportAt(output, 0)).isEqualTo(new byte[] {0, 127, -127, 0, 0});
+        assertThat(reportAt(output, 1)).isEqualTo(new byte[] {0, 0, 0, -127, 127});
+        assertThat(reportAt(output, 2)).isEqualTo(new byte[] {0, 0, 0, 127, -127});
+    }
+
+    private boolean containsSequence(byte[] bytes, byte[] sequence) {
+        for (int offset = 0; offset <= bytes.length - sequence.length; offset++) {
+            boolean matches = true;
+            for (int index = 0; index < sequence.length; index++) {
+                if (bytes[offset + index] != sequence[index]) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) return true;
+        }
+        return false;
     }
 
     private static class FailingOutputStream extends OutputStream {

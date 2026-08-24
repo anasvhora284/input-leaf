@@ -34,8 +34,8 @@ public class UhidServer implements Closeable {
                 mouse.buttonUp(button);
             }
 
-            @Override public void mouseWheel(short delta) throws IOException {
-                mouse.wheel(delta);
+            @Override public void mouseWheel(short deltaX, short deltaY) throws IOException {
+                mouse.wheel(deltaX, deltaY);
             }
         });
     }

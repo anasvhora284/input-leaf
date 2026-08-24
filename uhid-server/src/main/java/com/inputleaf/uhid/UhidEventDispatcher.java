@@ -11,7 +11,7 @@ public class UhidEventDispatcher {
         void mouseMove(int dx, int dy) throws IOException;
         void mouseButtonDown(byte button) throws IOException;
         void mouseButtonUp(byte button) throws IOException;
-        void mouseWheel(short delta) throws IOException;
+        void mouseWheel(short deltaX, short deltaY) throws IOException;
     }
 
     private final EventSink sink;
@@ -32,8 +32,7 @@ public class UhidEventDispatcher {
                 dispatchButton(input.readByte(), input.readByte());
                 break;
             case EventProtocol.TYPE_MOUSE_WHEEL:
-                input.readShort(); // Horizontal scrolling is not supported by the HID descriptor.
-                sink.mouseWheel(input.readShort());
+                sink.mouseWheel(input.readShort(), input.readShort());
                 break;
             default:
                 throw new IOException("Unsupported UHID event type: " + (type & 0xFF));
