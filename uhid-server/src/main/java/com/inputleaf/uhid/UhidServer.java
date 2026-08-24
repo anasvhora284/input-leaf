@@ -42,22 +42,54 @@ public class UhidServer implements Closeable {
 
     public void run() throws IOException {
         android.net.LocalServerSocket server = new android.net.LocalServerSocket("inputleaf_uhid");
-        System.out.println("READY");
-        System.out.flush();
+        Throwable serverFailure = null;
+        try {
+            System.out.println("READY");
+            System.out.flush();
 
-        android.net.LocalSocket client = server.accept();
-        verifyPeerIdentity(client);
-        client.getOutputStream().write("READY\n".getBytes());
-        client.getOutputStream().flush();
+            android.net.LocalSocket client = server.accept();
+            Throwable clientFailure = null;
+            try {
+                verifyPeerIdentity(client);
+                client.getOutputStream().write("READY\n".getBytes());
+                client.getOutputStream().flush();
 
-        DataInputStream input = new DataInputStream(client.getInputStream());
-        while (true) {
-            byte type = input.readByte();
-            if (type == EventProtocol.TYPE_SHUTDOWN) break;
-            dispatcher.dispatch(type, input);
+                DataInputStream input = new DataInputStream(client.getInputStream());
+                while (true) {
+                    byte type = input.readByte();
+                    if (type == EventProtocol.TYPE_SHUTDOWN) break;
+                    dispatcher.dispatch(type, input);
+                }
+            } catch (IOException | RuntimeException | Error failure) {
+                clientFailure = failure;
+                throw failure;
+            } finally {
+                close(client, clientFailure);
+            }
+        } catch (IOException | RuntimeException | Error failure) {
+            serverFailure = failure;
+            throw failure;
+        } finally {
+            close(server, serverFailure);
         }
-        client.close();
-        server.close();
+    }
+
+    private static void close(android.net.LocalSocket socket, Throwable failure) throws IOException {
+        try {
+            socket.close();
+        } catch (IOException closeFailure) {
+            if (failure == null) throw closeFailure;
+            failure.addSuppressed(closeFailure);
+        }
+    }
+
+    private static void close(android.net.LocalServerSocket socket, Throwable failure) throws IOException {
+        try {
+            socket.close();
+        } catch (IOException closeFailure) {
+            if (failure == null) throw closeFailure;
+            failure.addSuppressed(closeFailure);
+        }
     }
 
     private void verifyPeerIdentity(android.net.LocalSocket client) throws IOException {

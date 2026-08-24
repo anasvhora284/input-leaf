@@ -16,7 +16,7 @@ From the repository root, run:
 ./gradlew :app:testDebugUnitTest :uhid-server:test
 ```
 
-The same command runs in the `fast-jvm` GitHub Actions job. The app task runs local Android JVM tests. The UHID task runs plain Java JVM tests and may report `NO-SOURCE` until tests are added to that module.
+The same command runs in the `fast-jvm` GitHub Actions job. The app task runs local Android JVM tests. The UHID task runs plain Java JVM tests.
 
 ## Test locations and conventions
 
@@ -39,6 +39,8 @@ uhid-server/src/test/java/com/inputleaf/uhid/
 ```
 
 The UHID module is Java-only. Keep its tests in Java so test coverage does not add the Kotlin plugin or runtime to the generated JAR and DEX pipeline. Use JUnit 4 and Truth.
+
+Socket lifecycle paths in `UhidServer.run()` are not covered by JVM unit tests because `android.net.LocalServerSocket` and `LocalSocket` come from a compile-only Android stub that throws at runtime. Keep explicit `finally` cleanup around both sockets rather than adding brittle stub-dependent tests.
 
 ## Test design principles
 
