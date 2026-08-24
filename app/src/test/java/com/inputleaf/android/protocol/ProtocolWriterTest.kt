@@ -1,10 +1,17 @@
 package com.inputleaf.android.protocol
 
 import com.google.common.truth.Truth.assertThat
+import org.junit.Assert.assertThrows
 import org.junit.Test
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.DataInputStream
+import java.io.IOException
+import java.io.OutputStream
 
 class ProtocolWriterTest {
+    private data class DecodedFrame(val declaredLength: Int, val tag: String, val payload: ByteArray)
+
     private fun writerWith(): Pair<ProtocolWriter, ByteArrayOutputStream> {
         val output = ByteArrayOutputStream()
         return ProtocolWriter(output) to output
@@ -17,6 +24,27 @@ class ProtocolWriterTest {
             (length shr 24).toByte(), (length shr 16).toByte(),
             (length shr 8).toByte(), length.toByte()
         ) + body
+    }
+
+    private fun decodeSingleFrame(bytes: ByteArray): DecodedFrame {
+        val input = DataInputStream(ByteArrayInputStream(bytes))
+        val declaredLength = input.readInt()
+        val body = ByteArray(declaredLength).also(input::readFully)
+        assertThat(input.available()).isEqualTo(0)
+        return DecodedFrame(
+            declaredLength = declaredLength,
+            tag = String(body, 0, 4, Charsets.US_ASCII),
+            payload = body.copyOfRange(4, body.size)
+        )
+    }
+
+    private fun decodeShorts(payload: ByteArray): List<Int> {
+        val input = DataInputStream(ByteArrayInputStream(payload))
+        val values = buildList {
+            while (input.available() > 0) add(input.readShort().toInt())
+        }
+        assertThat(input.available()).isEqualTo(0)
+        return values
     }
 
     private fun u16(value: Int) = byteArrayOf((value shr 8).toByte(), value.toByte())
@@ -37,23 +65,60 @@ class ProtocolWriterTest {
         )
     }
 
+    @Test fun `writes empty screen name as a literal complete frame`() {
+        val (writer, output) = writerWith()
+
+        writer.writeHelloBack("", 1, 6)
+
+        assertThat(output.toByteArray()).isEqualTo(byteArrayOf(
+            0, 0, 0, 15,
+            66, 97, 114, 114, 105, 101, 114,
+            0, 1, 0, 6,
+            0, 0, 0, 0
+        ))
+    }
+
     @Test fun `writes complete data information frame in protocol order`() {
         val (writer, output) = writerWith()
 
         writer.writeDataInfo(1080, 2400, 50, 100, -1, 32767)
 
-        assertThat(output.toByteArray()).isEqualTo(
-            frame("DINF", u16(50) + u16(100) + u16(1080) + u16(2400) +
-                u16(0) + u16(-1) + u16(32767))
-        )
+        val decoded = decodeSingleFrame(output.toByteArray())
+        assertThat(decoded.declaredLength).isEqualTo(18)
+        assertThat(decoded.tag).isEqualTo("DINF")
+        assertThat(decodeShorts(decoded.payload))
+            .containsExactly(50, 100, 1080, 2400, 0, -1, 32767).inOrder()
     }
 
-    @Test fun `writes complete empty keepalive and information acknowledgement frames`() {
+    @Test fun `writes signed two-byte boundary values without changing field order`() {
+        val (writer, output) = writerWith()
+
+        writer.writeDataInfo(0, 32767, -32768, -1, 0, 32767)
+
+        val decoded = decodeSingleFrame(output.toByteArray())
+        assertThat(decoded.tag).isEqualTo("DINF")
+        assertThat(decodeShorts(decoded.payload))
+            .containsExactly(-32768, -1, 0, 32767, 0, 0, 32767).inOrder()
+    }
+
+    @Test fun `preserves frame boundaries and order across consecutive writes`() {
         val (writer, output) = writerWith()
 
         writer.writeKeepAlive()
         writer.writeInfoAck()
 
         assertThat(output.toByteArray()).isEqualTo(frame("CALV") + frame("CIAK"))
+    }
+
+    @Test fun `propagates output failures to the caller`() {
+        val writer = ProtocolWriter(FailingOutputStream())
+
+        assertThrows(IOException::class.java) { writer.writeKeepAlive() }
+    }
+
+    private class FailingOutputStream : OutputStream() {
+        override fun write(value: Int) {
+            throw IOException("write failed")
+        }
     }
 }
