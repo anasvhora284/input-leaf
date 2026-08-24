@@ -7,6 +7,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import org.junit.Test;
 
@@ -34,6 +35,13 @@ public class UhidEventDispatcherTest {
 
     private interface ThrowingConsumer<T> { void accept(T value) throws Exception; }
 
+    @Test public void rejectsNullSinkImmediately() {
+        NullPointerException error = assertThrows(NullPointerException.class,
+            () -> new UhidEventDispatcher(null));
+
+        assertThat(error).hasMessageThat().isEqualTo("sink");
+    }
+
     @Test public void decodesKeyboardEventsAndIgnoresUnknownKeysyms() throws Exception {
         FakeSink sink = new FakeSink();
         UhidEventDispatcher dispatcher = new UhidEventDispatcher(sink);
@@ -46,10 +54,10 @@ public class UhidEventDispatcherTest {
         assertThat(sink.modifiers).isEqualTo((byte) 2);
 
         dispatcher.dispatch(EventProtocol.TYPE_KEY_EVENT, input(out -> {
-            out.writeInt('A'); out.writeByte(EventProtocol.ACTION_UP); out.writeByte(0);
+            out.writeInt('A'); out.writeByte(EventProtocol.ACTION_UP); out.writeByte(4);
         }));
         assertThat(sink.event).isEqualTo("keyUp");
-        assertThat(sink.modifiers).isEqualTo((byte) 0);
+        assertThat(sink.modifiers).isEqualTo((byte) 4);
 
         sink.event = null;
         dispatcher.dispatch(EventProtocol.TYPE_KEY_EVENT, input(out -> {
@@ -58,14 +66,16 @@ public class UhidEventDispatcherTest {
         assertThat(sink.event).isNull();
     }
 
-    @Test public void decodesMouseEvents() throws Exception {
+    @Test public void decodesEveryMouseEventAndPreservesBoundaryValues() throws Exception {
         FakeSink sink = new FakeSink();
         UhidEventDispatcher dispatcher = new UhidEventDispatcher(sink);
 
-        dispatcher.dispatch(EventProtocol.TYPE_MOUSE_MOVE, input(out -> { out.writeInt(-5); out.writeInt(7); }));
+        dispatcher.dispatch(EventProtocol.TYPE_MOUSE_MOVE, input(out -> {
+            out.writeInt(Integer.MIN_VALUE); out.writeInt(Integer.MAX_VALUE);
+        }));
         assertThat(sink.event).isEqualTo("move");
-        assertThat(sink.first).isEqualTo(-5);
-        assertThat(sink.second).isEqualTo(7);
+        assertThat(sink.first).isEqualTo(Integer.MIN_VALUE);
+        assertThat(sink.second).isEqualTo(Integer.MAX_VALUE);
 
         dispatcher.dispatch(EventProtocol.TYPE_MOUSE_BTN, input(out -> {
             out.writeByte(3); out.writeByte(EventProtocol.ACTION_DOWN);
@@ -73,24 +83,50 @@ public class UhidEventDispatcherTest {
         assertThat(sink.event).isEqualTo("buttonDown");
         assertThat(sink.first).isEqualTo(3);
 
-        dispatcher.dispatch(EventProtocol.TYPE_MOUSE_WHEEL, input(out -> { out.writeShort(4); out.writeShort(-8); }));
+        dispatcher.dispatch(EventProtocol.TYPE_MOUSE_BTN, input(out -> {
+            out.writeByte(3); out.writeByte(EventProtocol.ACTION_UP);
+        }));
+        assertThat(sink.event).isEqualTo("buttonUp");
+        assertThat(sink.first).isEqualTo(3);
+
+        dispatcher.dispatch(EventProtocol.TYPE_MOUSE_WHEEL, input(out -> {
+            out.writeShort(Short.MAX_VALUE); out.writeShort(Short.MIN_VALUE);
+        }));
         assertThat(sink.event).isEqualTo("wheel");
-        assertThat(sink.first).isEqualTo(4);
-        assertThat(sink.second).isEqualTo(-8);
+        assertThat(sink.first).isEqualTo(Short.MAX_VALUE);
+        assertThat(sink.second).isEqualTo(Short.MIN_VALUE);
     }
 
-    @Test public void rejectsMalformedAndUnsupportedEvents() {
+    @Test public void identifiesEveryTruncatedEventPayload() {
+        assertTruncated(EventProtocol.TYPE_KEY_EVENT, new byte[5], "keyboard");
+        assertTruncated(EventProtocol.TYPE_MOUSE_MOVE, new byte[7], "mouse-move");
+        assertTruncated(EventProtocol.TYPE_MOUSE_BTN, new byte[1], "mouse-button");
+        assertTruncated(EventProtocol.TYPE_MOUSE_WHEEL, new byte[3], "mouse-wheel");
+    }
+
+    @Test public void rejectsUnsupportedEventsActionsAndButtons() {
         UhidEventDispatcher dispatcher = new UhidEventDispatcher(new FakeSink());
 
-        assertThrows(IOException.class, () -> dispatcher.dispatch(EventProtocol.TYPE_MOUSE_MOVE,
-            new DataInputStream(new ByteArrayInputStream(new byte[] {0, 0, 0, 1}))));
         assertThrows(IOException.class, () -> dispatcher.dispatch((byte) 99,
             new DataInputStream(new ByteArrayInputStream(new byte[0]))));
         assertThrows(IOException.class, () -> dispatcher.dispatch(EventProtocol.TYPE_KEY_EVENT,
             input(out -> { out.writeInt('A'); out.writeByte(99); out.writeByte(0); })));
         assertThrows(IOException.class, () -> dispatcher.dispatch(EventProtocol.TYPE_MOUSE_BTN,
             input(out -> { out.writeByte(1); out.writeByte(99); })));
-        assertThrows(IOException.class, () -> dispatcher.dispatch(EventProtocol.TYPE_MOUSE_BTN,
-            input(out -> { out.writeByte(4); out.writeByte(EventProtocol.ACTION_DOWN); })));
+
+        for (int button : new int[] {0, 4, 255}) {
+            assertThrows(IOException.class, () -> dispatcher.dispatch(EventProtocol.TYPE_MOUSE_BTN,
+                input(out -> { out.writeByte(button); out.writeByte(EventProtocol.ACTION_DOWN); })));
+        }
+    }
+
+    private void assertTruncated(byte type, byte[] payload, String event) {
+        UhidEventDispatcher dispatcher = new UhidEventDispatcher(new FakeSink());
+
+        IOException error = assertThrows(IOException.class, () -> dispatcher.dispatch(type,
+            new DataInputStream(new ByteArrayInputStream(payload))));
+
+        assertThat(error).hasMessageThat().isEqualTo("Truncated UHID " + event + " event");
+        assertThat(error).hasCauseThat().isInstanceOf(EOFException.class);
     }
 }
