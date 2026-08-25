@@ -29,7 +29,7 @@ class ProtocolParserTest {
         ProtocolParser(ByteArrayInputStream(frameOf(tag, payload))).readNext()
 
     @Test fun `parses HELO with a Unicode server name`() {
-        val name = "桌面-pc"
+        val name = "escritorio-áé-pc"
         val nameBytes = name.toByteArray(Charsets.UTF_8)
         assertThat(parse("HELO", u16(1) + u16(6) + u32(nameBytes.size) + nameBytes))
             .isEqualTo(InputLeapEvent.Hello(1, 6, name))
