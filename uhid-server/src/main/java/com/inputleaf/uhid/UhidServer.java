@@ -10,20 +10,43 @@ import java.nio.file.Paths;
 import java.util.Objects;
 
 public class UhidServer implements Closeable {
+    interface DeviceFactory {
+        KeyboardDevice createKeyboard() throws IOException;
+        MouseDevice createMouse() throws IOException;
+    }
+
     private static final String SOCKET_NAME = "inputleaf_uhid";
     private static final String EXPECTED_PACKAGE = "com.inputleaf.android";
     private static final String READY_LINE = "READY";
     private static final byte[] READY_MESSAGE = (READY_LINE + "\n").getBytes(StandardCharsets.US_ASCII);
+    private static final DeviceFactory DEFAULT_DEVICE_FACTORY = new DeviceFactory() {
+        @Override public KeyboardDevice createKeyboard() throws IOException {
+            return new KeyboardDevice();
+        }
+
+        @Override public MouseDevice createMouse() throws IOException {
+            return new MouseDevice();
+        }
+    };
 
     private final KeyboardDevice keyboard;
     private final MouseDevice mouse;
     private final UhidEventDispatcher dispatcher;
 
     public UhidServer() throws IOException {
-        KeyboardDevice createdKeyboard = new KeyboardDevice();
+        this(DEFAULT_DEVICE_FACTORY);
+    }
+
+    UhidServer(DeviceFactory deviceFactory) throws IOException {
+        Objects.requireNonNull(deviceFactory, "deviceFactory");
+        KeyboardDevice createdKeyboard = Objects.requireNonNull(
+            deviceFactory.createKeyboard(), "deviceFactory keyboard"
+        );
         MouseDevice createdMouse;
         try {
-            createdMouse = new MouseDevice();
+            createdMouse = Objects.requireNonNull(
+                deviceFactory.createMouse(), "deviceFactory mouse"
+            );
         } catch (IOException | RuntimeException | Error creationFailure) {
             closeAfterFailure(createdKeyboard, creationFailure);
             throw creationFailure;
@@ -159,7 +182,17 @@ public class UhidServer implements Closeable {
     }
 
     static boolean isAllowedProcessName(String processName) {
-        return processName.equals(EXPECTED_PACKAGE) || processName.startsWith(EXPECTED_PACKAGE + ":");
+        if (processName.equals(EXPECTED_PACKAGE)) return true;
+        String prefix = EXPECTED_PACKAGE + ":";
+        if (!processName.startsWith(prefix)) return false;
+
+        String suffix = processName.substring(prefix.length());
+        if (suffix.isEmpty()) return false;
+        for (int index = 0; index < suffix.length(); index++) {
+            char character = suffix.charAt(index);
+            if (!Character.isLetterOrDigit(character) && character != '_' && character != '.') return false;
+        }
+        return true;
     }
 
     @Override public void close() throws IOException {
