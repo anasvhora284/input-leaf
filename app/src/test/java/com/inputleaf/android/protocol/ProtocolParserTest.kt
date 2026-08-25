@@ -5,6 +5,8 @@ import com.inputleaf.android.model.InputLeapEvent
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.io.ByteArrayInputStream
+import java.io.EOFException
+import java.net.ProtocolException
 
 class ProtocolParserTest {
     private fun frameOf(tag: String, payload: ByteArray = byteArrayOf()): ByteArray =
@@ -49,14 +51,14 @@ class ProtocolParserTest {
 
     @Test fun `rejects malformed UTF-8 in hello names`() {
         val invalidUtf8 = byteArrayOf(0xC3.toByte())
-        assertThrows(IllegalArgumentException::class.java) {
+        assertThrows(ProtocolException::class.java) {
             parse("HELO", u16(1) + u16(6) + u32(invalidUtf8.size) + invalidUtf8)
         }
 
         for (tag in listOf("Barrier", "Synergy")) {
             val body = tag.toByteArray(Charsets.US_ASCII) + u16(1) + u16(8) +
                 u32(invalidUtf8.size) + invalidUtf8
-            assertThrows(IllegalArgumentException::class.java) {
+            assertThrows(ProtocolException::class.java) {
                 ProtocolParser(ByteArrayInputStream(frameOfBody(body))).readNext()
             }
         }
@@ -96,6 +98,19 @@ class ProtocolParserTest {
         assertThat(parse("EUNK")).isEqualTo(InputLeapEvent.Unknown)
         assertThat(parse("EBAD")).isEqualTo(InputLeapEvent.BadMessage)
         assertThat(parse("ZZZZ")).isEqualTo(InputLeapEvent.Unhandled("ZZZZ"))
+        assertThat(parse("ZZZZ", byteArrayOf(1, 2)))
+            .isEqualTo(InputLeapEvent.Unhandled("ZZZZ"))
+    }
+
+    @Test fun `rejects non-ASCII protocol tags`() {
+        val body = byteArrayOf(0x80.toByte(), 'A'.code.toByte(), 'B'.code.toByte(), 'C'.code.toByte())
+
+        val failure = assertThrows(ProtocolException::class.java) {
+            ProtocolParser(ByteArrayInputStream(frameOfBody(body))).readNext()
+        }
+
+        assertThat(failure).hasMessageThat()
+            .isEqualTo("Malformed protocol tag: expected four printable ASCII bytes")
     }
 
     @Test fun `rejects trailing bytes in supported messages`() {
@@ -119,39 +134,49 @@ class ProtocolParserTest {
             "EBAD" to byteArrayOf()
         )
         for ((tag, payload) in fixedMessages) {
-            assertThrows("$tag accepted trailing data", IllegalArgumentException::class.java) {
+            assertThrows("$tag accepted trailing data", ProtocolException::class.java) {
                 parse(tag, payload + byteArrayOf(0))
             }
         }
 
         val helo = u16(1) + u16(6) + u32(0) + byteArrayOf(0)
-        assertThrows(IllegalArgumentException::class.java) { parse("HELO", helo) }
+        assertThrows(ProtocolException::class.java) { parse("HELO", helo) }
         for (tag in listOf("Barrier", "Synergy")) {
             val body = tag.toByteArray(Charsets.US_ASCII) + u16(1) + u16(8) + u32(0) + byteArrayOf(0)
-            assertThrows(IllegalArgumentException::class.java) {
+            assertThrows(ProtocolException::class.java) {
                 ProtocolParser(ByteArrayInputStream(frameOfBody(body))).readNext()
             }
         }
     }
 
     @Test fun `rejects truncated and malformed frames predictably`() {
-        assertThrows(IllegalArgumentException::class.java) {
+        val truncated = assertThrows(ProtocolException::class.java) {
             ProtocolParser(ByteArrayInputStream(byteArrayOf(0, 0))).readNext()
         }
-        assertThrows(IllegalArgumentException::class.java) {
+        assertThat(truncated).hasMessageThat().isEqualTo("Truncated protocol message")
+        assertThat(truncated).hasCauseThat().isInstanceOf(EOFException::class.java)
+
+        val shortKey = assertThrows(ProtocolException::class.java) {
             ProtocolParser(ByteArrayInputStream(frameOf("DKDN", byteArrayOf(0)))).readNext()
         }
-        assertThrows(IllegalArgumentException::class.java) {
-            ProtocolParser(ByteArrayInputStream(frameOf("HELO", u16(1) + u16(6) + u32(2) + byteArrayOf(1)))).readNext()
+        assertThat(shortKey).hasMessageThat()
+            .isEqualTo("Malformed DKDN message: expected 6 payload bytes, got 1")
+
+        val shortHello = assertThrows(ProtocolException::class.java) {
+            ProtocolParser(ByteArrayInputStream(
+                frameOf("HELO", u16(1) + u16(6) + u32(2) + byteArrayOf(1))
+            )).readNext()
         }
+        assertThat(shortHello).hasMessageThat()
+            .isEqualTo("Malformed HELO message: expected 10 payload bytes, got 9")
     }
 
     @Test fun `rejects invalid frame lengths`() {
         val oversized = u32(ProtocolConstants.MAX_MESSAGE_LEN + 1)
-        assertThrows(IllegalArgumentException::class.java) {
+        assertThrows(ProtocolException::class.java) {
             ProtocolParser(ByteArrayInputStream(oversized)).readNext()
         }
-        assertThrows(IllegalArgumentException::class.java) {
+        assertThrows(ProtocolException::class.java) {
             ProtocolParser(ByteArrayInputStream(u32(3) + byteArrayOf(1, 2, 3))).readNext()
         }
     }
