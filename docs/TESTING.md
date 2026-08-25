@@ -42,15 +42,17 @@ The UHID module is Java-only. Keep its tests in Java so test coverage does not a
 
 Socket lifecycle paths in `UhidServer.run()` are not covered by JVM unit tests because `android.net.LocalServerSocket` and `LocalSocket` come from a compile-only Android stub that throws at runtime. Keep explicit `finally` cleanup around both sockets rather than adding brittle stub-dependent tests.
 
-### Regenerate the UHID DEX asset
+### Generated UHID DEX asset
 
-After changing production code in `uhid-server/src/main`, regenerate and commit the sidecar consumed by the app:
+The app consumes the UHID sidecar from generated build output rather than a committed binary. App asset-merge tasks automatically depend on `:uhid-server:buildDex`, so packaging the app always uses the current Java source.
+
+To generate the asset directly, run:
 
 ```sh
 ./gradlew :uhid-server:buildDex
 ```
 
-This task requires Android platform 34 and build tools 34.0.0. It compiles against the platform API, targets the app's minimum API 26, and writes `app/src/main/assets/classes.dex`. JVM tests do not regenerate this asset automatically.
+This task requires Android platform 34 and build tools 34.0.0. It compiles against the platform API, targets the app's minimum API 26, and writes `uhid-server/build/generated/assets/uhid/classes.dex`. JVM tests do not generate the DEX because they do not package app assets.
 
 ## Test design principles
 
