@@ -26,6 +26,21 @@ public class UhidEventDispatcherTest {
         @Override public void mouseWheel(short deltaX, short deltaY) { event = "wheel"; first = deltaX; second = deltaY; }
     }
 
+    private static class ThrowingSink implements UhidEventDispatcher.EventSink {
+        final IOException failure;
+
+        ThrowingSink(IOException failure) {
+            this.failure = failure;
+        }
+
+        @Override public void keyDown(int hidUsage, byte modifiers) throws IOException { throw failure; }
+        @Override public void keyUp(int hidUsage, byte modifiers) throws IOException { throw failure; }
+        @Override public void mouseMove(int dx, int dy) throws IOException { throw failure; }
+        @Override public void mouseButtonDown(byte button) throws IOException { throw failure; }
+        @Override public void mouseButtonUp(byte button) throws IOException { throw failure; }
+        @Override public void mouseWheel(short deltaX, short deltaY) throws IOException { throw failure; }
+    }
+
     private DataInputStream input(ThrowingConsumer<DataOutputStream> writer) throws Exception {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         DataOutputStream output = new DataOutputStream(bytes);
@@ -66,35 +81,62 @@ public class UhidEventDispatcherTest {
         assertThat(sink.event).isNull();
     }
 
-    @Test public void decodesEveryMouseEventAndPreservesBoundaryValues() throws Exception {
+    @Test public void decodesMouseMovementBoundaryValues() throws Exception {
         FakeSink sink = new FakeSink();
         UhidEventDispatcher dispatcher = new UhidEventDispatcher(sink);
 
         dispatcher.dispatch(EventProtocol.TYPE_MOUSE_MOVE, input(out -> {
             out.writeInt(Integer.MIN_VALUE); out.writeInt(Integer.MAX_VALUE);
         }));
+
         assertThat(sink.event).isEqualTo("move");
         assertThat(sink.first).isEqualTo(Integer.MIN_VALUE);
         assertThat(sink.second).isEqualTo(Integer.MAX_VALUE);
+    }
 
-        dispatcher.dispatch(EventProtocol.TYPE_MOUSE_BTN, input(out -> {
-            out.writeByte(3); out.writeByte(EventProtocol.ACTION_DOWN);
-        }));
-        assertThat(sink.event).isEqualTo("buttonDown");
-        assertThat(sink.first).isEqualTo(3);
+    @Test public void decodesDownAndUpForEverySupportedMouseButton() throws Exception {
+        FakeSink sink = new FakeSink();
+        UhidEventDispatcher dispatcher = new UhidEventDispatcher(sink);
 
-        dispatcher.dispatch(EventProtocol.TYPE_MOUSE_BTN, input(out -> {
-            out.writeByte(3); out.writeByte(EventProtocol.ACTION_UP);
-        }));
-        assertThat(sink.event).isEqualTo("buttonUp");
-        assertThat(sink.first).isEqualTo(3);
+        for (int button = MouseDevice.MIN_BUTTON; button <= MouseDevice.MAX_BUTTON; button++) {
+            int currentButton = button;
+            dispatcher.dispatch(EventProtocol.TYPE_MOUSE_BTN, input(out -> {
+                out.writeByte(currentButton); out.writeByte(EventProtocol.ACTION_DOWN);
+            }));
+            assertThat(sink.event).isEqualTo("buttonDown");
+            assertThat(sink.first).isEqualTo(currentButton);
+
+            dispatcher.dispatch(EventProtocol.TYPE_MOUSE_BTN, input(out -> {
+                out.writeByte(currentButton); out.writeByte(EventProtocol.ACTION_UP);
+            }));
+            assertThat(sink.event).isEqualTo("buttonUp");
+            assertThat(sink.first).isEqualTo(currentButton);
+        }
+    }
+
+    @Test public void decodesHorizontalAndVerticalWheelBoundaryValues() throws Exception {
+        FakeSink sink = new FakeSink();
+        UhidEventDispatcher dispatcher = new UhidEventDispatcher(sink);
 
         dispatcher.dispatch(EventProtocol.TYPE_MOUSE_WHEEL, input(out -> {
             out.writeShort(Short.MAX_VALUE); out.writeShort(Short.MIN_VALUE);
         }));
+
         assertThat(sink.event).isEqualTo("wheel");
         assertThat(sink.first).isEqualTo(Short.MAX_VALUE);
         assertThat(sink.second).isEqualTo(Short.MIN_VALUE);
+    }
+
+    @Test public void preservesSinkFailures() throws Exception {
+        IOException expected = new IOException("device write failed");
+        UhidEventDispatcher dispatcher = new UhidEventDispatcher(new ThrowingSink(expected));
+
+        IOException actual = assertThrows(IOException.class, () -> dispatcher.dispatch(
+            EventProtocol.TYPE_MOUSE_MOVE,
+            input(out -> { out.writeInt(1); out.writeInt(2); })
+        ));
+
+        assertThat(actual).isSameInstanceAs(expected);
     }
 
     @Test public void identifiesEveryTruncatedEventPayload() {
@@ -104,19 +146,32 @@ public class UhidEventDispatcherTest {
         assertTruncated(EventProtocol.TYPE_MOUSE_WHEEL, new byte[3], "mouse-wheel");
     }
 
-    @Test public void rejectsUnsupportedEventsActionsAndButtons() {
+    @Test public void rejectsUnsupportedEventsActionsAndButtonsWithUsefulMessages() {
         UhidEventDispatcher dispatcher = new UhidEventDispatcher(new FakeSink());
 
-        assertThrows(IOException.class, () -> dispatcher.dispatch((byte) 99,
+        IOException typeFailure = assertThrows(IOException.class, () -> dispatcher.dispatch((byte) 99,
             new DataInputStream(new ByteArrayInputStream(new byte[0]))));
-        assertThrows(IOException.class, () -> dispatcher.dispatch(EventProtocol.TYPE_KEY_EVENT,
-            input(out -> { out.writeInt('A'); out.writeByte(99); out.writeByte(0); })));
-        assertThrows(IOException.class, () -> dispatcher.dispatch(EventProtocol.TYPE_MOUSE_BTN,
-            input(out -> { out.writeByte(1); out.writeByte(99); })));
+        assertThat(typeFailure).hasMessageThat().isEqualTo("Unsupported UHID event type: 99");
+
+        IOException keyFailure = assertThrows(IOException.class, () -> dispatcher.dispatch(
+            EventProtocol.TYPE_KEY_EVENT,
+            input(out -> { out.writeInt(0x123456); out.writeByte(99); out.writeByte(0); })
+        ));
+        assertThat(keyFailure).hasMessageThat().isEqualTo("Unsupported key action: 99");
+
+        IOException actionFailure = assertThrows(IOException.class, () -> dispatcher.dispatch(
+            EventProtocol.TYPE_MOUSE_BTN,
+            input(out -> { out.writeByte(1); out.writeByte(99); })
+        ));
+        assertThat(actionFailure).hasMessageThat().isEqualTo("Unsupported mouse action: 99");
 
         for (int button : new int[] {0, 4, 255}) {
-            assertThrows(IOException.class, () -> dispatcher.dispatch(EventProtocol.TYPE_MOUSE_BTN,
-                input(out -> { out.writeByte(button); out.writeByte(EventProtocol.ACTION_DOWN); })));
+            IOException buttonFailure = assertThrows(IOException.class, () -> dispatcher.dispatch(
+                EventProtocol.TYPE_MOUSE_BTN,
+                input(out -> { out.writeByte(button); out.writeByte(EventProtocol.ACTION_DOWN); })
+            ));
+            assertThat(buttonFailure).hasMessageThat()
+                .isEqualTo("Unsupported mouse button: " + button);
         }
     }
 
