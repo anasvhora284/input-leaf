@@ -7,6 +7,7 @@ import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.EOFException
 import java.net.ProtocolException
+import java.nio.charset.CharacterCodingException
 
 class ProtocolParserTest {
     private fun frameOf(tag: String, payload: ByteArray = byteArrayOf()): ByteArray =
@@ -49,18 +50,46 @@ class ProtocolParserTest {
         }
     }
 
-    @Test fun `rejects malformed UTF-8 in hello names`() {
+    @Test fun `rejects malformed UTF-8 in hello names with useful diagnostics`() {
         val invalidUtf8 = byteArrayOf(0xC3.toByte())
-        assertThrows(ProtocolException::class.java) {
+        val taggedFailure = assertThrows(ProtocolException::class.java) {
             parse("HELO", u16(1) + u16(6) + u32(invalidUtf8.size) + invalidUtf8)
         }
+        assertThat(taggedFailure).hasMessageThat().isEqualTo("Malformed UTF-8 in HELO message")
+        assertThat(taggedFailure).hasCauseThat().isInstanceOf(CharacterCodingException::class.java)
 
         for (tag in listOf("Barrier", "Synergy")) {
             val body = tag.toByteArray(Charsets.US_ASCII) + u16(1) + u16(8) +
                 u32(invalidUtf8.size) + invalidUtf8
-            assertThrows(ProtocolException::class.java) {
+            val bannerFailure = assertThrows(ProtocolException::class.java) {
                 ProtocolParser(ByteArrayInputStream(frameOfBody(body))).readNext()
             }
+            assertThat(bannerFailure).hasMessageThat()
+                .isEqualTo("Malformed UTF-8 in $tag message")
+            assertThat(bannerFailure).hasCauseThat()
+                .isInstanceOf(CharacterCodingException::class.java)
+        }
+    }
+
+    @Test fun `validates Barrier and Synergy hello structure boundaries`() {
+        for (tag in listOf("Barrier", "Synergy")) {
+            val prefix = tag.toByteArray(Charsets.US_ASCII) + u16(1) + u16(8)
+
+            val shortFailure = assertThrows(ProtocolException::class.java) {
+                ProtocolParser(ByteArrayInputStream(frameOfBody(prefix.copyOf(10)))).readNext()
+            }
+            assertThat(shortFailure).hasMessageThat()
+                .isEqualTo("Malformed $tag message: expected at least 11 body bytes, got 10")
+
+            val incompleteLength = assertThrows(ProtocolException::class.java) {
+                ProtocolParser(ByteArrayInputStream(frameOfBody(prefix + byteArrayOf(0)))).readNext()
+            }
+            assertThat(incompleteLength).hasMessageThat()
+                .isEqualTo("Malformed $tag message: expected 11 or at least 15 body bytes, got 12")
+
+            val explicitEmptyName = prefix + u32(0)
+            assertThat(ProtocolParser(ByteArrayInputStream(frameOfBody(explicitEmptyName))).readNext())
+                .isEqualTo(InputLeapEvent.Hello(1, 8, ""))
         }
     }
 
@@ -102,15 +131,29 @@ class ProtocolParserTest {
             .isEqualTo(InputLeapEvent.Unhandled("ZZZZ"))
     }
 
-    @Test fun `rejects non-ASCII protocol tags`() {
-        val body = byteArrayOf(0x80.toByte(), 'A'.code.toByte(), 'B'.code.toByte(), 'C'.code.toByte())
+    @Test fun `reads sequential frames without crossing their boundaries`() {
+        val stream = frameOf("QINF") + frameOf("DMDN", byteArrayOf(2)) +
+            frameOf("ZZZZ", byteArrayOf(7, 8))
+        val parser = ProtocolParser(ByteArrayInputStream(stream))
 
-        val failure = assertThrows(ProtocolException::class.java) {
-            ProtocolParser(ByteArrayInputStream(frameOfBody(body))).readNext()
+        assertThat(parser.readNext()).isEqualTo(InputLeapEvent.QueryInfo())
+        assertThat(parser.readNext()).isEqualTo(InputLeapEvent.MouseDown(2))
+        assertThat(parser.readNext()).isEqualTo(InputLeapEvent.Unhandled("ZZZZ"))
+    }
+
+    @Test fun `rejects non-printable protocol tags`() {
+        for (invalidByte in listOf(0x80.toByte(), '\n'.code.toByte())) {
+            val body = byteArrayOf(
+                invalidByte, 'A'.code.toByte(), 'B'.code.toByte(), 'C'.code.toByte()
+            )
+
+            val failure = assertThrows(ProtocolException::class.java) {
+                ProtocolParser(ByteArrayInputStream(frameOfBody(body))).readNext()
+            }
+
+            assertThat(failure).hasMessageThat()
+                .isEqualTo("Malformed protocol tag: expected four printable ASCII bytes")
         }
-
-        assertThat(failure).hasMessageThat()
-            .isEqualTo("Malformed protocol tag: expected four printable ASCII bytes")
     }
 
     @Test fun `rejects trailing bytes in supported messages`() {
@@ -150,11 +193,17 @@ class ProtocolParserTest {
     }
 
     @Test fun `rejects truncated and malformed frames predictably`() {
-        val truncated = assertThrows(ProtocolException::class.java) {
+        val truncatedHeader = assertThrows(ProtocolException::class.java) {
             ProtocolParser(ByteArrayInputStream(byteArrayOf(0, 0))).readNext()
         }
-        assertThat(truncated).hasMessageThat().isEqualTo("Truncated protocol message")
-        assertThat(truncated).hasCauseThat().isInstanceOf(EOFException::class.java)
+        assertThat(truncatedHeader).hasMessageThat().isEqualTo("Truncated protocol message")
+        assertThat(truncatedHeader).hasCauseThat().isInstanceOf(EOFException::class.java)
+
+        val truncatedBody = assertThrows(ProtocolException::class.java) {
+            ProtocolParser(ByteArrayInputStream(u32(8) + "QINF".toByteArray())).readNext()
+        }
+        assertThat(truncatedBody).hasMessageThat().isEqualTo("Truncated protocol message")
+        assertThat(truncatedBody).hasCauseThat().isInstanceOf(EOFException::class.java)
 
         val shortKey = assertThrows(ProtocolException::class.java) {
             ProtocolParser(ByteArrayInputStream(frameOf("DKDN", byteArrayOf(0)))).readNext()
@@ -169,6 +218,15 @@ class ProtocolParserTest {
         }
         assertThat(shortHello).hasMessageThat()
             .isEqualTo("Malformed HELO message: expected 10 payload bytes, got 9")
+    }
+
+    @Test fun `treats name lengths as unsigned 32-bit values`() {
+        val failure = assertThrows(ProtocolException::class.java) {
+            parse("HELO", u16(1) + u16(6) + u32(-1))
+        }
+
+        assertThat(failure).hasMessageThat()
+            .isEqualTo("Malformed HELO message: expected 4294967303 payload bytes, got 8")
     }
 
     @Test fun `rejects invalid frame lengths`() {
