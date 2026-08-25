@@ -2,18 +2,46 @@ package com.inputleaf.uhid;
 
 import java.io.Closeable;
 import java.io.DataInputStream;
+import java.io.EOFException;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Objects;
 
 public class UhidServer implements Closeable {
+    private static final String SOCKET_NAME = "inputleaf_uhid";
+    private static final String EXPECTED_PACKAGE = "com.inputleaf.android";
+    private static final String READY_LINE = "READY";
+    private static final byte[] READY_MESSAGE = (READY_LINE + "\n").getBytes(StandardCharsets.US_ASCII);
+
     private final KeyboardDevice keyboard;
     private final MouseDevice mouse;
     private final UhidEventDispatcher dispatcher;
 
     public UhidServer() throws IOException {
-        keyboard = new KeyboardDevice();
-        mouse = new MouseDevice();
-        dispatcher = new UhidEventDispatcher(new UhidEventDispatcher.EventSink() {
+        KeyboardDevice createdKeyboard = new KeyboardDevice();
+        MouseDevice createdMouse;
+        try {
+            createdMouse = new MouseDevice();
+        } catch (IOException | RuntimeException | Error creationFailure) {
+            closeAfterFailure(createdKeyboard, creationFailure);
+            throw creationFailure;
+        }
+
+        keyboard = createdKeyboard;
+        mouse = createdMouse;
+        dispatcher = createDispatcher();
+    }
+
+    UhidServer(KeyboardDevice keyboard, MouseDevice mouse) {
+        this.keyboard = Objects.requireNonNull(keyboard, "keyboard");
+        this.mouse = Objects.requireNonNull(mouse, "mouse");
+        dispatcher = createDispatcher();
+    }
+
+    private UhidEventDispatcher createDispatcher() {
+        return new UhidEventDispatcher(new UhidEventDispatcher.EventSink() {
             @Override public void keyDown(int hidUsage, byte modifiers) throws IOException {
                 keyboard.keyDown(hidUsage, modifiers);
             }
@@ -41,25 +69,20 @@ public class UhidServer implements Closeable {
     }
 
     public void run() throws IOException {
-        android.net.LocalServerSocket server = new android.net.LocalServerSocket("inputleaf_uhid");
+        android.net.LocalServerSocket server = new android.net.LocalServerSocket(SOCKET_NAME);
         Throwable serverFailure = null;
         try {
-            System.out.println("READY");
+            System.out.println(READY_LINE);
             System.out.flush();
 
             android.net.LocalSocket client = server.accept();
             Throwable clientFailure = null;
             try {
                 verifyPeerIdentity(client);
-                client.getOutputStream().write("READY\n".getBytes());
+                client.getOutputStream().write(READY_MESSAGE);
                 client.getOutputStream().flush();
 
-                DataInputStream input = new DataInputStream(client.getInputStream());
-                while (true) {
-                    byte type = input.readByte();
-                    if (type == EventProtocol.TYPE_SHUTDOWN) break;
-                    dispatcher.dispatch(type, input);
-                }
+                runSession(new DataInputStream(client.getInputStream()), dispatcher);
             } catch (IOException | RuntimeException | Error failure) {
                 clientFailure = failure;
                 throw failure;
@@ -71,6 +94,19 @@ public class UhidServer implements Closeable {
             throw failure;
         } finally {
             close(server, serverFailure);
+        }
+    }
+
+    static void runSession(DataInputStream input, UhidEventDispatcher dispatcher) throws IOException {
+        while (true) {
+            byte type;
+            try {
+                type = input.readByte();
+            } catch (EOFException disconnected) {
+                return;
+            }
+            if (type == EventProtocol.TYPE_SHUTDOWN) return;
+            dispatcher.dispatch(type, input);
         }
     }
 
@@ -92,22 +128,56 @@ public class UhidServer implements Closeable {
         }
     }
 
-    private void verifyPeerIdentity(android.net.LocalSocket client) throws IOException {
-        android.net.Credentials credentials = client.getPeerCredentials();
-        int pid = credentials.getPid();
+    private static void closeAfterFailure(Closeable resource, Throwable failure) {
         try {
-            byte[] cmdline = Files.readAllBytes(java.nio.file.Paths.get("/proc/" + pid + "/cmdline"));
-            String command = new String(cmdline).replace('\0', ' ').trim();
-            if (!command.contains("com.inputleaf.android")) {
-                throw new SecurityException("Rejected connection from unknown process: " + command);
-            }
-        } catch (IOException e) {
-            throw new SecurityException("Cannot verify peer PID " + pid);
+            resource.close();
+        } catch (IOException closeFailure) {
+            failure.addSuppressed(closeFailure);
         }
     }
 
+    private void verifyPeerIdentity(android.net.LocalSocket client) {
+        int pid = -1;
+        try {
+            android.net.Credentials credentials = client.getPeerCredentials();
+            pid = credentials.getPid();
+            byte[] cmdline = Files.readAllBytes(Paths.get("/proc/" + pid + "/cmdline"));
+            String processName = firstArgument(cmdline);
+            if (!isAllowedProcessName(processName)) {
+                throw new SecurityException("Rejected connection from unknown process: " + processName);
+            }
+        } catch (IOException failure) {
+            String peer = pid < 0 ? "unknown" : Integer.toString(pid);
+            throw new SecurityException("Cannot verify peer PID " + peer, failure);
+        }
+    }
+
+    static String firstArgument(byte[] cmdline) {
+        int end = 0;
+        while (end < cmdline.length && cmdline[end] != 0) end++;
+        return new String(cmdline, 0, end, StandardCharsets.UTF_8);
+    }
+
+    static boolean isAllowedProcessName(String processName) {
+        return processName.equals(EXPECTED_PACKAGE) || processName.startsWith(EXPECTED_PACKAGE + ":");
+    }
+
     @Override public void close() throws IOException {
-        keyboard.close();
-        mouse.close();
+        IOException failure = null;
+        try {
+            keyboard.close();
+        } catch (IOException keyboardFailure) {
+            failure = keyboardFailure;
+        }
+        try {
+            mouse.close();
+        } catch (IOException mouseFailure) {
+            if (failure == null) {
+                failure = mouseFailure;
+            } else {
+                failure.addSuppressed(mouseFailure);
+            }
+        }
+        if (failure != null) throw failure;
     }
 }

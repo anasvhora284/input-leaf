@@ -21,8 +21,19 @@ tasks.register<Jar>("fatJar") {
 tasks.register<Exec>("buildDex") {
     dependsOn("fatJar")
     val jarPath = layout.buildDirectory.file("libs/inputleaf-uhid.jar").get().asFile
-    val dexOut  = project(":app").layout.projectDirectory.file("src/main/assets").asFile
-    val d8Path = "${System.getenv("ANDROID_SDK_ROOT") ?: System.getenv("ANDROID_HOME") ?: ""}/build-tools/34.0.0/d8"
-    doFirst { dexOut.mkdirs() }
-    commandLine(if (File(d8Path).exists()) d8Path else "d8", "--output", dexOut.absolutePath, jarPath.absolutePath)
+    val dexOut = project(":app").layout.projectDirectory.file("src/main/assets").asFile
+    val sdkRoot = System.getenv("ANDROID_SDK_ROOT") ?: System.getenv("ANDROID_HOME") ?: ""
+    val d8Path = "$sdkRoot/build-tools/34.0.0/d8"
+    val androidJar = "$sdkRoot/platforms/android-34/android.jar"
+    doFirst {
+        dexOut.mkdirs()
+        require(File(androidJar).exists()) { "Android platform 34 is required to build the UHID DEX" }
+    }
+    commandLine(
+        if (File(d8Path).exists()) d8Path else "d8",
+        "--lib", androidJar,
+        "--min-api", "26",
+        "--output", dexOut.absolutePath,
+        jarPath.absolutePath
+    )
 }

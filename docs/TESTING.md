@@ -42,6 +42,16 @@ The UHID module is Java-only. Keep its tests in Java so test coverage does not a
 
 Socket lifecycle paths in `UhidServer.run()` are not covered by JVM unit tests because `android.net.LocalServerSocket` and `LocalSocket` come from a compile-only Android stub that throws at runtime. Keep explicit `finally` cleanup around both sockets rather than adding brittle stub-dependent tests.
 
+### Regenerate the UHID DEX asset
+
+After changing production code in `uhid-server/src/main`, regenerate and commit the sidecar consumed by the app:
+
+```sh
+./gradlew :uhid-server:buildDex
+```
+
+This task requires Android platform 34 and build tools 34.0.0. It compiles against the platform API, targets the app's minimum API 26, and writes `app/src/main/assets/classes.dex`. JVM tests do not regenerate this asset automatically.
+
 ## Test design principles
 
 - Test observable results, emitted events, persisted values, errors, and protocol bytes rather than private methods or collaborator call order.
