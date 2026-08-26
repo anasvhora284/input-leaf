@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import com.inputleaf.android.network.ConnectionTransportPolicy
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -25,6 +26,9 @@ class AppPreferences(private val context: Context) {
         // Fingerprints stored as "ip:fingerprint" joined by newline
         private val KEY_FINGERPRINTS     = stringPreferencesKey("tls_fingerprints")
         private val KEY_TRANSPORT_MODES  = stringPreferencesKey("server_transport_modes")
+        private val KEY_CONNECTION_TRANSPORT_POLICY =
+            stringPreferencesKey("connection_transport_policy")
+        private val KEY_LEGACY_TLS_ENABLED = booleanPreferencesKey("tls_enabled")
         private val KEY_INPUT_METHOD     = stringPreferencesKey("input_method")
         private val KEY_CURSOR_STYLE     = stringPreferencesKey("cursor_style")
 
@@ -79,6 +83,16 @@ class AppPreferences(private val context: Context) {
     val cursorStyle: Flow<String> =
         context.dataStore.data.map { it[KEY_CURSOR_STYLE] ?: "default" }
 
+    val connectionTransportPolicy: Flow<ConnectionTransportPolicy> =
+        context.dataStore.data.map { prefs ->
+            val storedPolicy = prefs[KEY_CONNECTION_TRANSPORT_POLICY]
+            if (storedPolicy == null && prefs[KEY_LEGACY_TLS_ENABLED] == true) {
+                ConnectionTransportPolicy.TLS_ONLY
+            } else {
+                ConnectionTransportPolicy.fromStorage(storedPolicy)
+            }
+        }
+
     val favoriteServers: Flow<Set<String>> =
         context.dataStore.data.map { prefs ->
             prefs[KEY_FAVORITE_SERVERS]?.split("\n")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
@@ -126,6 +140,12 @@ class AppPreferences(private val context: Context) {
     suspend fun saveCursorStyle(style: String) = context.dataStore.edit {
         it[KEY_CURSOR_STYLE] = style
     }
+
+    suspend fun saveConnectionTransportPolicy(policy: ConnectionTransportPolicy) =
+        context.dataStore.edit {
+            it[KEY_CONNECTION_TRANSPORT_POLICY] = policy.storageValue
+            it.remove(KEY_LEGACY_TLS_ENABLED)
+        }
 
     suspend fun toggleFavoriteServer(ip: String) = context.dataStore.edit { prefs ->
         val current = prefs[KEY_FAVORITE_SERVERS]?.split("\n")?.filter { it.isNotBlank() }?.toMutableSet() ?: mutableSetOf()

@@ -18,6 +18,7 @@ import java.io.DataInputStream
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.security.cert.X509Certificate
+import javax.net.ssl.SSLException
 import javax.net.ssl.SSLSocket
 
 private const val TAG = "InputLeapConnection"
@@ -33,6 +34,7 @@ class InputLeapConnection(
     private val port: Int = 24800,
     private val preferredTransport: ServerTransport? = null,
     private val pinnedFingerprint: String? = null,
+    private val transportPolicy: ConnectionTransportPolicy = ConnectionTransportPolicy.AUTO,
     private val onCertificate: suspend (X509Certificate) -> Boolean,
 ) {
     private val _events = MutableSharedFlow<InputLeapEvent>(replay = 0, extraBufferCapacity = 64)
@@ -50,8 +52,12 @@ class InputLeapConnection(
 
     suspend fun connect(screenName: String, screenWidth: Int, screenHeight: Int): ConnectResult =
         withContext(Dispatchers.IO) {
-            val transports = buildTransportOrder()
-            var lastError: Exception? = null
+            val transports = TransportPolicy.order(
+                policy = transportPolicy,
+                preferredTransport = preferredTransport,
+                hasPinnedFingerprint = pinnedFingerprint != null,
+            )
+            var lastFailure: ConnectResult.Failed? = null
             for (transport in transports) {
                 when (val opened = openSocket(transport)) {
                     is SocketOpenResult.Ok -> {
@@ -62,51 +68,60 @@ class InputLeapConnection(
                             screenWidth,
                             screenHeight,
                         )
-                        if (result != null) {
+                        if (result is ConnectResult.Ok) {
                             return@withContext result
                         }
-                        lastError = Exception("Handshake failed on $transport")
+                        if (result is ConnectResult.Failed) {
+                            if (!transportPolicy.shouldFallbackWithinAttempt(result.reason)) {
+                                return@withContext result
+                            }
+                            lastFailure = selectFailureToReport(lastFailure, result)
+                        }
                     }
                     is SocketOpenResult.Rejected -> return@withContext ConnectResult.RejectedByUser
-                    is SocketOpenResult.Failed -> lastError = opened.error
+                    is SocketOpenResult.Failed -> {
+                        if (!transportPolicy.shouldFallbackWithinAttempt(opened.failure.reason)) {
+                            return@withContext opened.failure
+                        }
+                        lastFailure = selectFailureToReport(lastFailure, opened.failure)
+                    }
                 }
             }
-            Log.e(TAG, "All transports failed for $ip: ${lastError?.message}")
-            ConnectResult.NetworkError
+            val failure = lastFailure ?: ConnectResult.Failed(ConnectResult.FailureReason.NETWORK)
+            Log.e(TAG, "All transports failed for $ip: ${failure.reason} ${failure.detail}")
+            failure
         }
-
-    private fun buildTransportOrder(): List<ServerTransport> {
-        preferredTransport?.let { cached ->
-            val fallback = when (cached) {
-                ServerTransport.TLS -> ServerTransport.PLAIN
-                ServerTransport.PLAIN -> ServerTransport.TLS
-            }
-            return listOf(cached, fallback)
-        }
-        // No stored TLS fingerprint — plain server is likely; avoid a doomed TLS attempt first.
-        if (pinnedFingerprint == null) {
-            return listOf(ServerTransport.PLAIN, ServerTransport.TLS)
-        }
-        return listOf(ServerTransport.TLS, ServerTransport.PLAIN)
-    }
 
     private sealed class SocketOpenResult {
         data class Ok(val socket: Socket, val transport: ServerTransport) : SocketOpenResult()
         data object Rejected : SocketOpenResult()
-        data class Failed(val error: Exception) : SocketOpenResult()
+        data class Failed(val failure: ConnectResult.Failed) : SocketOpenResult()
     }
 
     private suspend fun openSocket(transport: ServerTransport): SocketOpenResult = try {
         when (transport) {
             ServerTransport.TLS -> openTlsSocket()
-            ServerTransport.PLAIN -> SocketOpenResult.Ok(openPlainSocket(), ServerTransport.PLAIN)
+            ServerTransport.PLAIN -> try {
+                SocketOpenResult.Ok(openPlainSocket(), ServerTransport.PLAIN)
+            } catch (e: Exception) {
+                Log.w(TAG, "Plain open failed for $ip: ${e.message}")
+                SocketOpenResult.Failed(
+                    ConnectResult.Failed(ConnectResult.FailureReason.NETWORK, e.message),
+                )
+            }
         }
     } catch (e: Exception) {
-        SocketOpenResult.Failed(e)
+        SocketOpenResult.Failed(
+            ConnectResult.Failed(ConnectResult.FailureReason.NETWORK, e.message),
+        )
     }
 
     private suspend fun openTlsSocket(): SocketOpenResult {
-        val connectTimeout = if (preferredTransport == ServerTransport.TLS) {
+        var openedSocket: SSLSocket? = null
+        val connectTimeout = if (
+            transportPolicy == ConnectionTransportPolicy.AUTO &&
+            preferredTransport == ServerTransport.TLS
+        ) {
             TLS_CONNECT_TIMEOUT_CACHED_MS
         } else {
             TLS_CONNECT_TIMEOUT_MS
@@ -115,6 +130,7 @@ class InputLeapConnection(
             val rawSocket = if (pinnedFingerprint != null) {
                 val sslContext = TlsFingerprintManager.buildPinningSSLContext(pinnedFingerprint)
                 val sslSock = sslContext.socketFactory.createSocket() as SSLSocket
+                openedSocket = sslSock
                 sslSock.connect(InetSocketAddress(ip, port), connectTimeout)
                 sslSock.soTimeout = TLS_HANDSHAKE_TIMEOUT_MS
                 sslSock.startHandshake()
@@ -126,29 +142,61 @@ class InputLeapConnection(
                     capturedCert = cert
                 }
                 val sslSock = sslContext.socketFactory.createSocket() as SSLSocket
+                openedSocket = sslSock
                 sslSock.connect(InetSocketAddress(ip, port), connectTimeout)
                 sslSock.soTimeout = TLS_HANDSHAKE_TIMEOUT_MS
                 sslSock.startHandshake()
                 sslSock.soTimeout = HANDSHAKE_READ_TIMEOUT_MS
                 val cert = capturedCert ?: run {
                     sslSock.close()
-                    return SocketOpenResult.Failed(IllegalStateException("No certificate captured"))
+                    openedSocket = null
+                    return SocketOpenResult.Failed(
+                        ConnectResult.Failed(
+                            ConnectResult.FailureReason.NETWORK,
+                            "No certificate captured",
+                        ),
+                    )
                 }
                 if (!onCertificate(cert)) {
                     sslSock.close()
+                    openedSocket = null
                     return SocketOpenResult.Rejected
                 }
                 sslSock
             }
             SocketOpenResult.Ok(rawSocket, ServerTransport.TLS)
         } catch (e: Exception) {
-            Log.w(TAG, "TLS open failed for $ip: ${e.message}")
-            SocketOpenResult.Failed(e)
+            runCatching { openedSocket?.close() }
+            if (isCertificateMismatch(e)) {
+                Log.w(TAG, "TLS certificate changed for $ip")
+                SocketOpenResult.Failed(
+                    ConnectResult.Failed(
+                        ConnectResult.FailureReason.CERTIFICATE_MISMATCH,
+                        e.message,
+                    ),
+                )
+            } else if (isPlainServerTlsError(e)) {
+                Log.i(TAG, "TLS required, but $ip speaks plain Deskflow")
+                SocketOpenResult.Failed(
+                    ConnectResult.Failed(
+                        ConnectResult.FailureReason.TLS_AGAINST_PLAIN_SERVER,
+                        e.message,
+                    ),
+                )
+            } else {
+                Log.w(TAG, "TLS open failed for $ip: ${e.message}")
+                SocketOpenResult.Failed(
+                    ConnectResult.Failed(ConnectResult.FailureReason.NETWORK, e.message),
+                )
+            }
         }
     }
 
     private fun openPlainSocket(): Socket {
-        val connectTimeout = if (preferredTransport == ServerTransport.PLAIN) {
+        val connectTimeout = if (
+            transportPolicy == ConnectionTransportPolicy.AUTO &&
+            preferredTransport == ServerTransport.PLAIN
+        ) {
             PLAIN_CONNECT_TIMEOUT_CACHED_MS
         } else {
             PLAIN_CONNECT_TIMEOUT_MS
@@ -160,17 +208,17 @@ class InputLeapConnection(
         }
     }
 
-  /**
-   * Run the Input Leap handshake synchronously before returning.
-   * Matches schengen client: server hello → client hello → QINF → DINF → LSYN/CIAK/CROP/DSOP.
-   */
+    /**
+     * Run the Input Leap handshake synchronously before returning.
+     * Matches schengen client: server hello → client hello → QINF → DINF → LSYN/CIAK/CROP/DSOP.
+     */
     private fun runHandshake(
         rawSocket: Socket,
         transport: ServerTransport,
         screenName: String,
         screenWidth: Int,
         screenHeight: Int,
-    ): ConnectResult? {
+    ): ConnectResult {
         rawSocket.tcpNoDelay = true
         socket = rawSocket
         writer = ProtocolWriter(rawSocket.outputStream)
@@ -227,10 +275,18 @@ class InputLeapConnection(
                             "CIAK", "CROP", "DSOP", "LSYN" -> if (dinfSent) sawPostDinf = true
                         }
                     }
-                    is InputLeapEvent.Incompatible, is InputLeapEvent.Busy -> {
+                    is InputLeapEvent.Incompatible -> {
                         Log.e(TAG, "Server rejected handshake: $event")
                         close()
-                        return null
+                        return ConnectResult.Failed(
+                            ConnectResult.FailureReason.INCOMPATIBLE,
+                            "Server requires ${event.major}.${event.minor}",
+                        )
+                    }
+                    is InputLeapEvent.Busy -> {
+                        Log.e(TAG, "Server rejected handshake: busy")
+                        close()
+                        return ConnectResult.Failed(ConnectResult.FailureReason.BUSY)
                     }
                     else -> Unit
                 }
@@ -244,7 +300,7 @@ class InputLeapConnection(
         } catch (e: Exception) {
             Log.e(TAG, "Handshake error: ${e.javaClass.simpleName}: ${e.message}")
             close()
-            return null
+            return ConnectResult.Failed(ConnectResult.FailureReason.HANDSHAKE, e.message)
         }
 
         // Lenient: some servers omit LSYN/CIAK/CROP/DSOP but accept DINF.
@@ -257,7 +313,10 @@ class InputLeapConnection(
 
         Log.e(TAG, "Handshake incomplete hello=$helloSent dinf=$dinfSent post=$sawPostDinf")
         close()
-        return null
+        return ConnectResult.Failed(
+            ConnectResult.FailureReason.HANDSHAKE,
+            "Incomplete handshake: hello=$helloSent, deviceInfo=$dinfSent",
+        )
     }
 
     private suspend fun readLoop(parser: ProtocolParser) {
@@ -291,5 +350,43 @@ class InputLeapConnection(
         writer = null
         sharedDin = null
         sharedParser = null
+    }
+
+    companion object {
+        internal fun selectFailureToReport(
+            current: ConnectResult.Failed?,
+            candidate: ConnectResult.Failed,
+        ): ConnectResult.Failed {
+            val candidatePriority = failurePriority(candidate.reason)
+            val currentPriority = current?.let { failurePriority(it.reason) }
+            return if (currentPriority == null || candidatePriority > currentPriority) {
+                candidate
+            } else {
+                current
+            }
+        }
+
+        private fun failurePriority(reason: ConnectResult.FailureReason): Int = when (reason) {
+            ConnectResult.FailureReason.CERTIFICATE_MISMATCH,
+            ConnectResult.FailureReason.INCOMPATIBLE,
+            ConnectResult.FailureReason.BUSY -> 4
+            ConnectResult.FailureReason.NETWORK -> 3
+            ConnectResult.FailureReason.HANDSHAKE -> 2
+            ConnectResult.FailureReason.TLS_AGAINST_PLAIN_SERVER -> 1
+        }
+
+        internal fun isCertificateMismatch(error: Exception): Boolean =
+            generateSequence<Throwable>(error) { it.cause }
+                .any { "certificate fingerprint mismatch" in it.message.orEmpty().lowercase() }
+
+        internal fun isPlainServerTlsError(error: Exception): Boolean {
+            val causes = generateSequence<Throwable>(error) { it.cause }.toList()
+            val message = causes.joinToString(" ") { it.message.orEmpty() }.lowercase()
+            return causes.any { it is SSLException } && (
+                "unable to parse tls packet header" in message ||
+                    "not an sslv2 hello" in message ||
+                    "unsupported or unrecognized ssl message" in message
+            )
+        }
     }
 }

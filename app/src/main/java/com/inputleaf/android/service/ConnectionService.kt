@@ -13,6 +13,7 @@ import android.view.WindowManager
 import com.inputleaf.android.model.ConnectionState
 import com.inputleaf.android.model.InputLeapEvent
 import com.inputleaf.android.network.ConnectResult
+import com.inputleaf.android.network.ConnectionTransportPolicy
 import com.inputleaf.android.network.InputLeapConnection
 import com.inputleaf.android.network.ServerTransport
 import com.inputleaf.android.network.TlsFingerprintManager
@@ -109,6 +110,7 @@ class ConnectionService : Service() {
 
     var onFingerprintConfirmationRequired: (suspend (ip: String, fp: String, oldFp: String?) -> Boolean)? = null
     var onConnectionRejected: (() -> Unit)? = null
+    var onConnectionFailed: ((reason: ConnectResult.FailureReason, detail: String?) -> Unit)? = null
 
     fun connect(serverIp: String, screenName: String, force: Boolean = false) {
         val currentState = stateMachine.state.value
@@ -136,23 +138,31 @@ class ConnectionService : Service() {
 
     private suspend fun performConnect(serverIp: String, screenName: String, generation: Int) {
         if (generation != connectGeneration) return
+        var activePolicy = ConnectionTransportPolicy.AUTO
         try {
             startForeground(NOTIF_ID, NotificationHelper.build(this@ConnectionService, stateMachine.state.value))
             stateMachine.onConnecting(serverIp)
 
             val storedFp = prefs.fingerprintFor(serverIp).first()
-            val cachedTransport = prefs.transportFor(serverIp).first()?.let { mode ->
-                when (mode.lowercase()) {
-                    "tls" -> ServerTransport.TLS
-                    "plain" -> ServerTransport.PLAIN
-                    else -> null
+            activePolicy = prefs.connectionTransportPolicy.first()
+            val cachedTransport =
+                if (activePolicy == ConnectionTransportPolicy.AUTO) {
+                    prefs.transportFor(serverIp).first()?.let { mode ->
+                        when (mode.lowercase()) {
+                            "tls" -> ServerTransport.TLS
+                            "plain" -> ServerTransport.PLAIN
+                            else -> null
+                        }
+                    }
+                } else {
+                    null
                 }
-            }
 
             val conn = InputLeapConnection(
                 ip = serverIp,
                 preferredTransport = cachedTransport,
                 pinnedFingerprint = storedFp,
+                transportPolicy = activePolicy,
             ) { cert ->
                 val newFp = TlsFingerprintManager.fingerprintOf(cert)
                 val trusted = when {
@@ -196,11 +206,15 @@ class ConnectionService : Service() {
                     stateMachine.onDisconnected()
                     onConnectionRejected?.invoke()
                 }
-                is ConnectResult.NetworkError -> {
+                is ConnectResult.Failed -> {
                     conn.close()
-                    prefs.clearTransport(serverIp)
                     stateMachine.onDisconnected()
-                    scheduleRetry(serverIp, screenName, generation)
+                    if (activePolicy.shouldRetry(result.reason)) {
+                        prefs.clearTransport(serverIp)
+                        scheduleRetry(serverIp, screenName, generation)
+                    } else {
+                        onConnectionFailed?.invoke(result.reason, result.detail)
+                    }
                 }
             }
         } catch (e: CancellationException) {
@@ -209,7 +223,11 @@ class ConnectionService : Service() {
             if (generation != connectGeneration) return
             Log.w(TAG, "Connection to $serverIp failed: ${e.javaClass.simpleName}: ${e.message}", e)
             stateMachine.onDisconnected()
-            scheduleRetry(serverIp, screenName, generation)
+            if (activePolicy.shouldRetry(ConnectResult.FailureReason.NETWORK)) {
+                scheduleRetry(serverIp, screenName, generation)
+            } else {
+                onConnectionFailed?.invoke(ConnectResult.FailureReason.NETWORK, e.message)
+            }
         }
     }
 
