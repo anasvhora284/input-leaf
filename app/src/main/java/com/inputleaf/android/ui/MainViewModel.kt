@@ -10,10 +10,13 @@ import android.net.wifi.WifiManager
 import android.os.IBinder
 import android.os.PowerManager
 import android.provider.Settings
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.inputleaf.android.model.ConnectionState
 import com.inputleaf.android.model.ServerInfo
+import com.inputleaf.android.network.ConnectResult
+import com.inputleaf.android.network.ConnectionTransportPolicy
 import com.inputleaf.android.network.ServerScanner
 import com.inputleaf.android.service.ConnectionService
 import com.inputleaf.android.service.CursorOverlayService
@@ -21,7 +24,6 @@ import com.inputleaf.android.storage.AppPreferences
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import android.util.Log
 import rikka.shizuku.Shizuku
 import java.net.InetAddress
 import java.net.NetworkInterface
@@ -30,6 +32,23 @@ enum class ThemeMode {
     SYSTEM,
     LIGHT,
     DARK
+}
+
+internal fun connectionFailureMessage(
+    reason: ConnectResult.FailureReason,
+    detail: String? = null,
+): String = when (reason) {
+    ConnectResult.FailureReason.NETWORK -> "Could not reach the Deskflow server"
+    ConnectResult.FailureReason.TLS_AGAINST_PLAIN_SERVER ->
+        "Server is not using TLS. Select Auto or Plain only, or enable TLS in Deskflow."
+    ConnectResult.FailureReason.CERTIFICATE_MISMATCH ->
+        "Deskflow's TLS certificate changed. Remove the trusted server only if you expect this."
+    ConnectResult.FailureReason.HANDSHAKE ->
+        "Deskflow handshake failed on the selected transport"
+    ConnectResult.FailureReason.INCOMPATIBLE ->
+        detail ?: "Deskflow rejected this client's protocol version"
+    ConnectResult.FailureReason.BUSY ->
+        "This screen name is already connected to Deskflow"
 }
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -74,6 +93,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val keyboardEnabled: Flow<Boolean> = prefs.keyboardEnabled
     val favoriteServers: Flow<Set<String>> = prefs.favoriteServers
     val inputMethod: Flow<String> = prefs.inputMethod
+    val connectionTransportPolicy: Flow<ConnectionTransportPolicy> =
+        prefs.connectionTransportPolicy
 
     val shizukuAvailable: Flow<Boolean> = permissionProvider.shizukuAvailable
     val accessibilityAvailable: Flow<Boolean> = permissionProvider.accessibilityAvailable
@@ -124,6 +145,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleFavoriteServer(ip: String) { viewModelScope.launch { prefs.toggleFavoriteServer(ip) } }
     fun saveInputMethod(method: String) { viewModelScope.launch { prefs.saveInputMethod(method) } }
     fun saveCursorStyle(style: String) { viewModelScope.launch { prefs.saveCursorStyle(style) } }
+    fun saveConnectionTransportPolicy(policy: ConnectionTransportPolicy) {
+        viewModelScope.launch { prefs.saveConnectionTransportPolicy(policy) }
+    }
 
     // Called by UI after user taps Trust/Cancel in FingerprintDialog
     fun respondToFingerprint(request: FingerprintRequest, trusted: Boolean) {
@@ -153,6 +177,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
             service!!.onConnectionRejected = {
                 _errorState.value = "Connection not trusted"
+            }
+            service!!.onConnectionFailed = { reason, detail ->
+                _errorState.value = connectionFailureMessage(reason, detail)
             }
             
             // Auto-connect to last server if enabled

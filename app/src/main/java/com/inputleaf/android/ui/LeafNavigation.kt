@@ -18,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.inputleaf.android.network.ConnectionTransportPolicy
 import com.inputleaf.android.ui.components.AnimatedBottomNavigation
 import com.inputleaf.android.ui.components.NavItem
 import com.inputleaf.android.util.BatteryOptimizationHelper
@@ -49,6 +50,9 @@ fun LeafNavigation(viewModel: MainViewModel) {
     val keyboardEnabled by viewModel.keyboardEnabled.collectAsState(initial = true)
     val favoriteServers by viewModel.favoriteServers.collectAsState(initial = emptySet())
     val inputMethod by viewModel.inputMethod.collectAsState(initial = "auto")
+    val connectionTransportPolicy by viewModel.connectionTransportPolicy.collectAsState(
+        initial = ConnectionTransportPolicy.AUTO
+    )
     val cursorStyle by viewModel.cursorStyle.collectAsState(initial = "default")
     val shizukuAvailable by viewModel.shizukuAvailable.collectAsState(initial = false)
     val accessibilityAvailable by viewModel.accessibilityAvailable.collectAsState(initial = false)
@@ -164,6 +168,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     showCursor = showCursor,
                     themeMode = themeMode,
                     inputMethod = inputMethod,
+                    connectionTransportPolicy = connectionTransportPolicy,
                     cursorStyle = cursorStyle,
                     shizukuAvailable = shizukuAvailable,
                     accessibilityAvailable = accessibilityAvailable,
@@ -174,6 +179,9 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     onShowCursorChange = { viewModel.saveShowCursor(it) },
                     onThemeModeChange = { viewModel.saveThemeMode(it) },
                     onInputMethodChange = { viewModel.saveInputMethod(it) },
+                    onConnectionTransportPolicyChange = {
+                        viewModel.saveConnectionTransportPolicy(it)
+                    },
                     onCursorStyleChange = { viewModel.saveCursorStyle(it) },
                     onRequestOverlayPermission = {
                         context.startActivity(

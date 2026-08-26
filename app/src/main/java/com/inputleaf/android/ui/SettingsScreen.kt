@@ -29,6 +29,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.BorderStroke
+import com.inputleaf.android.network.ConnectionTransportPolicy
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,6 +39,7 @@ fun SettingsScreen(
     showCursor: Boolean,
     themeMode: String,
     inputMethod: String,
+    connectionTransportPolicy: ConnectionTransportPolicy,
     cursorStyle: String,
     shizukuAvailable: Boolean,
     accessibilityAvailable: Boolean,
@@ -48,6 +50,7 @@ fun SettingsScreen(
     onShowCursorChange: (Boolean) -> Unit,
     onThemeModeChange: (String) -> Unit,
     onInputMethodChange: (String) -> Unit,
+    onConnectionTransportPolicyChange: (ConnectionTransportPolicy) -> Unit,
     onCursorStyleChange: (String) -> Unit,
     onRequestOverlayPermission: () -> Unit,
     onDeleteFingerprint: (String) -> Unit,
@@ -57,6 +60,7 @@ fun SettingsScreen(
     var showThemeDialog by remember { mutableStateOf(false) }
     var showEditNameDialog by remember { mutableStateOf(false) }
     var showInputMethodDialog by remember { mutableStateOf(false) }
+    var showTransportPolicyDialog by remember { mutableStateOf(false) }
     var showCursorStyleDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -117,6 +121,21 @@ fun SettingsScreen(
                                 onCheckedChange = onAutoConnectChange
                             )
                         }
+                    )
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        thickness = 1.dp,
+                        modifier = Modifier.padding(start = 72.dp)
+                    )
+                    SettingsRow(
+                        icon = Icons.Rounded.Lock,
+                        title = "Connection security",
+                        subtitle = when (connectionTransportPolicy) {
+                            ConnectionTransportPolicy.AUTO -> "Auto (recommended)"
+                            ConnectionTransportPolicy.TLS_ONLY -> "TLS only"
+                            ConnectionTransportPolicy.PLAIN_ONLY -> "Plain only"
+                        },
+                        onClick = { showTransportPolicyDialog = true }
                     )
                     HorizontalDivider(
                         color = MaterialTheme.colorScheme.outlineVariant,
@@ -323,13 +342,59 @@ fun SettingsScreen(
         )
     }
 
+    if (showTransportPolicyDialog) {
+        AlertDialog(
+            onDismissRequest = { showTransportPolicyDialog = false },
+            title = { Text("Connection Security") },
+            text = {
+                Column {
+                    SettingsChoiceOption(
+                        text = "Auto (Recommended)",
+                        selected = connectionTransportPolicy == ConnectionTransportPolicy.AUTO,
+                        status = "Use the last working mode, with fallback",
+                        statusColor = Color.Gray,
+                        onClick = {
+                            onConnectionTransportPolicyChange(ConnectionTransportPolicy.AUTO)
+                            showTransportPolicyDialog = false
+                        }
+                    )
+                    SettingsChoiceOption(
+                        text = "TLS only",
+                        selected = connectionTransportPolicy == ConnectionTransportPolicy.TLS_ONLY,
+                        status = "Require an encrypted Deskflow connection",
+                        statusColor = Color.Gray,
+                        onClick = {
+                            onConnectionTransportPolicyChange(ConnectionTransportPolicy.TLS_ONLY)
+                            showTransportPolicyDialog = false
+                        }
+                    )
+                    SettingsChoiceOption(
+                        text = "Plain only",
+                        selected = connectionTransportPolicy == ConnectionTransportPolicy.PLAIN_ONLY,
+                        status = "Never attempt TLS",
+                        statusColor = Color.Gray,
+                        onClick = {
+                            onConnectionTransportPolicyChange(ConnectionTransportPolicy.PLAIN_ONLY)
+                            showTransportPolicyDialog = false
+                        }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showTransportPolicyDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     if (showInputMethodDialog) {
         AlertDialog(
             onDismissRequest = { showInputMethodDialog = false },
             title = { Text("Select Input Method") },
             text = {
                 Column {
-                    InputMethodOption(
+                    SettingsChoiceOption(
                         text = "Auto (Recommended)",
                         selected = inputMethod == "auto",
                         status = "Available",
@@ -339,7 +404,7 @@ fun SettingsScreen(
                             showInputMethodDialog = false
                         }
                     )
-                    InputMethodOption(
+                    SettingsChoiceOption(
                         text = "Shizuku",
                         selected = inputMethod == "shizuku",
                         status = if (shizukuAvailable) "Available" else "Not running",
@@ -349,7 +414,7 @@ fun SettingsScreen(
                             showInputMethodDialog = false
                         }
                     )
-                    InputMethodOption(
+                    SettingsChoiceOption(
                         text = "Accessibility Service",
                         selected = inputMethod == "accessibility",
                         status = if (accessibilityAvailable) "Enabled" else "Disabled",
@@ -550,7 +615,7 @@ fun SettingsScreen(
 
 
 @Composable
-private fun InputMethodOption(
+private fun SettingsChoiceOption(
     text: String,
     selected: Boolean,
     status: String,
