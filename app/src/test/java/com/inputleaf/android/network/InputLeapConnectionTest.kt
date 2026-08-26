@@ -243,6 +243,12 @@ class InputLeapConnectionTest {
         }
     }
 
+    private object NoOpLogger : InputLeapConnection.Logger {
+        override fun debug(message: String) = Unit
+        override fun warn(message: String) = Unit
+        override fun error(message: String) = Unit
+    }
+
     private fun connection(
         port: Int,
         preferredTransport: ServerTransport? = null,
@@ -254,6 +260,7 @@ class InputLeapConnectionTest {
         preferredTransport = preferredTransport,
         pinnedFingerprint = pinnedFingerprint,
         onCertificate = onCertificate,
+        logger = NoOpLogger,
     )
 
     private suspend fun <T> InputLeapConnection.useConnection(
