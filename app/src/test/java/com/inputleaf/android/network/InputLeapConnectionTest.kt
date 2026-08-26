@@ -269,7 +269,7 @@ internal const val LOOPBACK_HOST = "127.0.0.1"
 
 internal open class LoopbackServer(
     connectionCount: Int = 1,
-    serverSocket: ServerSocket = ServerSocket(0, 50, InetAddress.getByName(LOOPBACK_HOST)),
+    private val serverSocket: ServerSocket = ServerSocket(0, 50, InetAddress.getByName(LOOPBACK_HOST)),
     handler: (Socket, Int) -> Unit,
 ) : Closeable {
     val port: Int = serverSocket.localPort
