@@ -103,13 +103,13 @@
 # # comment marker
 #
 # 4 the name of the X11 keysym macro without the leading XK_,
-# as defined in 
+# as defined in
 #
 # The last columns may be followed by comments copied from.
 # A keysym may be listed several times, if there are several macro names
 # associated with it in.
 #
-# Author: Markus Kuhn 
+# Author: Markus Kuhn
 # Date: 2004-08-08
 #
 # This table evolved out of an earlier one by Richard Verhoeven, TU Eindhoven.
@@ -921,11 +921,11 @@
 0x0da3 U0e03 . # Thai_khokhuat
 0x0da4 U0e04 . # Thai_khokhwai
 0x0da5 U0e05 . # Thai_khokhon
-0x0da6 U0e06 . # Thai_khorakhang 
-0x0da7 U0e07 . # Thai_ngongu 
-0x0da8 U0e08 . # Thai_chochan 
-0x0da9 U0e09 . # Thai_choching 
-0x0daa U0e0a . # Thai_chochang 
+0x0da6 U0e06 . # Thai_khorakhang
+0x0da7 U0e07 . # Thai_ngongu
+0x0da8 U0e08 . # Thai_chochan
+0x0da9 U0e09 . # Thai_choching
+0x0daa U0e0a . # Thai_chochang
 0x0dab U0e0b . # Thai_soso
 0x0dac U0e0c . # Thai_chochoe
 0x0dad U0e0d . # Thai_yoying
@@ -967,39 +967,39 @@
 0x0dd1 U0e31 . # Thai_maihanakat
 0x0dd2 U0e32 . # Thai_saraaa
 0x0dd3 U0e33 . # Thai_saraam
-0x0dd4 U0e34 . # Thai_sarai 
-0x0dd5 U0e35 . # Thai_saraii 
-0x0dd6 U0e36 . # Thai_saraue 
-0x0dd7 U0e37 . # Thai_sarauee 
-0x0dd8 U0e38 . # Thai_sarau 
-0x0dd9 U0e39 . # Thai_sarauu 
+0x0dd4 U0e34 . # Thai_sarai
+0x0dd5 U0e35 . # Thai_saraii
+0x0dd6 U0e36 . # Thai_saraue
+0x0dd7 U0e37 . # Thai_sarauee
+0x0dd8 U0e38 . # Thai_sarau
+0x0dd9 U0e39 . # Thai_sarauu
 0x0dda U0e3a . # Thai_phinthu
 0x0dde U0000 o # Thai_maihanakat_maitho
 0x0ddf U0e3f . # Thai_baht
-0x0de0 U0e40 . # Thai_sarae 
+0x0de0 U0e40 . # Thai_sarae
 0x0de1 U0e41 . # Thai_saraae
 0x0de2 U0e42 . # Thai_sarao
-0x0de3 U0e43 . # Thai_saraaimaimuan 
-0x0de4 U0e44 . # Thai_saraaimaimalai 
+0x0de3 U0e43 . # Thai_saraaimaimuan
+0x0de4 U0e44 . # Thai_saraaimaimalai
 0x0de5 U0e45 . # Thai_lakkhangyao
 0x0de6 U0e46 . # Thai_maiyamok
 0x0de7 U0e47 . # Thai_maitaikhu
-0x0de8 U0e48 . # Thai_maiek 
+0x0de8 U0e48 . # Thai_maiek
 0x0de9 U0e49 . # Thai_maitho
 0x0dea U0e4a . # Thai_maitri
 0x0deb U0e4b . # Thai_maichattawa
 0x0dec U0e4c . # Thai_thanthakhat
 0x0ded U0e4d . # Thai_nikhahit
-0x0df0 U0e50 . # Thai_leksun 
-0x0df1 U0e51 . # Thai_leknung 
-0x0df2 U0e52 . # Thai_leksong 
+0x0df0 U0e50 . # Thai_leksun
+0x0df1 U0e51 . # Thai_leknung
+0x0df2 U0e52 . # Thai_leksong
 0x0df3 U0e53 . # Thai_leksam
-0x0df4 U0e54 . # Thai_leksi 
-0x0df5 U0e55 . # Thai_lekha 
-0x0df6 U0e56 . # Thai_lekhok 
-0x0df7 U0e57 . # Thai_lekchet 
-0x0df8 U0e58 . # Thai_lekpaet 
-0x0df9 U0e59 . # Thai_lekkao 
+0x0df4 U0e54 . # Thai_leksi
+0x0df5 U0e55 . # Thai_lekha
+0x0df6 U0e56 . # Thai_lekhok
+0x0df7 U0e57 . # Thai_lekchet
+0x0df8 U0e58 . # Thai_lekpaet
+0x0df9 U0e59 . # Thai_lekkao
 0x0ea1 U3131 f # Hangul_Kiyeog
 0x0ea2 U3132 f # Hangul_SsangKiyeog
 0x0ea3 U3133 f # Hangul_KiyeogSios
@@ -1091,22 +1091,22 @@
 0x0ef9 U11f0 f # Hangul_J_KkogjiDalrinIeung
 0x0efa U11f9 f # Hangul_J_YeorinHieuh
 0x0eff U20a9 o # Korean_Won
-0x13bc U0152 . # OE 
-0x13bd U0153 . # oe 
-0x13be U0178 . # Ydiaeresis 
-0x20a0 U20a0 u # EcuSign 
-0x20a1 U20a1 u # ColonSign 
-0x20a2 U20a2 u # CruzeiroSign 
-0x20a3 U20a3 u # FFrancSign 
-0x20a4 U20a4 u # LiraSign 
-0x20a5 U20a5 u # MillSign 
-0x20a6 U20a6 u # NairaSign 
-0x20a7 U20a7 u # PesetaSign 
-0x20a8 U20a8 u # RupeeSign 
-0x20a9 U20a9 u # WonSign 
-0x20aa U20aa u # NewSheqelSign 
-0x20ab U20ab u # DongSign 
-0x20ac U20ac . # EuroSign 
+0x13bc U0152 . # OE
+0x13bd U0153 . # oe
+0x13be U0178 . # Ydiaeresis
+0x20a0 U20a0 u # EcuSign
+0x20a1 U20a1 u # ColonSign
+0x20a2 U20a2 u # CruzeiroSign
+0x20a3 U20a3 u # FFrancSign
+0x20a4 U20a4 u # LiraSign
+0x20a5 U20a5 u # MillSign
+0x20a6 U20a6 u # NairaSign
+0x20a7 U20a7 u # PesetaSign
+0x20a8 U20a8 u # RupeeSign
+0x20a9 U20a9 u # WonSign
+0x20aa U20aa u # NewSheqelSign
+0x20ab U20ab u # DongSign
+0x20ac U20ac . # EuroSign
 0xfd01 U0000 f # 3270_Duplicate
 0xfd02 U0000 f # 3270_FieldMark
 0xfd03 U0000 f # 3270_Right2
