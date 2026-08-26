@@ -2,6 +2,7 @@ package com.inputleaf.android.protocol
 
 import com.google.common.truth.Truth.assertThat
 import com.inputleaf.android.model.InputLeapEvent
+import com.inputleaf.android.model.WireProtocol
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.io.ByteArrayInputStream
@@ -37,16 +38,16 @@ class ProtocolParserTest {
     }
 
     @Test fun `parses Barrier and Synergy hello variants with and without a name`() {
-        for (tag in listOf("Barrier", "Synergy")) {
-            val prefix = tag.toByteArray(Charsets.US_ASCII) + u16(1) + u16(8)
+        for (protocol in WireProtocol.entries) {
+            val prefix = protocol.magic.toByteArray(Charsets.US_ASCII) + u16(1) + u16(8)
             assertThat(ProtocolParser(ByteArrayInputStream(frameOfBody(prefix))).readNext())
-                .isEqualTo(InputLeapEvent.Hello(1, 8, ""))
+                .isEqualTo(InputLeapEvent.Hello(1, 8, "", protocol))
 
             val name = "server"
             val nameBytes = name.toByteArray(Charsets.UTF_8)
             val namedHello = prefix + u32(nameBytes.size) + nameBytes
             assertThat(ProtocolParser(ByteArrayInputStream(frameOfBody(namedHello))).readNext())
-                .isEqualTo(InputLeapEvent.Hello(1, 8, name))
+                .isEqualTo(InputLeapEvent.Hello(1, 8, name, protocol))
         }
     }
 
@@ -72,24 +73,28 @@ class ProtocolParserTest {
     }
 
     @Test fun `validates Barrier and Synergy hello structure boundaries`() {
-        for (tag in listOf("Barrier", "Synergy")) {
-            val prefix = tag.toByteArray(Charsets.US_ASCII) + u16(1) + u16(8)
+        for (protocol in WireProtocol.entries) {
+            val prefix = protocol.magic.toByteArray(Charsets.US_ASCII) + u16(1) + u16(8)
 
             val shortFailure = assertThrows(ProtocolException::class.java) {
                 ProtocolParser(ByteArrayInputStream(frameOfBody(prefix.copyOf(10)))).readNext()
             }
             assertThat(shortFailure).hasMessageThat()
-                .isEqualTo("Malformed $tag message: expected at least 11 body bytes, got 10")
+                .isEqualTo(
+                    "Malformed ${protocol.magic} message: expected at least 11 body bytes, got 10"
+                )
 
             val incompleteLength = assertThrows(ProtocolException::class.java) {
                 ProtocolParser(ByteArrayInputStream(frameOfBody(prefix + byteArrayOf(0)))).readNext()
             }
             assertThat(incompleteLength).hasMessageThat()
-                .isEqualTo("Malformed $tag message: expected 11 or at least 15 body bytes, got 12")
+                .isEqualTo(
+                    "Malformed ${protocol.magic} message: expected 11 or at least 15 body bytes, got 12"
+                )
 
             val explicitEmptyName = prefix + u32(0)
             assertThat(ProtocolParser(ByteArrayInputStream(frameOfBody(explicitEmptyName))).readNext())
-                .isEqualTo(InputLeapEvent.Hello(1, 8, ""))
+                .isEqualTo(InputLeapEvent.Hello(1, 8, "", protocol))
         }
     }
 

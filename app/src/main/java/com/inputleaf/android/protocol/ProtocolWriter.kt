@@ -1,15 +1,21 @@
 package com.inputleaf.android.protocol
 
+import com.inputleaf.android.model.WireProtocol
 import java.io.DataOutputStream
 import java.io.OutputStream
 
 class ProtocolWriter(output: OutputStream) {
     private val dout = DataOutputStream(output)
 
-    fun writeHelloBack(screenName: String, major: Int, minor: Int) {
+    fun writeHelloBack(
+        screenName: String,
+        major: Int,
+        minor: Int,
+        protocol: WireProtocol = WireProtocol.BARRIER,
+    ) {
         val nameBytes = screenName.toByteArray(Charsets.UTF_8)
-        // Input Leap HelloBack uses "Barrier" as the frame tag (not "HELO")
-        frame("Barrier") {
+        // HelloBack echoes the server's seven-byte Barrier or Synergy protocol magic.
+        frame(protocol.magic) {
             writeShort(major); writeShort(minor)
             writeInt(nameBytes.size); write(nameBytes)
         }
