@@ -3,7 +3,7 @@ package com.inputleaf.android.protocol
 object ProtocolConstants {
     const val DEFAULT_PORT = 24800
     const val PROTOCOL_MAJOR = 1
-    const val PROTOCOL_MINOR = 6
+    const val PROTOCOL_MINOR = 8
     const val MAX_MESSAGE_LEN = 4 * 1024 * 1024
 
     // Server→Client tags
