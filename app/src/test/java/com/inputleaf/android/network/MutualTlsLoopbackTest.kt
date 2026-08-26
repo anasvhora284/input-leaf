@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.inputleaf.android.testutil.ClientCertificateTestFixture
 import org.junit.Test
 import java.net.InetSocketAddress
+import java.net.SocketException
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.util.concurrent.Executors
@@ -39,6 +40,7 @@ class MutualTlsLoopbackTest {
                 clientCertificate = clientMaterial,
             )
             (clientContext.socketFactory.createSocket() as SSLSocket).use { client ->
+                client.enabledProtocols = arrayOf("TLSv1.2")
                 client.connect(InetSocketAddress("127.0.0.1", server.localPort), TIMEOUT_MS)
                 client.soTimeout = TIMEOUT_MS
                 client.startHandshake()
@@ -72,6 +74,7 @@ class MutualTlsLoopbackTest {
             val clientContext = TlsFingerprintManager.buildCapturingSSLContext { }
             val clientAttempt = runCatching {
                 (clientContext.socketFactory.createSocket() as SSLSocket).use { client ->
+                    client.enabledProtocols = arrayOf("TLSv1.2")
                     client.connect(
                         InetSocketAddress("127.0.0.1", server.localPort),
                         TIMEOUT_MS,
@@ -86,13 +89,11 @@ class MutualTlsLoopbackTest {
             val serverAttempt = runCatching { serverHandshake.get(5, TimeUnit.SECONDS) }
 
             assertThat(clientAttempt.isFailure || serverAttempt.isFailure).isTrue()
-            val failure = sequenceOf(
+            val failures = listOfNotNull(
                 clientAttempt.exceptionOrNull(),
                 serverAttempt.exceptionOrNull(),
-            ).filterIsInstance<Exception>().first()
-            assertThat(
-                generateSequence<Throwable>(failure) { it.cause }.any { it is SSLException }
-            ).isTrue()
+            )
+            assertThat(failures.any { isAnonymousClientRejection(it) }).isTrue()
         } finally {
             server.close()
             executor.shutdownNow()
@@ -121,8 +122,20 @@ class MutualTlsLoopbackTest {
         }
         return (context.serverSocketFactory.createServerSocket(0) as SSLServerSocket).apply {
             needClientAuth = true
+            enabledProtocols = arrayOf("TLSv1.2")
             soTimeout = TIMEOUT_MS
         }
+    }
+
+    /**
+     * TLS 1.3 on some JDKs (including GitHub Actions Temurin) can reset the
+     * socket instead of wrapping the alert in SSLException. Accept either.
+     */
+    private fun isAnonymousClientRejection(error: Throwable): Boolean {
+        val chain = generateSequence(error) { it.cause }.toList()
+        if (chain.any { it is SSLException || it is SocketException }) return true
+        val asException = error as? Exception ?: Exception(error)
+        return InputLeapConnection.isClientCertificateRequired(asException)
     }
 
     private companion object {
