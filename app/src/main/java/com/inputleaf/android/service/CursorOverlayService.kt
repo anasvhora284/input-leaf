@@ -23,6 +23,8 @@ import android.view.WindowManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.*
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 private const val TAG = "CursorOverlayService"
 
@@ -50,27 +52,52 @@ class CursorOverlayService : Service() {
         private val _cursorX = MutableStateFlow(0f)
         private val _cursorY = MutableStateFlow(0f)
         private val _isVisible = MutableStateFlow(false)
+        private val pendingX = AtomicInteger(0)
+        private val pendingY = AtomicInteger(0)
+        private val moveScheduled = AtomicBoolean(false)
+        private val applyPendingMove = object : Runnable {
+            override fun run() {
+                val x = Float.fromBits(pendingX.get())
+                val y = Float.fromBits(pendingY.get())
+                applyMove(x, y)
+                moveScheduled.set(false)
+                if (pendingX.get() != x.toBits() || pendingY.get() != y.toBits()) {
+                    scheduleMove()
+                }
+            }
+        }
         
         val cursorX: StateFlow<Float> = _cursorX
         val cursorY: StateFlow<Float> = _cursorY
         val isVisible: StateFlow<Boolean> = _isVisible
         
         fun updatePosition(x: Float, y: Float) {
+            pendingX.set(x.toBits())
+            pendingY.set(y.toBits())
+            if (!_isVisible.value) return
+            scheduleMove()
+        }
+
+        private fun scheduleMove() {
+            if (moveScheduled.compareAndSet(false, true)) {
+                mainHandler.post(applyPendingMove)
+            }
+        }
+
+        private fun applyMove(x: Float, y: Float) {
             _cursorX.value = x
             _cursorY.value = y
-            // Post to main thread
-            mainHandler.post {
-                if (com.inputleaf.android.inject.AccessibilityInputService.isServiceRunning()) {
-                    com.inputleaf.android.inject.AccessibilityInputService.getInstance()?.moveCursorInternal(x, y)
-                } else {
-                    instance?.moveCursorInternal(x, y)
-                }
+            if (com.inputleaf.android.inject.AccessibilityInputService.isServiceRunning()) {
+                com.inputleaf.android.inject.AccessibilityInputService.getInstance()?.moveCursorInternal(x, y)
+            } else {
+                instance?.moveCursorInternal(x, y)
             }
         }
         
         fun show() {
             Log.d(TAG, "show() called - instance=$instance")
             _isVisible.value = true
+            scheduleMove()
             // Post to main thread
             mainHandler.post {
                 if (com.inputleaf.android.inject.AccessibilityInputService.isServiceRunning()) {

@@ -22,14 +22,13 @@ import com.inputleaf.android.network.ConnectResult
 import com.inputleaf.android.network.ConnectionTransportPolicy
 import com.inputleaf.android.network.ServerScanner
 import com.inputleaf.android.service.ConnectionService
-import com.inputleaf.android.service.CursorOverlayService
 import com.inputleaf.android.storage.AppPreferences
 import com.inputleaf.android.storage.ClientCertificateStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
 import java.io.ByteArrayOutputStream
 import java.net.InetAddress
@@ -104,6 +103,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning
+    private var scanJob: Job? = null
     private val permissionProvider = PermissionStatusProvider(app)
     
     // Shizuku status
@@ -341,17 +341,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun scan() {
-        viewModelScope.launch {
+        if (scanJob?.isActive == true) return
+        scanJob = viewModelScope.launch(Dispatchers.IO) {
             _isScanning.value = true
             val ip = com.inputleaf.android.network.NetworkUtils.getLocalIpAddress(getApplication())
             Log.d("InputLeaf", "Scanning from IP: $ip")
-            val clientCertificate = withContext(Dispatchers.IO) {
-                clientCertificateStore.ensureGenerated()
-                clientCertificateStore.load()
-            }
             try {
                 if (ip != null) {
-                    val results = scanner.scan(ip, clientCertificate = clientCertificate)
+                    val results = scanner.scan(ip)
                     Log.d("InputLeaf", "Scan done: ${results.size} servers found: $results")
                     _discoveredServers.value = results
                 } else {
@@ -359,7 +356,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     _discoveredServers.value = emptyList()
                 }
             } finally {
-                clientCertificate?.clear()
                 _isScanning.value = false
             }
         }
@@ -392,6 +388,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun connect(server: ServerInfo) {
+        scanJob?.cancel()
         viewModelScope.launch {
             val state = _connectionState.value
             if (state is ConnectionState.Connecting || state is ConnectionState.Handshaking) {
@@ -425,6 +422,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        scanJob?.cancel()
         permissionProvider.cleanup()
         if (serviceBound) {
             getApplication<Application>().unbindService(serviceConnection)
