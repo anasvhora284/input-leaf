@@ -217,7 +217,7 @@ class ShizukuInputInjector(
                     svc.injectKeyEvent(keyEventAction, keyCode, resolved.scanCode, updatedMetaState)
                 }
             }
-            is KeysymAction.Text -> svc.injectText(resolved.char)
+            is KeysymAction.Text -> injectTextOrLog(svc, resolved.char, keysym)
             is KeysymAction.Ignore -> Unit
         }
     }
@@ -229,8 +229,16 @@ class ShizukuInputInjector(
                     svc.injectKeyEvent(KeyEvent.ACTION_DOWN, resolved.keyCode, resolved.scanCode, metaState)
                 }
             }
-            is KeysymAction.Text -> repeat(count) { svc.injectText(resolved.char) }
+            is KeysymAction.Text -> repeat(count) { injectTextOrLog(svc, resolved.char, keysym) }
             is KeysymAction.Ignore -> Unit
+        }
+    }
+
+    private fun injectTextOrLog(svc: IInputInjector, char: String, keysym: Int) {
+        if (svc.injectText(char)) return
+        Log.w(TAG, "injectText failed for char='$char' keysym=0x${keysym.toString(16)} ($keysym), retrying once")
+        if (!svc.injectText(char)) {
+            Log.e(TAG, "injectText failed after retry for char='$char' keysym=0x${keysym.toString(16)} ($keysym)")
         }
     }
 
