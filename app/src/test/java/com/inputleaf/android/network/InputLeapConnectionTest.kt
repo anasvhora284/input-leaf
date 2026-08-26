@@ -30,7 +30,7 @@ class InputLeapConnectionTest {
         LoopbackServer { socket, _ ->
             performServerHandshake(socket, expectedName = "pixel", expectedWidth = 1080, expectedHeight = 2400)
         }.use { server ->
-            connection(server.port).useConnection { connection ->
+            connection(server.port, preferredTransport = ServerTransport.PLAIN).useConnection { connection ->
                 val result = connection.connect("pixel", 1080, 2400)
 
                 assertThat(result).isEqualTo(
@@ -171,7 +171,7 @@ class InputLeapConnectionTest {
             assertThat(String(readFrame(input))).isEqualTo("CALV")
             writeFrame(output, "CIAK".toByteArray())
         }.use { server ->
-            connection(server.port).useConnection { connection ->
+            connection(server.port, preferredTransport = ServerTransport.PLAIN).useConnection { connection ->
                 assertThat(connection.connect("android", 1920, 1080))
                     .isInstanceOf(ConnectResult.Ok::class.java)
             }
@@ -184,7 +184,7 @@ class InputLeapConnectionTest {
             performServerHandshake(socket)
             closeServerConnection.awaitBlocking()
         }.use { server ->
-            connection(server.port).useConnection { connection ->
+            connection(server.port, preferredTransport = ServerTransport.PLAIN).useConnection { connection ->
                 assertThat(connection.connect("android", 1920, 1080))
                     .isInstanceOf(ConnectResult.Ok::class.java)
                 val disconnected = async(start = CoroutineStart.UNDISPATCHED) {
@@ -207,7 +207,7 @@ class InputLeapConnectionTest {
             performServerHandshake(socket)
             closedByClient.complete(socket.inputStream.read())
         }.use { server ->
-            connection(server.port).useConnection { connection ->
+            connection(server.port, preferredTransport = ServerTransport.PLAIN).useConnection { connection ->
                 assertThat(connection.connect("android", 1920, 1080))
                     .isInstanceOf(ConnectResult.Ok::class.java)
 
