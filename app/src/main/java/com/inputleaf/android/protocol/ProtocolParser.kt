@@ -1,6 +1,7 @@
 package com.inputleaf.android.protocol
 
 import com.inputleaf.android.model.InputLeapEvent
+import com.inputleaf.android.model.WireProtocol
 import java.io.DataInputStream
 import java.io.EOFException
 import java.io.InputStream
@@ -20,16 +21,18 @@ class ProtocolParser(input: DataInputStream) {
         }
         val body = ByteArray(length).also { input.readFully(it) }
         when {
-            body.startsWithAscii("Barrier") -> parseHello(body, "Barrier")
-            body.startsWithAscii("Synergy") -> parseHello(body, "Synergy")
+            body.startsWithAscii(WireProtocol.BARRIER.magic) ->
+                parseHello(body, WireProtocol.BARRIER)
+            body.startsWithAscii(WireProtocol.SYNERGY.magic) ->
+                parseHello(body, WireProtocol.SYNERGY)
             else -> parse(body.protocolTag(), body.copyOfRange(4, body.size))
         }
     } catch (e: EOFException) {
         protocolError("Truncated protocol message", e)
     }
 
-    private fun parseHello(body: ByteArray, tag: String): InputLeapEvent {
-        requireAtLeast(body.size, 11, "body", tag)
+    private fun parseHello(body: ByteArray, protocol: WireProtocol): InputLeapEvent {
+        requireAtLeast(body.size, 11, "body", protocol.magic)
         val major = body.u16(7)
         val minor = body.u16(9)
         val name = if (body.size == 11) {
@@ -37,14 +40,14 @@ class ProtocolParser(input: DataInputStream) {
         } else {
             if (body.size < 15) {
                 protocolError(
-                    "Malformed $tag message: expected 11 or at least 15 body bytes, got ${body.size}"
+                    "Malformed ${protocol.magic} message: expected 11 or at least 15 body bytes, got ${body.size}"
                 )
             }
             val nameLength = body.u32(11)
-            requireExact(body.size.toLong(), 15L + nameLength, "body", tag)
-            body.utf8(15, nameLength, tag)
+            requireExact(body.size.toLong(), 15L + nameLength, "body", protocol.magic)
+            body.utf8(15, nameLength, protocol.magic)
         }
-        return InputLeapEvent.Hello(major, minor, name)
+        return InputLeapEvent.Hello(major, minor, name, protocol)
     }
 
     private fun parse(tag: String, payload: ByteArray): InputLeapEvent = when (tag) {

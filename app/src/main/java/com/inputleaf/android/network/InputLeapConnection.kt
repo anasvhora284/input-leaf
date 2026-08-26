@@ -2,6 +2,7 @@ package com.inputleaf.android.network
 
 import android.util.Log
 import com.inputleaf.android.model.InputLeapEvent
+import com.inputleaf.android.protocol.ProtocolConstants
 import com.inputleaf.android.protocol.ProtocolParser
 import com.inputleaf.android.protocol.ProtocolWriter
 import kotlinx.coroutines.CancellationException
@@ -44,6 +45,7 @@ class InputLeapConnection(
     private val readerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var readJob: Job? = null
 
+    /** Version advertised by the server before client-side minor-version negotiation. */
     data class ServerBanner(val major: Int, val minor: Int)
 
     suspend fun connect(screenName: String, screenWidth: Int, screenHeight: Int): ConnectResult =
@@ -180,8 +182,8 @@ class InputLeapConnection(
         var helloSent = false
         var dinfSent = false
         var sawPostDinf = false
-        var bannerMajor = 1
-        var bannerMinor = 6
+        var bannerMajor = ProtocolConstants.PROTOCOL_MAJOR
+        var bannerMinor = ProtocolConstants.PROTOCOL_MINOR
 
         try {
             repeat(32) {
@@ -192,9 +194,21 @@ class InputLeapConnection(
                         bannerMajor = event.majorVersion
                         bannerMinor = event.minorVersion
                         if (!helloSent) {
-                            writer?.writeHelloBack(screenName, 1, 6)
+                            val negotiatedProtocol = event.protocol
+                            val negotiatedMinor =
+                                ProtocolConstants.negotiateMinor(event.minorVersion)
+                            writer?.writeHelloBack(
+                                screenName = screenName,
+                                major = ProtocolConstants.PROTOCOL_MAJOR,
+                                minor = negotiatedMinor,
+                                protocol = negotiatedProtocol,
+                            )
                             helloSent = true
-                            Log.d(TAG, "Handshake sent client hello as $screenName")
+                            Log.d(
+                                TAG,
+                                "Handshake sent ${negotiatedProtocol.magic} client hello " +
+                                    "as $screenName using 1.$negotiatedMinor",
+                            )
                         }
                     }
                     is InputLeapEvent.QueryInfo -> {
@@ -265,7 +279,6 @@ class InputLeapConnection(
         runCatching { socket?.soTimeout = 0 }
     }
 
-    fun sendHelloBack(screenName: String) = writer?.writeHelloBack(screenName, 1, 6)
     fun sendDataInfo(w: Int, h: Int) = writer?.writeDataInfo(w, h, 0, 0, 0, 0)
     fun sendKeepAlive() = writer?.writeKeepAlive()
     fun sendInfoAck() = writer?.writeInfoAck()
