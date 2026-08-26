@@ -8,7 +8,6 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import java.io.DataInputStream
-import java.io.InputStream
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.security.cert.X509Certificate
@@ -34,29 +33,34 @@ class ServerScanner {
             return ServerInfo(ip = host, name = "InputLeap $major.$minor")
         }
 
-        private val trustAllSslContext: SSLContext by lazy {
-            val tm = object : X509TrustManager {
-                override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
-                override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
-                override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
-            }
-            SSLContext.getInstance("TLS").also { it.init(null, arrayOf(tm), null) }
+        private val trustAllManager: X509TrustManager = object : X509TrustManager {
+            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
         }
     }
 
-    suspend fun scan(deviceIp: String, timeoutMs: Int = 500): List<ServerInfo> =
+    suspend fun scan(
+        deviceIp: String,
+        timeoutMs: Int = 500,
+        clientCertificate: ClientCertificateMaterial? = null,
+    ): List<ServerInfo> =
         coroutineScope {
             val hosts = subnetHosts(deviceIp)
             val semaphore = Semaphore(32)
             hosts.map { host ->
                 async(Dispatchers.IO) {
-                    semaphore.withPermit { probe(host, timeoutMs) }
+                    semaphore.withPermit { probe(host, timeoutMs, clientCertificate) }
                 }
             }.awaitAll().filterNotNull()
         }
 
-    private fun probe(host: String, timeoutMs: Int): ServerInfo? {
-        val tls = probeTls(host, timeoutMs)
+    private fun probe(
+        host: String,
+        timeoutMs: Int,
+        clientCertificate: ClientCertificateMaterial?,
+    ): ServerInfo? {
+        val tls = probeTls(host, timeoutMs, clientCertificate)
         if (tls != null) return tls
         val plain = probePlain(host, timeoutMs)
         if (plain != null) return plain
@@ -74,9 +78,19 @@ class ServerScanner {
         null
     }
 
-    private fun probeTls(host: String, timeoutMs: Int): ServerInfo? = try {
-        val raw = trustAllSslContext.socketFactory.createSocket()
-        val sslSocket = (raw as SSLSocket).apply {
+    private fun probeTls(
+        host: String,
+        timeoutMs: Int,
+        clientCertificate: ClientCertificateMaterial?,
+    ): ServerInfo? = try {
+        val sslContext = SSLContext.getInstance("TLS").also { context ->
+            context.init(
+                TlsFingerprintManager.keyManagers(clientCertificate),
+                arrayOf(trustAllManager),
+                null,
+            )
+        }
+        val sslSocket = (sslContext.socketFactory.createSocket() as SSLSocket).apply {
             connect(InetSocketAddress(host, ProtocolConstants.DEFAULT_PORT), timeoutMs)
             soTimeout = timeoutMs
             startHandshake()

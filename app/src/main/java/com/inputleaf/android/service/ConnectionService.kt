@@ -151,7 +151,9 @@ class ConnectionService : Service() {
                     null
                 } else {
                     runCatching {
-                        ClientCertificateStore(this@ConnectionService).load()
+                        val store = ClientCertificateStore(this@ConnectionService)
+                        store.ensureGenerated()
+                        store.load()
                     }.onFailure { error ->
                         Log.w(TAG, "Failed to load client certificate", error)
                     }.getOrNull()

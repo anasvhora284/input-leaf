@@ -25,6 +25,11 @@ class TlsFingerprintManagerTest {
         assertThat(fp).matches("[0-9a-f]{64}")
     }
 
+    @Test fun `formatFingerprint is uppercase colon-separated SHA-256`() {
+        assertThat(TlsFingerprintManager.formatFingerprint("a2bde8271f3c"))
+            .isEqualTo("A2:BD:E8:27:1F:3C")
+    }
+
     @Test fun `buildCapturingSSLContext returns initialized TLS context`() {
         var captured: X509Certificate? = null
         val ctx = TlsFingerprintManager.buildCapturingSSLContext { cert -> captured = cert }

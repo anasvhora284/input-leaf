@@ -127,48 +127,36 @@ class InputLeapConnection(
             TLS_CONNECT_TIMEOUT_MS
         }
         return try {
-            val rawSocket = if (pinnedFingerprint != null) {
-                val sslContext = TlsFingerprintManager.buildPinningSSLContext(
-                    expectedFingerprint = pinnedFingerprint,
-                    clientCertificate = clientCertificate,
+            var capturedCert: X509Certificate? = null
+            val sslContext = TlsFingerprintManager.buildCapturingSSLContext(
+                clientCertificate = clientCertificate,
+                onCertificate = { cert -> capturedCert = cert },
+            )
+            val sslSock = sslContext.socketFactory.createSocket() as SSLSocket
+            openedSocket = sslSock
+            sslSock.connect(InetSocketAddress(ip, port), connectTimeout)
+            sslSock.soTimeout = TLS_HANDSHAKE_TIMEOUT_MS
+            sslSock.startHandshake()
+            sslSock.soTimeout = HANDSHAKE_READ_TIMEOUT_MS
+            val cert = capturedCert ?: run {
+                sslSock.close()
+                openedSocket = null
+                return SocketOpenResult.Failed(
+                    ConnectResult.Failed(
+                        ConnectResult.FailureReason.NETWORK,
+                        "No certificate captured",
+                    ),
                 )
-                val sslSock = sslContext.socketFactory.createSocket() as SSLSocket
-                openedSocket = sslSock
-                sslSock.connect(InetSocketAddress(ip, port), connectTimeout)
-                sslSock.soTimeout = TLS_HANDSHAKE_TIMEOUT_MS
-                sslSock.startHandshake()
-                sslSock.soTimeout = HANDSHAKE_READ_TIMEOUT_MS
-                sslSock
-            } else {
-                var capturedCert: X509Certificate? = null
-                val sslContext = TlsFingerprintManager.buildCapturingSSLContext(
-                    clientCertificate = clientCertificate,
-                    onCertificate = { cert -> capturedCert = cert },
-                )
-                val sslSock = sslContext.socketFactory.createSocket() as SSLSocket
-                openedSocket = sslSock
-                sslSock.connect(InetSocketAddress(ip, port), connectTimeout)
-                sslSock.soTimeout = TLS_HANDSHAKE_TIMEOUT_MS
-                sslSock.startHandshake()
-                sslSock.soTimeout = HANDSHAKE_READ_TIMEOUT_MS
-                val cert = capturedCert ?: run {
-                    sslSock.close()
-                    openedSocket = null
-                    return SocketOpenResult.Failed(
-                        ConnectResult.Failed(
-                            ConnectResult.FailureReason.NETWORK,
-                            "No certificate captured",
-                        ),
-                    )
-                }
-                if (!onCertificate(cert)) {
-                    sslSock.close()
-                    openedSocket = null
-                    return SocketOpenResult.Rejected
-                }
-                sslSock
             }
-            SocketOpenResult.Ok(rawSocket, ServerTransport.TLS)
+            val fingerprint = TlsFingerprintManager.fingerprintOf(cert)
+            val alreadyTrusted =
+                pinnedFingerprint != null && fingerprint == pinnedFingerprint
+            if (!alreadyTrusted && !onCertificate(cert)) {
+                sslSock.close()
+                openedSocket = null
+                return SocketOpenResult.Rejected
+            }
+            SocketOpenResult.Ok(sslSock, ServerTransport.TLS)
         } catch (e: Exception) {
             runCatching { openedSocket?.close() }
             if (clientCertificate == null && isClientCertificateRequired(e)) {

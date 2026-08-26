@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream
 import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.cert.X509Certificate
+import java.util.Locale
 import javax.net.ssl.KeyManager
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
@@ -15,8 +16,11 @@ object TlsFingerprintManager {
     fun fingerprintOf(cert: X509Certificate): String {
         val digest = MessageDigest.getInstance("SHA-256")
         val hash = digest.digest(cert.encoded)
-        return hash.joinToString("") { "%02x".format(it) }
+        return hash.joinToString("") { "%02x".format(it.toInt() and 0xff) }
     }
+
+    fun formatFingerprint(fingerprint: String): String =
+        fingerprint.uppercase(Locale.US).chunked(2).joinToString(":")
 
     fun buildPinningSSLContext(
         expectedFingerprint: String,

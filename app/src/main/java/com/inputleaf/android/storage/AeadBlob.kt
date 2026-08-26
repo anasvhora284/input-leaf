@@ -22,10 +22,16 @@ internal object AeadBlob {
         key: SecretKey,
         secureRandom: SecureRandom = SecureRandom(),
     ): ByteArray {
-        val iv = ByteArray(IV_SIZE).also(secureRandom::nextBytes)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply {
-            init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(TAG_SIZE_BITS, iv))
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        try {
+            // Android Keystore forbids caller-provided IVs when randomized encryption is required.
+            cipher.init(Cipher.ENCRYPT_MODE, key)
+        } catch (_: Exception) {
+            val iv = ByteArray(IV_SIZE).also(secureRandom::nextBytes)
+            cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(TAG_SIZE_BITS, iv))
         }
+        val iv = checkNotNull(cipher.iv) { "AES-GCM encryption produced no IV" }
+        require(iv.size == IV_SIZE) { "Unexpected AES-GCM IV size ${iv.size}" }
         return byteArrayOf(VERSION) + iv + cipher.doFinal(plaintext)
     }
 

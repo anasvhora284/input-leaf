@@ -9,12 +9,14 @@ import com.inputleaf.android.network.ClientCertificateMaterial
 import com.inputleaf.android.network.ClientCertificateSummary
 import com.inputleaf.android.network.ClientCertificateValidationResult
 import com.inputleaf.android.network.ClientCertificateValidator
+import com.inputleaf.android.network.SelfSignedRsaCertificate
 import java.io.File
 import java.security.KeyStore
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 
 class ClientCertificateStore(private val context: Context) {
+    private val lock = Any()
     private val encryptedFile = AtomicFile(
         File(context.noBackupFilesDir, CLIENT_CERTIFICATE_FILE)
     )
@@ -22,42 +24,29 @@ class ClientCertificateStore(private val context: Context) {
     fun hasCertificate(): Boolean =
         encryptedFile.baseFile.isFile && encryptedFile.baseFile.length() > 0
 
+    fun ensureGenerated(): ClientCertificateValidationResult {
+        synchronized(lock) {
+            storedValidation()?.let { current ->
+                if (current is ClientCertificateValidationResult.Success) return current
+            }
+            return generateAndStore()
+        }
+    }
+
+    fun regenerate(): ClientCertificateValidationResult {
+        synchronized(lock) {
+            return generateAndStore()
+        }
+    }
+
     fun importCertificate(
         pkcs12: ByteArray,
         password: CharArray,
     ): ClientCertificateValidationResult {
         val validation = ClientCertificateValidator.validate(pkcs12, password)
         if (validation !is ClientCertificateValidationResult.Success) return validation
-
-        val material = ClientCertificateMaterial(pkcs12.copyOf(), password.copyOf())
-        val payload = ClientCertificatePayloadCodec.encode(material)
-        material.clear()
-        val encrypted = try {
-            AeadBlob.encrypt(payload, getOrCreateKey())
-        } catch (error: Exception) {
-            Log.e(TAG, "Failed to encrypt client certificate", error)
-            payload.fill(0)
-            return ClientCertificateValidationResult.StorageError
-        }
-        payload.fill(0)
-
-        val output = try {
-            encryptedFile.startWrite()
-        } catch (error: Exception) {
-            Log.e(TAG, "Failed to open client certificate storage", error)
-            encrypted.fill(0)
-            return ClientCertificateValidationResult.StorageError
-        }
-        return try {
-            output.write(encrypted)
-            encryptedFile.finishWrite(output)
-            validation
-        } catch (error: Exception) {
-            runCatching { encryptedFile.failWrite(output) }
-            Log.e(TAG, "Failed to store client certificate", error)
-            ClientCertificateValidationResult.StorageError
-        } finally {
-            encrypted.fill(0)
+        synchronized(lock) {
+            return persist(pkcs12, password, validation)
         }
     }
 
@@ -98,11 +87,78 @@ class ClientCertificateStore(private val context: Context) {
     }
 
     fun clear() {
-        encryptedFile.delete()
-        runCatching {
-            KeyStore.getInstance(ANDROID_KEY_STORE).apply { load(null) }
-                .deleteEntry(KEY_ALIAS)
-        }.onFailure { Log.w(TAG, "Failed to remove client certificate key", it) }
+        synchronized(lock) {
+            encryptedFile.delete()
+            runCatching {
+                KeyStore.getInstance(ANDROID_KEY_STORE).apply { load(null) }
+                    .deleteEntry(KEY_ALIAS)
+            }.onFailure { Log.w(TAG, "Failed to remove client certificate key", it) }
+        }
+    }
+
+    private fun storedValidation(): ClientCertificateValidationResult? {
+        val material = load() ?: return null
+        return try {
+            ClientCertificateValidator.validate(material.pkcs12, material.password)
+        } finally {
+            material.clear()
+        }
+    }
+
+    private fun generateAndStore(): ClientCertificateValidationResult {
+        val generated = try {
+            SelfSignedRsaCertificate.generate()
+        } catch (error: Exception) {
+            Log.e(TAG, "Failed to generate client certificate", error)
+            return ClientCertificateValidationResult.StorageError
+        }
+        return try {
+            val validation = ClientCertificateValidator.validate(generated.pkcs12, generated.password)
+            if (validation !is ClientCertificateValidationResult.Success) {
+                Log.e(TAG, "Generated client certificate failed validation: $validation")
+                return ClientCertificateValidationResult.StorageError
+            }
+            persist(generated.pkcs12, generated.password, validation)
+        } finally {
+            generated.clear()
+        }
+    }
+
+    private fun persist(
+        pkcs12: ByteArray,
+        password: CharArray,
+        validation: ClientCertificateValidationResult.Success,
+    ): ClientCertificateValidationResult {
+        val material = ClientCertificateMaterial(pkcs12.copyOf(), password.copyOf())
+        val payload = ClientCertificatePayloadCodec.encode(material)
+        material.clear()
+        val encrypted = try {
+            AeadBlob.encrypt(payload, getOrCreateKey())
+        } catch (error: Exception) {
+            Log.e(TAG, "Failed to encrypt client certificate", error)
+            payload.fill(0)
+            return ClientCertificateValidationResult.StorageError
+        }
+        payload.fill(0)
+
+        val output = try {
+            encryptedFile.startWrite()
+        } catch (error: Exception) {
+            Log.e(TAG, "Failed to open client certificate storage", error)
+            encrypted.fill(0)
+            return ClientCertificateValidationResult.StorageError
+        }
+        return try {
+            output.write(encrypted)
+            encryptedFile.finishWrite(output)
+            validation
+        } catch (error: Exception) {
+            runCatching { encryptedFile.failWrite(output) }
+            Log.e(TAG, "Failed to store client certificate", error)
+            ClientCertificateValidationResult.StorageError
+        } finally {
+            encrypted.fill(0)
+        }
     }
 
     private fun getOrCreateKey(): SecretKey {

@@ -263,7 +263,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                             )
                         )
                     },
-                    onClearClientCertificate = { viewModel.clearClientCertificate() },
+                    onRegenerateClientCertificate = { viewModel.regenerateClientCertificate() },
                     onBack = { screen = LeafRoute.Home.key },
                 )
             }

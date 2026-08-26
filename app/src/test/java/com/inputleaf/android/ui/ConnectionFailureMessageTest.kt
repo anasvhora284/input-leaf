@@ -30,6 +30,12 @@ class ConnectionFailureMessageTest {
         ).isEqualTo("Server requires 2.0")
     }
 
+    @Test fun `client certificate required asks the user to trust the phone in Deskflow`() {
+        assertThat(
+            connectionFailureMessage(ConnectResult.FailureReason.CLIENT_CERT_REQUIRED)
+        ).contains("fingerprint")
+    }
+
     @Test fun `client certificate import failures are actionable`() {
         val failures = listOf(
             ClientCertificateValidationResult.IncorrectPassword,

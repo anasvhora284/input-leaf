@@ -29,6 +29,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
 import java.io.ByteArrayOutputStream
 import java.net.InetAddress
@@ -52,7 +53,7 @@ internal fun connectionFailureMessage(
     ConnectResult.FailureReason.CERTIFICATE_MISMATCH ->
         "Deskflow's TLS certificate changed. Remove the trusted server only if you expect this."
     ConnectResult.FailureReason.CLIENT_CERT_REQUIRED ->
-        "Deskflow requires a client certificate. Import one in Settings, then trust its fingerprint on the server."
+        "Deskflow is asking to trust this phone. Open Settings, compare the fingerprint, and accept it in Deskflow."
     ConnectResult.FailureReason.HANDSHAKE ->
         "Deskflow handshake failed on the selected transport"
     ConnectResult.FailureReason.INCOMPATIBLE ->
@@ -202,6 +203,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 pkcs12.fill(0)
                 passwordChars.fill('\u0000')
             }
+            Log.i("InputLeaf", "Client certificate import result=$result")
+            if (result is ClientCertificateValidationResult.Success) {
+                _clientCertificateSummary.value = result.summary
+            }
+            clientCertificateImportError(result)?.let { _errorState.value = it }
+        }
+    }
+
+    fun regenerateClientCertificate() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = clientCertificateStore.regenerate()
+            Log.i("InputLeaf", "Client certificate regenerate result=$result")
             if (result is ClientCertificateValidationResult.Success) {
                 _clientCertificateSummary.value = result.summary
             }
@@ -291,7 +304,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         bindService()
 
         viewModelScope.launch(Dispatchers.IO) {
-            _clientCertificateSummary.value = clientCertificateStore.summary()
+            when (val result = clientCertificateStore.ensureGenerated()) {
+                is ClientCertificateValidationResult.Success ->
+                    _clientCertificateSummary.value = result.summary
+                else -> {
+                    _clientCertificateSummary.value = null
+                    clientCertificateImportError(result)?.let { _errorState.value = it }
+                }
+            }
         }
 
         // Observe showCursor preference and update service
@@ -325,15 +345,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _isScanning.value = true
             val ip = com.inputleaf.android.network.NetworkUtils.getLocalIpAddress(getApplication())
             Log.d("InputLeaf", "Scanning from IP: $ip")
-            if (ip != null) {
-                val results = scanner.scan(ip)
-                Log.d("InputLeaf", "Scan done: ${results.size} servers found: $results")
-                _discoveredServers.value = results
-            } else {
-                Log.e("InputLeaf", "Could not determine local IP address")
-                _discoveredServers.value = emptyList()
+            val clientCertificate = withContext(Dispatchers.IO) {
+                clientCertificateStore.ensureGenerated()
+                clientCertificateStore.load()
             }
-            _isScanning.value = false
+            try {
+                if (ip != null) {
+                    val results = scanner.scan(ip, clientCertificate = clientCertificate)
+                    Log.d("InputLeaf", "Scan done: ${results.size} servers found: $results")
+                    _discoveredServers.value = results
+                } else {
+                    Log.e("InputLeaf", "Could not determine local IP address")
+                    _discoveredServers.value = emptyList()
+                }
+            } finally {
+                clientCertificate?.clear()
+                _isScanning.value = false
+            }
         }
     }
 
