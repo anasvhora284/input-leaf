@@ -8,13 +8,15 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
 import com.inputleaf.android.model.InputLeapEvent
-import com.inputleaf.android.protocol.KeysymTable
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import rikka.shizuku.Shizuku
 
 import com.inputleaf.android.inject.InputInjector
+import com.inputleaf.android.inject.KeysymAction
+import com.inputleaf.android.inject.KeysymInjection
+import com.inputleaf.android.inject.KeysymResolver
 
 private const val TAG = "ShizukuInputInjector"
 
@@ -181,32 +183,16 @@ class ShizukuInputInjector(
                 
                 is InputLeapEvent.KeyDown -> {
                     Log.d(TAG, "KeyDown: keysym=0x${event.keyId.toString(16)} (${event.keyId})")
-                    val keyCode = com.inputleaf.android.inject.KeyMapUtils.keysymToAndroidKeyCode(event.keyId)
-                    Log.d(TAG, "Mapped to Android keyCode: $keyCode")
-                    if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {
-                        metaState = com.inputleaf.android.inject.KeyMapUtils.updateMetaState(keyCode, true, metaState)
-                        svc.injectKeyEvent(KeyEvent.ACTION_DOWN, keyCode, com.inputleaf.android.inject.KeyMapUtils.keycodeToScanCode(keyCode), metaState)
-                    }
+                    handleKeyEvent(svc, event.keyId, event.scancode, isDown = true)
                 }
                 
                 is InputLeapEvent.KeyUp -> {
                     Log.d(TAG, "KeyUp: keysym=0x${event.keyId.toString(16)} (${event.keyId})")
-                    val keyCode = com.inputleaf.android.inject.KeyMapUtils.keysymToAndroidKeyCode(event.keyId)
-                    if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {
-                        svc.injectKeyEvent(KeyEvent.ACTION_UP, keyCode, com.inputleaf.android.inject.KeyMapUtils.keycodeToScanCode(keyCode), metaState)
-                        metaState = com.inputleaf.android.inject.KeyMapUtils.updateMetaState(keyCode, false, metaState)
-                    }
+                    handleKeyEvent(svc, event.keyId, event.scancode, isDown = false)
                 }
                 
                 is InputLeapEvent.KeyRepeat -> {
-                    // For repeat, just send another DOWN event
-                    val keyCode = com.inputleaf.android.inject.KeyMapUtils.keysymToAndroidKeyCode(event.keyId)
-                    if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {
-                        val scanCode = com.inputleaf.android.inject.KeyMapUtils.keycodeToScanCode(keyCode)
-                        repeat(event.count) {
-                            svc.injectKeyEvent(KeyEvent.ACTION_DOWN, keyCode, scanCode, metaState)
-                        }
-                    }
+                    handleKeyRepeat(svc, event.keyId, event.scancode, event.count)
                 }
                 
                 else -> {
@@ -218,6 +204,36 @@ class ShizukuInputInjector(
         }
     }
     
+    private fun handleKeyEvent(svc: IInputInjector, keysym: Int, scancode: Int, isDown: Boolean) {
+        when (val resolved = KeysymResolver.resolve(keysym, scancode, isDown)) {
+            is KeysymAction.KeyEventAction -> {
+                Log.d(TAG, "Mapped to Android keyCode: ${resolved.keyCode}")
+                KeysymInjection.applyKeyEventAction(
+                    action = resolved,
+                    isDown = isDown,
+                    metaState = metaState,
+                    onMetaStateChanged = { metaState = it },
+                ) { keyEventAction, keyCode, updatedMetaState ->
+                    svc.injectKeyEvent(keyEventAction, keyCode, resolved.scanCode, updatedMetaState)
+                }
+            }
+            is KeysymAction.Text -> svc.injectText(resolved.char)
+            is KeysymAction.Ignore -> Unit
+        }
+    }
+
+    private fun handleKeyRepeat(svc: IInputInjector, keysym: Int, scancode: Int, count: Int) {
+        when (val resolved = KeysymResolver.resolve(keysym, scancode, isDown = true)) {
+            is KeysymAction.KeyEventAction -> {
+                repeat(count) {
+                    svc.injectKeyEvent(KeyEvent.ACTION_DOWN, resolved.keyCode, resolved.scanCode, metaState)
+                }
+            }
+            is KeysymAction.Text -> repeat(count) { svc.injectText(resolved.char) }
+            is KeysymAction.Ignore -> Unit
+        }
+    }
+
     private fun inputLeapButtonToAndroid(buttonId: Int): Int {
         // InputLeap button IDs: 1=left, 2=middle, 3=right
         return when (buttonId) {

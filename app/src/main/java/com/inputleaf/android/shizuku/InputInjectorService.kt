@@ -173,6 +173,32 @@ class InputInjectorService : IInputInjector.Stub() {
             false
         }
     }
+
+    override fun injectText(text: String): Boolean {
+        if (text.isEmpty()) {
+            return true
+        }
+        return try {
+            val escaped = escapeForInputText(text)
+            val process = ProcessBuilder("input", "text", escaped).redirectErrorStream(true).start()
+            process.waitFor() == 0
+        } catch (e: Exception) {
+            android.util.Log.e("InputInjectorService", "Failed to inject text", e)
+            false
+        }
+    }
+
+    private fun escapeForInputText(text: String): String {
+        return buildString(text.length * 2) {
+            text.forEach { char ->
+                when (char) {
+                    '%' -> append("%25")
+                    ' ' -> append("%s")
+                    else -> append(char)
+                }
+            }
+        }
+    }
     
     override fun destroy() {
         // Nothing to clean up
