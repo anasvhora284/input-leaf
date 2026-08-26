@@ -307,8 +307,6 @@ internal open class LoopbackServer(
             }
         } catch (failure: Throwable) {
             if (!serverSocket.isClosed) failures += failure
-        } finally {
-            serverSocket.close()
         }
     }
 
