@@ -1,10 +1,109 @@
 package com.inputleaf.android.inject
 
-import android.util.Log
 import android.view.KeyEvent
 
 object KeyMapUtils {
-    private const val TAG = "KeyMapUtils"
+    const val PROTOCOL_MASK_SHIFT = 0x0001
+    const val PROTOCOL_MASK_CONTROL = 0x0002
+    const val PROTOCOL_MASK_ALT = 0x0004
+    const val PROTOCOL_MASK_META = 0x0008
+    const val PROTOCOL_MASK_SUPER = 0x0010
+    const val PROTOCOL_MASK_CAPS_LOCK = 0x1000
+
+    private val scanCodeToKeyCode: Map<Int, Int> by lazy {
+        buildMap {
+            listOf(
+                KeyEvent.KEYCODE_SHIFT_LEFT,
+                KeyEvent.KEYCODE_SHIFT_RIGHT,
+                KeyEvent.KEYCODE_CTRL_LEFT,
+                KeyEvent.KEYCODE_CTRL_RIGHT,
+                KeyEvent.KEYCODE_ALT_LEFT,
+                KeyEvent.KEYCODE_ALT_RIGHT,
+                KeyEvent.KEYCODE_META_LEFT,
+                KeyEvent.KEYCODE_META_RIGHT,
+                KeyEvent.KEYCODE_CAPS_LOCK,
+                KeyEvent.KEYCODE_ESCAPE,
+                KeyEvent.KEYCODE_DEL,
+                KeyEvent.KEYCODE_TAB,
+                KeyEvent.KEYCODE_ENTER,
+                KeyEvent.KEYCODE_SPACE,
+                KeyEvent.KEYCODE_DPAD_UP,
+                KeyEvent.KEYCODE_DPAD_LEFT,
+                KeyEvent.KEYCODE_DPAD_RIGHT,
+                KeyEvent.KEYCODE_DPAD_DOWN,
+                KeyEvent.KEYCODE_INSERT,
+                KeyEvent.KEYCODE_FORWARD_DEL,
+                KeyEvent.KEYCODE_MOVE_HOME,
+                KeyEvent.KEYCODE_MOVE_END,
+                KeyEvent.KEYCODE_PAGE_UP,
+                KeyEvent.KEYCODE_PAGE_DOWN,
+                KeyEvent.KEYCODE_F1,
+                KeyEvent.KEYCODE_F2,
+                KeyEvent.KEYCODE_F3,
+                KeyEvent.KEYCODE_F4,
+                KeyEvent.KEYCODE_F5,
+                KeyEvent.KEYCODE_F6,
+                KeyEvent.KEYCODE_F7,
+                KeyEvent.KEYCODE_F8,
+                KeyEvent.KEYCODE_F9,
+                KeyEvent.KEYCODE_F10,
+                KeyEvent.KEYCODE_F11,
+                KeyEvent.KEYCODE_F12,
+                KeyEvent.KEYCODE_0,
+                KeyEvent.KEYCODE_1,
+                KeyEvent.KEYCODE_2,
+                KeyEvent.KEYCODE_3,
+                KeyEvent.KEYCODE_4,
+                KeyEvent.KEYCODE_5,
+                KeyEvent.KEYCODE_6,
+                KeyEvent.KEYCODE_7,
+                KeyEvent.KEYCODE_8,
+                KeyEvent.KEYCODE_9,
+                KeyEvent.KEYCODE_A,
+                KeyEvent.KEYCODE_B,
+                KeyEvent.KEYCODE_C,
+                KeyEvent.KEYCODE_D,
+                KeyEvent.KEYCODE_E,
+                KeyEvent.KEYCODE_F,
+                KeyEvent.KEYCODE_G,
+                KeyEvent.KEYCODE_H,
+                KeyEvent.KEYCODE_I,
+                KeyEvent.KEYCODE_J,
+                KeyEvent.KEYCODE_K,
+                KeyEvent.KEYCODE_L,
+                KeyEvent.KEYCODE_M,
+                KeyEvent.KEYCODE_N,
+                KeyEvent.KEYCODE_O,
+                KeyEvent.KEYCODE_P,
+                KeyEvent.KEYCODE_Q,
+                KeyEvent.KEYCODE_R,
+                KeyEvent.KEYCODE_S,
+                KeyEvent.KEYCODE_T,
+                KeyEvent.KEYCODE_U,
+                KeyEvent.KEYCODE_V,
+                KeyEvent.KEYCODE_W,
+                KeyEvent.KEYCODE_X,
+                KeyEvent.KEYCODE_Y,
+                KeyEvent.KEYCODE_Z,
+                KeyEvent.KEYCODE_MINUS,
+                KeyEvent.KEYCODE_EQUALS,
+                KeyEvent.KEYCODE_LEFT_BRACKET,
+                KeyEvent.KEYCODE_RIGHT_BRACKET,
+                KeyEvent.KEYCODE_BACKSLASH,
+                KeyEvent.KEYCODE_SEMICOLON,
+                KeyEvent.KEYCODE_APOSTROPHE,
+                KeyEvent.KEYCODE_GRAVE,
+                KeyEvent.KEYCODE_COMMA,
+                KeyEvent.KEYCODE_PERIOD,
+                KeyEvent.KEYCODE_SLASH,
+            ).forEach { keyCode ->
+                val scanCode = keycodeToScanCode(keyCode)
+                if (scanCode > 0) {
+                    put(scanCode, keyCode)
+                }
+            }
+        }
+    }
 
     fun updateMetaState(keyCode: Int, isDown: Boolean, currentMetaState: Int): Int {
         val metaFlag = when (keyCode) {
@@ -24,6 +123,42 @@ object KeyMapUtils {
         } else {
             currentMetaState and metaFlag.inv()
         }
+    }
+
+    fun hasShortcutModifiers(metaState: Int): Boolean {
+        val shortcutBits =
+            KeyEvent.META_CTRL_ON or KeyEvent.META_ALT_ON or KeyEvent.META_META_ON
+        return (metaState and shortcutBits) != 0
+    }
+
+    /**
+     * Deskflow/Input Leap KeyModifierMask bits from key_types.h.
+     * Shift is not a shortcut; AltGr (0x20) stays on the Unicode text path.
+     */
+    fun protocolMaskHasShortcuts(mask: Int): Boolean {
+        val shortcutBits = PROTOCOL_MASK_CONTROL or PROTOCOL_MASK_ALT or
+            PROTOCOL_MASK_META or PROTOCOL_MASK_SUPER
+        return (mask and shortcutBits) != 0
+    }
+
+    fun androidMetaFromProtocolMask(mask: Int): Int {
+        var meta = 0
+        if (mask and PROTOCOL_MASK_SHIFT != 0) {
+            meta = meta or KeyEvent.META_SHIFT_ON
+        }
+        if (mask and PROTOCOL_MASK_CONTROL != 0) {
+            meta = meta or KeyEvent.META_CTRL_ON
+        }
+        if (mask and PROTOCOL_MASK_ALT != 0) {
+            meta = meta or KeyEvent.META_ALT_ON
+        }
+        if (mask and (PROTOCOL_MASK_META or PROTOCOL_MASK_SUPER) != 0) {
+            meta = meta or KeyEvent.META_META_ON
+        }
+        if (mask and PROTOCOL_MASK_CAPS_LOCK != 0) {
+            meta = meta or KeyEvent.META_CAPS_LOCK_ON
+        }
+        return meta
     }
 
     /**
@@ -141,10 +276,7 @@ object KeyMapUtils {
             0x1008FF26 -> KeyEvent.KEYCODE_BACK
             0x1008FF27 -> KeyEvent.KEYCODE_FORWARD
 
-            else -> {
-                Log.w(TAG, "Unknown keysym: 0x${keysym.toString(16)} ($keysym)")
-                KeyEvent.KEYCODE_UNKNOWN
-            }
+            else -> KeyEvent.KEYCODE_UNKNOWN
         }
     }
 
@@ -252,5 +384,9 @@ object KeyMapUtils {
 
             else -> 0
         }
+    }
+
+    fun scancodeToAndroidKeyCode(scancode: Int): Int {
+        return scanCodeToKeyCode[scancode] ?: KeyEvent.KEYCODE_UNKNOWN
     }
 }

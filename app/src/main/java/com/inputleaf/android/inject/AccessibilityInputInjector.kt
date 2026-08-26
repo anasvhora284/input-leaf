@@ -21,6 +21,7 @@ class AccessibilityInputInjector(
     private var mouseX = 0f
     private var mouseY = 0f
     private var metaState = 0
+    private val scanCodeDecoder = ProtocolScanCodeDecoder()
 
     override fun isAvailable(): Boolean {
         return try {
@@ -95,42 +96,92 @@ class AccessibilityInputInjector(
                     svc.injectSwipe(mouseX, startY, mouseX, endY, 150)
                 }
 
-                is InputLeapEvent.KeyDown -> {
-                    val keyCode = KeyMapUtils.keysymToAndroidKeyCode(event.keyId)
-                    if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {
-                        metaState = KeyMapUtils.updateMetaState(keyCode, true, metaState)
-                        InputLeafIME.getInstance()?.injectKeyEvent(KeyEvent.ACTION_DOWN, keyCode, metaState)
-                            ?: Log.w(TAG, "InputLeafIME not running, dropping KeyDown")
-                    }
-                }
+                is InputLeapEvent.KeyDown ->
+                    handleKeyEvent(event.keyId, event.mask, event.scancode, isDown = true)
 
-                is InputLeapEvent.KeyUp -> {
-                    val keyCode = KeyMapUtils.keysymToAndroidKeyCode(event.keyId)
-                    if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {
-                        InputLeafIME.getInstance()?.injectKeyEvent(KeyEvent.ACTION_UP, keyCode, metaState)
-                            ?: Log.w(TAG, "InputLeafIME not running, dropping KeyUp")
-                        metaState = KeyMapUtils.updateMetaState(keyCode, false, metaState)
-                    }
-                }
+                is InputLeapEvent.KeyUp ->
+                    handleKeyEvent(event.keyId, event.mask, event.scancode, isDown = false)
 
-                is InputLeapEvent.KeyRepeat -> {
-                    val keyCode = KeyMapUtils.keysymToAndroidKeyCode(event.keyId)
-                    if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {
-                        val ime = InputLeafIME.getInstance()
-                        if (ime != null) {
-                            repeat(event.count) {
-                                ime.injectKeyEvent(KeyEvent.ACTION_DOWN, keyCode, metaState)
-                            }
-                        } else {
-                            Log.w(TAG, "InputLeafIME not running, dropping KeyRepeat")
-                        }
-                    }
-                }
+                is InputLeapEvent.KeyRepeat ->
+                    handleKeyRepeat(event.keyId, event.mask, event.scancode, event.count)
 
                 else -> {}
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to send event", e)
+        }
+    }
+
+    private fun handleKeyEvent(keysym: Int, mask: Int, button: Int, isDown: Boolean) {
+        val ime = InputLeafIME.getInstance()
+        if (ime == null) {
+            Log.w(TAG, "InputLeafIME not running, dropping key event")
+            return
+        }
+
+        val scancode = scanCodeDecoder.toEvdev(button, keysym)
+        val shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState) ||
+            KeyMapUtils.protocolMaskHasShortcuts(mask)
+        when (val resolved = KeysymResolver.resolve(
+            keysym,
+            scancode,
+            isDown,
+            shortcutModifiers = shortcutModifiers,
+        )) {
+            is KeysymAction.KeyEventAction -> {
+                KeysymInjection.applyKeyEventAction(
+                    action = resolved,
+                    isDown = isDown,
+                    metaState = metaState,
+                    onMetaStateChanged = { metaState = it },
+                ) { keyEventAction, keyCode, updatedMetaState ->
+                    ime.injectKeyEvent(
+                        keyEventAction,
+                        keyCode,
+                        updatedMetaState or KeyMapUtils.androidMetaFromProtocolMask(mask),
+                    )
+                }
+            }
+            is KeysymAction.Text -> ime.commitText(resolved.char)
+            is KeysymAction.Ignore -> {
+                if (isDown) {
+                    Log.w(
+                        TAG,
+                        "Ignoring key id=0x${keysym.toString(16)} button=$button evdev=$scancode",
+                    )
+                }
+            }
+        }
+    }
+
+    private fun handleKeyRepeat(keysym: Int, mask: Int, button: Int, count: Int) {
+        val ime = InputLeafIME.getInstance()
+        if (ime == null) {
+            Log.w(TAG, "InputLeafIME not running, dropping KeyRepeat")
+            return
+        }
+
+        val scancode = scanCodeDecoder.toEvdev(button, keysym)
+        val shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState) ||
+            KeyMapUtils.protocolMaskHasShortcuts(mask)
+        val injectionMeta = metaState or KeyMapUtils.androidMetaFromProtocolMask(mask)
+        when (val resolved = KeysymResolver.resolve(
+            keysym,
+            scancode,
+            isDown = true,
+            shortcutModifiers = shortcutModifiers,
+        )) {
+            is KeysymAction.KeyEventAction -> {
+                repeat(count) {
+                    ime.injectKeyEvent(
+                        KeyEvent.ACTION_DOWN,
+                        resolved.keyCode,
+                        injectionMeta,
+                    )
+                }
+            }
+            is KeysymAction.Text -> repeat(count) { ime.commitText(resolved.char) }
+            is KeysymAction.Ignore -> Unit
         }
     }
 }

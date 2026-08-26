@@ -1,0 +1,39 @@
+# Gradle
+.gradle/
+build/
+
+# Local SDK / machine-specific configuration
+local.properties
+
+# Android
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Kotlin
+.kotlin/
+
+# IntelliJ / Android Studio
+.idea/
+*.iml
+out/
+
+# VS Code (local editor settings)
+.vscode/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# JVM / profiling
+*.hprof
+*.log
+
+# Signing keys — app/build.gradle.kts references app/input-leaf.jks; keep keys out of git
+*.jks
+*.keystore
+signing.properties

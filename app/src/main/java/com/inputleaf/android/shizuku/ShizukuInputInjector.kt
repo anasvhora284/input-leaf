@@ -7,14 +7,18 @@ import android.os.IBinder
 import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
+import com.inputleaf.android.inject.InputInjector
+import com.inputleaf.android.inject.InputLeafIME
+import com.inputleaf.android.inject.KeyMapUtils
+import com.inputleaf.android.inject.KeysymAction
+import com.inputleaf.android.inject.KeysymInjection
+import com.inputleaf.android.inject.KeysymResolver
+import com.inputleaf.android.inject.ProtocolScanCodeDecoder
 import com.inputleaf.android.model.InputLeapEvent
-import com.inputleaf.android.protocol.KeysymTable
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import rikka.shizuku.Shizuku
-
-import com.inputleaf.android.inject.InputInjector
 
 private const val TAG = "ShizukuInputInjector"
 
@@ -43,6 +47,7 @@ class ShizukuInputInjector(
     
     // Modifier key state (for meta state in key events)
     private var metaState = 0
+    private val scanCodeDecoder = ProtocolScanCodeDecoder()
     
     private val serviceArgs = Shizuku.UserServiceArgs(
         ComponentName(
@@ -180,33 +185,25 @@ class ShizukuInputInjector(
                 }
                 
                 is InputLeapEvent.KeyDown -> {
-                    Log.d(TAG, "KeyDown: keysym=0x${event.keyId.toString(16)} (${event.keyId})")
-                    val keyCode = com.inputleaf.android.inject.KeyMapUtils.keysymToAndroidKeyCode(event.keyId)
-                    Log.d(TAG, "Mapped to Android keyCode: $keyCode")
-                    if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {
-                        metaState = com.inputleaf.android.inject.KeyMapUtils.updateMetaState(keyCode, true, metaState)
-                        svc.injectKeyEvent(KeyEvent.ACTION_DOWN, keyCode, com.inputleaf.android.inject.KeyMapUtils.keycodeToScanCode(keyCode), metaState)
-                    }
+                    Log.d(
+                        TAG,
+                        "KeyDown: keysym=0x${event.keyId.toString(16)} mask=${event.mask} " +
+                            "button=${event.scancode}",
+                    )
+                    handleKeyEvent(svc, event.keyId, event.mask, event.scancode, isDown = true)
                 }
                 
                 is InputLeapEvent.KeyUp -> {
-                    Log.d(TAG, "KeyUp: keysym=0x${event.keyId.toString(16)} (${event.keyId})")
-                    val keyCode = com.inputleaf.android.inject.KeyMapUtils.keysymToAndroidKeyCode(event.keyId)
-                    if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {
-                        svc.injectKeyEvent(KeyEvent.ACTION_UP, keyCode, com.inputleaf.android.inject.KeyMapUtils.keycodeToScanCode(keyCode), metaState)
-                        metaState = com.inputleaf.android.inject.KeyMapUtils.updateMetaState(keyCode, false, metaState)
-                    }
+                    Log.d(
+                        TAG,
+                        "KeyUp: keysym=0x${event.keyId.toString(16)} mask=${event.mask} " +
+                            "button=${event.scancode}",
+                    )
+                    handleKeyEvent(svc, event.keyId, event.mask, event.scancode, isDown = false)
                 }
                 
                 is InputLeapEvent.KeyRepeat -> {
-                    // For repeat, just send another DOWN event
-                    val keyCode = com.inputleaf.android.inject.KeyMapUtils.keysymToAndroidKeyCode(event.keyId)
-                    if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {
-                        val scanCode = com.inputleaf.android.inject.KeyMapUtils.keycodeToScanCode(keyCode)
-                        repeat(event.count) {
-                            svc.injectKeyEvent(KeyEvent.ACTION_DOWN, keyCode, scanCode, metaState)
-                        }
-                    }
+                    handleKeyRepeat(svc, event.keyId, event.mask, event.scancode, event.count)
                 }
                 
                 else -> {
@@ -218,6 +215,120 @@ class ShizukuInputInjector(
         }
     }
     
+    private fun handleKeyEvent(
+        svc: IInputInjector,
+        keysym: Int,
+        mask: Int,
+        button: Int,
+        isDown: Boolean,
+    ) {
+        val scancode = scanCodeDecoder.toEvdev(button, keysym)
+        val shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState) ||
+            KeyMapUtils.protocolMaskHasShortcuts(mask)
+        val injectionMeta = metaState or KeyMapUtils.androidMetaFromProtocolMask(mask)
+        when (val resolved = KeysymResolver.resolve(
+            keysym,
+            scancode,
+            isDown,
+            shortcutModifiers = shortcutModifiers,
+        )) {
+            is KeysymAction.KeyEventAction -> {
+                Log.d(TAG, "Mapped to Android keyCode: ${resolved.keyCode} evdev=$scancode")
+                KeysymInjection.applyKeyEventAction(
+                    action = resolved,
+                    isDown = isDown,
+                    metaState = metaState,
+                    onMetaStateChanged = { metaState = it },
+                ) { keyEventAction, keyCode, updatedMetaState ->
+                    svc.injectKeyEvent(
+                        keyEventAction,
+                        keyCode,
+                        resolved.scanCode,
+                        updatedMetaState or KeyMapUtils.androidMetaFromProtocolMask(mask),
+                    )
+                }
+            }
+            is KeysymAction.Text -> {
+                if (!injectTextOrLog(svc, resolved.char, keysym)) {
+                    injectPhysicalFallback(svc, scancode, isDown, injectionMeta)
+                }
+            }
+            is KeysymAction.Ignore -> {
+                if (isDown) {
+                    Log.w(
+                        TAG,
+                        "Ignoring key id=0x${keysym.toString(16)} button=$button evdev=$scancode",
+                    )
+                }
+            }
+        }
+    }
+
+    private fun handleKeyRepeat(
+        svc: IInputInjector,
+        keysym: Int,
+        mask: Int,
+        button: Int,
+        count: Int,
+    ) {
+        val scancode = scanCodeDecoder.toEvdev(button, keysym)
+        val shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState) ||
+            KeyMapUtils.protocolMaskHasShortcuts(mask)
+        val injectionMeta = metaState or KeyMapUtils.androidMetaFromProtocolMask(mask)
+        when (val resolved = KeysymResolver.resolve(
+            keysym,
+            scancode,
+            isDown = true,
+            shortcutModifiers = shortcutModifiers,
+        )) {
+            is KeysymAction.KeyEventAction -> {
+                repeat(count) {
+                    svc.injectKeyEvent(
+                        KeyEvent.ACTION_DOWN,
+                        resolved.keyCode,
+                        resolved.scanCode,
+                        injectionMeta,
+                    )
+                }
+            }
+            is KeysymAction.Text -> {
+                var injected = true
+                repeat(count) {
+                    if (!injectTextOrLog(svc, resolved.char, keysym)) injected = false
+                }
+                if (!injected) {
+                    injectPhysicalFallback(svc, scancode, isDown = true, injectionMeta)
+                }
+            }
+            is KeysymAction.Ignore -> Unit
+        }
+    }
+
+    private fun injectTextOrLog(svc: IInputInjector, char: String, keysym: Int): Boolean {
+        if (svc.injectText(char)) return true
+        val ime = InputLeafIME.getInstance()
+        if (ime != null) {
+            Log.w(TAG, "Shizuku injectText failed for '$char'; falling back to IME commitText")
+            ime.commitText(char)
+            return true
+        }
+        Log.e(TAG, "injectText failed for char='$char' keysym=0x${keysym.toString(16)} ($keysym)")
+        return false
+    }
+
+    private fun injectPhysicalFallback(
+        svc: IInputInjector,
+        scancode: Int,
+        isDown: Boolean,
+        metaState: Int,
+    ) {
+        val keyCode = KeyMapUtils.scancodeToAndroidKeyCode(scancode)
+        if (keyCode == KeyEvent.KEYCODE_UNKNOWN) return
+        Log.w(TAG, "Falling back to physical keyCode=$keyCode evdev=$scancode")
+        val action = if (isDown) KeyEvent.ACTION_DOWN else KeyEvent.ACTION_UP
+        svc.injectKeyEvent(action, keyCode, scancode, metaState)
+    }
+
     private fun inputLeapButtonToAndroid(buttonId: Int): Int {
         // InputLeap button IDs: 1=left, 2=middle, 3=right
         return when (buttonId) {

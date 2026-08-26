@@ -115,6 +115,19 @@ class ProtocolParserTest {
             .isEqualTo(InputLeapEvent.KeyRepeat(65, 2, 4, 0))
     }
 
+    @Test fun `parses DKDL like DKDN and ignores the language suffix`() {
+        val lang = "gu".toByteArray(Charsets.UTF_8)
+        assertThat(parse("DKDL", u16(0x0a85) + u16(0) + u16(38) + u32(lang.size) + lang))
+            .isEqualTo(InputLeapEvent.KeyDown(0x0a85, 0, 38))
+    }
+
+    @Test fun `parses DKRP with protocol 1_8 language suffix`() {
+        val lang = "ru".toByteArray(Charsets.UTF_8)
+        assertThat(
+            parse("DKRP", u16(0x438) + u16(0) + u16(1) + u16(38) + u32(lang.size) + lang)
+        ).isEqualTo(InputLeapEvent.KeyRepeat(0x438, 0, 1, 38))
+    }
+
     @Test fun `parses mouse messages with signed coordinates`() {
         assertThat(parse("DMMV", u16(65535) + u16(1)))
             .isEqualTo(InputLeapEvent.MouseMoveAbs(65535, 1))
@@ -170,7 +183,6 @@ class ProtocolParserTest {
             "CROP" to byteArrayOf(),
             "DKDN" to (u16(65) + u16(2) + u16(30)),
             "DKUP" to (u16(65) + u16(2) + u16(30)),
-            "DKRP" to (u16(65) + u16(2) + u16(4) + u16(30)),
             "DMMV" to (u16(1) + u16(2)),
             "DMRM" to (u32(1) + u32(2)),
             "DMDN" to byteArrayOf(1),

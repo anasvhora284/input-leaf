@@ -20,9 +20,9 @@ sealed class InputLeapEvent {
     object KeepAlive : InputLeapEvent()
     object ResetOptions : InputLeapEvent()
     // Keyboard
-    data class KeyDown(val keyId: Int, val mask: Int, val button: Int) : InputLeapEvent()
-    data class KeyUp(val keyId: Int, val mask: Int, val button: Int) : InputLeapEvent()
-    data class KeyRepeat(val keyId: Int, val mask: Int, val count: Int, val button: Int) : InputLeapEvent()
+    data class KeyDown(val keyId: Int, val mask: Int, val scancode: Int) : InputLeapEvent()
+    data class KeyUp(val keyId: Int, val mask: Int, val scancode: Int) : InputLeapEvent()
+    data class KeyRepeat(val keyId: Int, val mask: Int, val count: Int, val scancode: Int) : InputLeapEvent()
     // Mouse
     data class MouseMoveAbs(val x: Int, val y: Int) : InputLeapEvent()
     data class MouseMoveRel(val dx: Int, val dy: Int) : InputLeapEvent()
