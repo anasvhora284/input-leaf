@@ -25,6 +25,8 @@ class InputInjectorService : IInputInjector.Stub() {
     companion object {
         // Injection mode: async (don't wait for injection to complete)
         private const val INJECT_INPUT_EVENT_MODE_ASYNC = 0
+        // Wait until the system reports whether text injection was accepted.
+        private const val INJECT_INPUT_EVENT_MODE_WAIT_FOR_RESULT = 1
         
         // Mouse pointer properties
         private val POINTER_PROPERTIES = arrayOf(
@@ -166,24 +168,20 @@ class InputInjectorService : IInputInjector.Stub() {
             return true
         }
         return try {
-            val escaped = escapeForInputText(text)
-            val process = ProcessBuilder("input", "text", escaped).redirectErrorStream(true).start()
-            process.waitFor() == 0
+            // `adb shell input text` maps characters through KeyCharacterMap, which has
+            // no Cyrillic/Gujarati keys on a typical device and exits non-zero. Inject a
+            // KEYCODE_UNKNOWN ACTION_MULTIPLE event with the Unicode string instead.
+            val now = SystemClock.uptimeMillis()
+            val event = KeyEvent(now, text, -1, KeyEvent.FLAG_FROM_SYSTEM)
+            event.source = InputDevice.SOURCE_KEYBOARD
+            HiddenInputManager.inject(
+                inputManager,
+                event,
+                INJECT_INPUT_EVENT_MODE_WAIT_FOR_RESULT
+            )
         } catch (e: Exception) {
             android.util.Log.e("InputInjectorService", "Failed to inject text", e)
             false
-        }
-    }
-
-    private fun escapeForInputText(text: String): String {
-        return buildString(text.length * 2) {
-            text.forEach { char ->
-                when (char) {
-                    '%' -> append("%25")
-                    ' ' -> append("%s")
-                    else -> append(char)
-                }
-            }
         }
     }
     

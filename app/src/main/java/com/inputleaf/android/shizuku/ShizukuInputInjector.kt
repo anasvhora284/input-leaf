@@ -7,16 +7,16 @@ import android.os.IBinder
 import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
+import com.inputleaf.android.inject.InputInjector
+import com.inputleaf.android.inject.InputLeafIME
+import com.inputleaf.android.inject.KeysymAction
+import com.inputleaf.android.inject.KeysymInjection
+import com.inputleaf.android.inject.KeysymResolver
 import com.inputleaf.android.model.InputLeapEvent
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import rikka.shizuku.Shizuku
-
-import com.inputleaf.android.inject.InputInjector
-import com.inputleaf.android.inject.KeysymAction
-import com.inputleaf.android.inject.KeysymInjection
-import com.inputleaf.android.inject.KeysymResolver
 
 private const val TAG = "ShizukuInputInjector"
 
@@ -236,10 +236,13 @@ class ShizukuInputInjector(
 
     private fun injectTextOrLog(svc: IInputInjector, char: String, keysym: Int) {
         if (svc.injectText(char)) return
-        Log.w(TAG, "injectText failed for char='$char' keysym=0x${keysym.toString(16)} ($keysym), retrying once")
-        if (!svc.injectText(char)) {
-            Log.e(TAG, "injectText failed after retry for char='$char' keysym=0x${keysym.toString(16)} ($keysym)")
+        val ime = InputLeafIME.getInstance()
+        if (ime != null) {
+            Log.w(TAG, "Shizuku injectText failed for '$char'; falling back to IME commitText")
+            ime.commitText(char)
+            return
         }
+        Log.e(TAG, "injectText failed for char='$char' keysym=0x${keysym.toString(16)} ($keysym)")
     }
 
     private fun inputLeapButtonToAndroid(buttonId: Int): Int {
