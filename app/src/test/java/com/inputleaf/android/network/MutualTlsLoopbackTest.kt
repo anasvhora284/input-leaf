@@ -130,13 +130,17 @@ class MutualTlsLoopbackTest {
     /**
      * TLS 1.3 on some JDKs (including GitHub Actions Temurin) can reset the
      * socket instead of wrapping the alert in SSLException. Accept either.
+     * Timeouts and other SocketExceptions are not a client-cert rejection.
      */
     private fun isAnonymousClientRejection(error: Throwable): Boolean {
         val chain = generateSequence(error) { it.cause }.toList()
-        if (chain.any { it is SSLException || it is SocketException }) return true
+        if (chain.any { it is SSLException || isConnectionReset(it) }) return true
         val asException = error as? Exception ?: Exception(error)
         return InputLeapConnection.isClientCertificateRequired(asException)
     }
+
+    private fun isConnectionReset(error: Throwable): Boolean =
+        error is SocketException && error.message?.contains("Connection reset") == true
 
     private companion object {
         const val TIMEOUT_MS = 5_000
