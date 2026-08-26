@@ -19,6 +19,8 @@ import java.net.Socket
 import java.security.KeyStore
 import java.security.cert.X509Certificate
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLServerSocket
@@ -284,7 +286,9 @@ internal open class LoopbackServer(
     private val failures = CopyOnWriteArrayList<Throwable>()
     private val workers = CopyOnWriteArrayList<Thread>()
     private val activeSockets = CopyOnWriteArrayList<Socket>()
+    private val ready = CountDownLatch(1)
     private val acceptThread = thread(name = "loopback-accept-$port") {
+        ready.countDown()
         try {
             repeat(connectionCount) { index ->
                 val socket = serverSocket.accept()
@@ -306,6 +310,10 @@ internal open class LoopbackServer(
         } finally {
             serverSocket.close()
         }
+    }
+
+    init {
+        check(ready.await(1, TimeUnit.SECONDS)) { "Loopback server did not start" }
     }
 
     override fun close() {
