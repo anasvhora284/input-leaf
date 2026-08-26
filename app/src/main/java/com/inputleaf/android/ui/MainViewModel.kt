@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.net.wifi.WifiManager
 import android.os.IBinder
 import android.os.PowerManager
@@ -15,16 +16,21 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.inputleaf.android.model.ConnectionState
 import com.inputleaf.android.model.ServerInfo
+import com.inputleaf.android.network.ClientCertificateSummary
+import com.inputleaf.android.network.ClientCertificateValidationResult
 import com.inputleaf.android.network.ConnectResult
 import com.inputleaf.android.network.ConnectionTransportPolicy
 import com.inputleaf.android.network.ServerScanner
 import com.inputleaf.android.service.ConnectionService
 import com.inputleaf.android.service.CursorOverlayService
 import com.inputleaf.android.storage.AppPreferences
+import com.inputleaf.android.storage.ClientCertificateStore
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import rikka.shizuku.Shizuku
+import java.io.ByteArrayOutputStream
 import java.net.InetAddress
 import java.net.NetworkInterface
 
@@ -33,6 +39,8 @@ enum class ThemeMode {
     LIGHT,
     DARK
 }
+
+private const val MAX_CLIENT_CERTIFICATE_BYTES = 16 * 1024 * 1024
 
 internal fun connectionFailureMessage(
     reason: ConnectResult.FailureReason,
@@ -43,6 +51,8 @@ internal fun connectionFailureMessage(
         "Server is not using TLS. Select Auto or Plain only, or enable TLS in Deskflow."
     ConnectResult.FailureReason.CERTIFICATE_MISMATCH ->
         "Deskflow's TLS certificate changed. Remove the trusted server only if you expect this."
+    ConnectResult.FailureReason.CLIENT_CERT_REQUIRED ->
+        "Deskflow requires a client certificate. Import one in Settings, then trust its fingerprint on the server."
     ConnectResult.FailureReason.HANDSHAKE ->
         "Deskflow handshake failed on the selected transport"
     ConnectResult.FailureReason.INCOMPATIBLE ->
@@ -51,9 +61,30 @@ internal fun connectionFailureMessage(
         "This screen name is already connected to Deskflow"
 }
 
+internal fun clientCertificateImportError(
+    result: ClientCertificateValidationResult,
+): String? = when (result) {
+    is ClientCertificateValidationResult.Success -> null
+    ClientCertificateValidationResult.IncorrectPassword -> "Incorrect PKCS12 password"
+    ClientCertificateValidationResult.InvalidFormat ->
+        "File is not a valid PKCS12 (.p12 or .pfx) bundle"
+    ClientCertificateValidationResult.NoPrivateKey ->
+        "The certificate bundle does not contain a private key"
+    ClientCertificateValidationResult.KeyMismatch ->
+        "The private key does not match the client certificate"
+    ClientCertificateValidationResult.Expired -> "The client certificate has expired"
+    ClientCertificateValidationResult.NotYetValid ->
+        "The client certificate is not valid yet"
+    ClientCertificateValidationResult.UnsupportedKey ->
+        "The client certificate uses an unsupported key type"
+    ClientCertificateValidationResult.StorageError ->
+        "Could not securely store the client certificate"
+}
+
 class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val prefs = AppPreferences(app)
+    private val clientCertificateStore = ClientCertificateStore(app)
     private val scanner = ServerScanner()
     private var service: ConnectionService? = null
 
@@ -65,6 +96,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _errorState = MutableStateFlow<String?>(null)
     val errorState: StateFlow<String?> = _errorState
+
+    private val _clientCertificateSummary = MutableStateFlow<ClientCertificateSummary?>(null)
+    val clientCertificateSummary: StateFlow<ClientCertificateSummary?> =
+        _clientCertificateSummary
 
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning
@@ -148,6 +183,60 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun saveConnectionTransportPolicy(policy: ConnectionTransportPolicy) {
         viewModelScope.launch { prefs.saveConnectionTransportPolicy(policy) }
     }
+    fun importClientCertificate(uri: Uri, password: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val pkcs12 = try {
+                readClientCertificate(uri)
+            } catch (_: IllegalArgumentException) {
+                _errorState.value = "Client certificate must be smaller than 16 MB"
+                return@launch
+            } catch (error: Exception) {
+                Log.e("InputLeaf", "Failed to read client certificate", error)
+                _errorState.value = "Could not read the selected certificate file"
+                return@launch
+            }
+            val passwordChars = password.toCharArray()
+            val result = try {
+                clientCertificateStore.importCertificate(pkcs12, passwordChars)
+            } finally {
+                pkcs12.fill(0)
+                passwordChars.fill('\u0000')
+            }
+            if (result is ClientCertificateValidationResult.Success) {
+                _clientCertificateSummary.value = result.summary
+            }
+            clientCertificateImportError(result)?.let { _errorState.value = it }
+        }
+    }
+
+    fun clearClientCertificate() {
+        viewModelScope.launch(Dispatchers.IO) {
+            clientCertificateStore.clear()
+            _clientCertificateSummary.value = null
+        }
+    }
+
+    private fun readClientCertificate(uri: Uri): ByteArray {
+        val input = checkNotNull(getApplication<Application>().contentResolver.openInputStream(uri))
+        return input.use {
+            ByteArrayOutputStream().use { output ->
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                try {
+                    var total = 0
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        total += count
+                        require(total <= MAX_CLIENT_CERTIFICATE_BYTES)
+                        output.write(buffer, 0, count)
+                    }
+                    output.toByteArray()
+                } finally {
+                    buffer.fill(0)
+                }
+            }
+        }
+    }
 
     // Called by UI after user taps Trust/Cancel in FingerprintDialog
     fun respondToFingerprint(request: FingerprintRequest, trusted: Boolean) {
@@ -200,6 +289,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
     init {
         bindService()
+
+        viewModelScope.launch(Dispatchers.IO) {
+            _clientCertificateSummary.value = clientCertificateStore.summary()
+        }
 
         // Observe showCursor preference and update service
         viewModelScope.launch {

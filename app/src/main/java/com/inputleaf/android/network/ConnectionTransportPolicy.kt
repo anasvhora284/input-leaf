@@ -16,6 +16,7 @@ enum class ConnectionTransportPolicy(val storageValue: String) {
             ConnectResult.FailureReason.HANDSHAKE -> true
             ConnectResult.FailureReason.TLS_AGAINST_PLAIN_SERVER,
             ConnectResult.FailureReason.CERTIFICATE_MISMATCH,
+            ConnectResult.FailureReason.CLIENT_CERT_REQUIRED,
             ConnectResult.FailureReason.INCOMPATIBLE,
             ConnectResult.FailureReason.BUSY -> false
         }
@@ -26,6 +27,7 @@ enum class ConnectionTransportPolicy(val storageValue: String) {
             ConnectResult.FailureReason.TLS_AGAINST_PLAIN_SERVER,
             ConnectResult.FailureReason.HANDSHAKE -> true
             ConnectResult.FailureReason.CERTIFICATE_MISMATCH,
+            ConnectResult.FailureReason.CLIENT_CERT_REQUIRED,
             ConnectResult.FailureReason.INCOMPATIBLE,
             ConnectResult.FailureReason.BUSY -> false
         }

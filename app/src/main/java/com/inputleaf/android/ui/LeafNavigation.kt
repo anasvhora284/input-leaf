@@ -5,18 +5,26 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Shield
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.inputleaf.android.network.ConnectionTransportPolicy
 import com.inputleaf.android.ui.components.AnimatedBottomNavigation
@@ -53,10 +61,18 @@ fun LeafNavigation(viewModel: MainViewModel) {
     val connectionTransportPolicy by viewModel.connectionTransportPolicy.collectAsState(
         initial = ConnectionTransportPolicy.AUTO
     )
+    val clientCertificateSummary by viewModel.clientCertificateSummary.collectAsStateWithLifecycle()
     val cursorStyle by viewModel.cursorStyle.collectAsState(initial = "default")
     val shizukuAvailable by viewModel.shizukuAvailable.collectAsState(initial = false)
     val accessibilityAvailable by viewModel.accessibilityAvailable.collectAsState(initial = false)
     val imeEnabledAndSelected by viewModel.imeEnabledAndSelected.collectAsStateWithLifecycle(initialValue = false)
+
+    var pendingClientCertificateUri by remember { mutableStateOf<Uri?>(null) }
+    val clientCertificatePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        pendingClientCertificateUri = uri
+    }
 
     var pendingFpRequest by remember { mutableStateOf<MainViewModel.FingerprintRequest?>(null) }
     LaunchedEffect(Unit) {
@@ -68,6 +84,51 @@ fun LeafNavigation(viewModel: MainViewModel) {
             oldFingerprint = req.oldFp,
             onConfirm = { viewModel.respondToFingerprint(req, true); pendingFpRequest = null },
             onDismiss = { viewModel.respondToFingerprint(req, false); pendingFpRequest = null },
+        )
+    }
+
+    pendingClientCertificateUri?.let { uri ->
+        var password by remember(uri) { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = {
+                password = ""
+                pendingClientCertificateUri = null
+            },
+            title = { Text("Import Client Certificate") },
+            text = {
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("PKCS12 password") },
+                    supportingText = {
+                        Text("The certificate is encrypted with Android Keystore after validation.")
+                    },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.importClientCertificate(uri, password)
+                        password = ""
+                        pendingClientCertificateUri = null
+                    }
+                ) {
+                    Text("Import")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        password = ""
+                        pendingClientCertificateUri = null
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            },
         )
     }
 
@@ -174,6 +235,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     accessibilityAvailable = accessibilityAvailable,
                     canDrawOverlays = canDrawOverlays,
                     fingerprints = fingerprints,
+                    clientCertificateSummary = clientCertificateSummary,
                     onScreenNameChange = { viewModel.saveScreenName(it) },
                     onAutoConnectChange = { viewModel.saveAutoConnect(it) },
                     onShowCursorChange = { viewModel.saveShowCursor(it) },
@@ -192,6 +254,16 @@ fun LeafNavigation(viewModel: MainViewModel) {
                         )
                     },
                     onDeleteFingerprint = { viewModel.deleteFingerprint(it) },
+                    onImportClientCertificate = {
+                        clientCertificatePicker.launch(
+                            arrayOf(
+                                "application/x-pkcs12",
+                                "application/pkcs12",
+                                "application/octet-stream",
+                            )
+                        )
+                    },
+                    onClearClientCertificate = { viewModel.clearClientCertificate() },
                     onBack = { screen = LeafRoute.Home.key },
                 )
             }

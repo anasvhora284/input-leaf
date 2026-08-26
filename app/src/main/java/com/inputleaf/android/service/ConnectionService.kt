@@ -18,6 +18,7 @@ import com.inputleaf.android.network.InputLeapConnection
 import com.inputleaf.android.network.ServerTransport
 import com.inputleaf.android.network.TlsFingerprintManager
 import com.inputleaf.android.storage.AppPreferences
+import com.inputleaf.android.storage.ClientCertificateStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -145,6 +146,16 @@ class ConnectionService : Service() {
 
             val storedFp = prefs.fingerprintFor(serverIp).first()
             activePolicy = prefs.connectionTransportPolicy.first()
+            val clientCertificate =
+                if (activePolicy == ConnectionTransportPolicy.PLAIN_ONLY) {
+                    null
+                } else {
+                    runCatching {
+                        ClientCertificateStore(this@ConnectionService).load()
+                    }.onFailure { error ->
+                        Log.w(TAG, "Failed to load client certificate", error)
+                    }.getOrNull()
+                }
             val cachedTransport =
                 if (activePolicy == ConnectionTransportPolicy.AUTO) {
                     prefs.transportFor(serverIp).first()?.let { mode ->
@@ -163,6 +174,7 @@ class ConnectionService : Service() {
                 preferredTransport = cachedTransport,
                 pinnedFingerprint = storedFp,
                 transportPolicy = activePolicy,
+                clientCertificate = clientCertificate,
             ) { cert ->
                 val newFp = TlsFingerprintManager.fingerprintOf(cert)
                 val trusted = when {
@@ -179,11 +191,15 @@ class ConnectionService : Service() {
             }
 
             val bounds = getScreenBounds()
-            val result = conn.connect(
-                screenName = screenName,
-                screenWidth = bounds.width(),
-                screenHeight = bounds.height(),
-            )
+            val result = try {
+                conn.connect(
+                    screenName = screenName,
+                    screenWidth = bounds.width(),
+                    screenHeight = bounds.height(),
+                )
+            } finally {
+                clientCertificate?.clear()
+            }
             if (generation != connectGeneration) {
                 conn.close()
                 return

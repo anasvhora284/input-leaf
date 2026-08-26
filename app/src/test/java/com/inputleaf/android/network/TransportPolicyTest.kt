@@ -61,6 +61,11 @@ class TransportPolicyTest {
         ).isFalse()
         assertThat(
             ConnectionTransportPolicy.AUTO.shouldFallbackWithinAttempt(
+                ConnectResult.FailureReason.CLIENT_CERT_REQUIRED
+            )
+        ).isFalse()
+        assertThat(
+            ConnectionTransportPolicy.AUTO.shouldFallbackWithinAttempt(
                 ConnectResult.FailureReason.INCOMPATIBLE
             )
         ).isFalse()
@@ -108,6 +113,11 @@ class TransportPolicyTest {
         assertThat(
             ConnectionTransportPolicy.AUTO.shouldRetry(
                 ConnectResult.FailureReason.CERTIFICATE_MISMATCH
+            )
+        ).isFalse()
+        assertThat(
+            ConnectionTransportPolicy.AUTO.shouldRetry(
+                ConnectResult.FailureReason.CLIENT_CERT_REQUIRED
             )
         ).isFalse()
     }

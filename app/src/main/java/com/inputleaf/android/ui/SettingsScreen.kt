@@ -29,6 +29,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.BorderStroke
+import com.inputleaf.android.network.ClientCertificateSummary
 import com.inputleaf.android.network.ConnectionTransportPolicy
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,6 +46,7 @@ fun SettingsScreen(
     accessibilityAvailable: Boolean,
     canDrawOverlays: Boolean,
     fingerprints: Map<String, String>,
+    clientCertificateSummary: ClientCertificateSummary?,
     onScreenNameChange: (String) -> Unit,
     onAutoConnectChange: (Boolean) -> Unit,
     onShowCursorChange: (Boolean) -> Unit,
@@ -54,6 +56,8 @@ fun SettingsScreen(
     onCursorStyleChange: (String) -> Unit,
     onRequestOverlayPermission: () -> Unit,
     onDeleteFingerprint: (String) -> Unit,
+    onImportClientCertificate: () -> Unit,
+    onClearClientCertificate: () -> Unit,
     onBack: () -> Unit,
 ) {
     var editingName by remember(screenName) { mutableStateOf(screenName) }
@@ -252,6 +256,33 @@ fun SettingsScreen(
                 padding = 0.dp
             ) {
                 Column {
+                    SettingsRow(
+                        icon = Icons.Rounded.Badge,
+                        title = "Client certificate",
+                        subtitle = clientCertificateSummary?.let { summary ->
+                            "${certificateDisplayName(summary.subject)} · " +
+                                "${summary.fingerprint.take(12)}…"
+                        } ?: "Optional for Deskflow servers that require client certificates",
+                        onClick = onImportClientCertificate,
+                        trailingContent = if (clientCertificateSummary != null) {
+                            {
+                                IconButton(onClick = onClearClientCertificate) {
+                                    Icon(
+                                        Icons.Rounded.Delete,
+                                        contentDescription = "Remove client certificate",
+                                        tint = MaterialTheme.colorScheme.outline,
+                                    )
+                                }
+                            }
+                        } else {
+                            null
+                        }
+                    )
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        thickness = 1.dp,
+                        modifier = Modifier.padding(start = 72.dp)
+                    )
                     // Trusted servers header
                     SettingsRow(
                         icon = Icons.Rounded.Lock,
@@ -613,6 +644,12 @@ fun SettingsScreen(
     }
 }
 
+private fun certificateDisplayName(subject: String): String =
+    subject.split(',')
+        .firstOrNull { it.trim().startsWith("CN=", ignoreCase = true) }
+        ?.substringAfter('=')
+        ?.takeIf { it.isNotBlank() }
+        ?: "Configured"
 
 @Composable
 private fun SettingsChoiceOption(

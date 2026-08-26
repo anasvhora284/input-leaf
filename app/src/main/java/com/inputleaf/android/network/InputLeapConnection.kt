@@ -35,6 +35,7 @@ class InputLeapConnection(
     private val preferredTransport: ServerTransport? = null,
     private val pinnedFingerprint: String? = null,
     private val transportPolicy: ConnectionTransportPolicy = ConnectionTransportPolicy.AUTO,
+    private val clientCertificate: ClientCertificateMaterial? = null,
     private val onCertificate: suspend (X509Certificate) -> Boolean,
 ) {
     private val _events = MutableSharedFlow<InputLeapEvent>(replay = 0, extraBufferCapacity = 64)
@@ -127,7 +128,10 @@ class InputLeapConnection(
         }
         return try {
             val rawSocket = if (pinnedFingerprint != null) {
-                val sslContext = TlsFingerprintManager.buildPinningSSLContext(pinnedFingerprint)
+                val sslContext = TlsFingerprintManager.buildPinningSSLContext(
+                    expectedFingerprint = pinnedFingerprint,
+                    clientCertificate = clientCertificate,
+                )
                 val sslSock = sslContext.socketFactory.createSocket() as SSLSocket
                 openedSocket = sslSock
                 sslSock.connect(InetSocketAddress(ip, port), connectTimeout)
@@ -137,9 +141,10 @@ class InputLeapConnection(
                 sslSock
             } else {
                 var capturedCert: X509Certificate? = null
-                val sslContext = TlsFingerprintManager.buildCapturingSSLContext { cert ->
-                    capturedCert = cert
-                }
+                val sslContext = TlsFingerprintManager.buildCapturingSSLContext(
+                    clientCertificate = clientCertificate,
+                    onCertificate = { cert -> capturedCert = cert },
+                )
                 val sslSock = sslContext.socketFactory.createSocket() as SSLSocket
                 openedSocket = sslSock
                 sslSock.connect(InetSocketAddress(ip, port), connectTimeout)
@@ -166,7 +171,15 @@ class InputLeapConnection(
             SocketOpenResult.Ok(rawSocket, ServerTransport.TLS)
         } catch (e: Exception) {
             runCatching { openedSocket?.close() }
-            if (isCertificateMismatch(e)) {
+            if (clientCertificate == null && isClientCertificateRequired(e)) {
+                Log.w(TAG, "Deskflow requires a client certificate")
+                SocketOpenResult.Failed(
+                    ConnectResult.Failed(
+                        ConnectResult.FailureReason.CLIENT_CERT_REQUIRED,
+                        e.message,
+                    ),
+                )
+            } else if (isCertificateMismatch(e)) {
                 Log.w(TAG, "TLS certificate changed for $ip")
                 SocketOpenResult.Failed(
                     ConnectResult.Failed(
@@ -370,6 +383,7 @@ class InputLeapConnection(
 
         private fun failurePriority(reason: ConnectResult.FailureReason): Int = when (reason) {
             ConnectResult.FailureReason.CERTIFICATE_MISMATCH,
+            ConnectResult.FailureReason.CLIENT_CERT_REQUIRED,
             ConnectResult.FailureReason.INCOMPATIBLE,
             ConnectResult.FailureReason.BUSY -> 4
             ConnectResult.FailureReason.NETWORK -> 3
@@ -380,6 +394,16 @@ class InputLeapConnection(
         internal fun isCertificateMismatch(error: Exception): Boolean =
             generateSequence<Throwable>(error) { it.cause }
                 .any { "certificate fingerprint mismatch" in it.message.orEmpty().lowercase() }
+
+        internal fun isClientCertificateRequired(error: Exception): Boolean {
+            val message = generateSequence<Throwable>(error) { it.cause }
+                .joinToString(" ") { it.message.orEmpty() }
+                .lowercase()
+            return "certificate required" in message ||
+                "certificate_required" in message ||
+                "bad certificate" in message ||
+                "bad_certificate" in message
+        }
 
         internal fun isPlainServerTlsError(error: Exception): Boolean {
             val causes = generateSequence<Throwable>(error) { it.cause }.toList()
