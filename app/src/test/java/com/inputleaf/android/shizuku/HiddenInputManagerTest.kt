@@ -6,8 +6,49 @@ import org.junit.Test
 class HiddenInputManagerTest {
 
     @Test
-    fun `resolve does not throw`() {
-        HiddenInputManager.resolve()
+    fun `resolve selects the first usable target and injects through it`() {
+        val injector = RecordingInjector()
+        val method = HiddenInputManager.findInjectMethod(RecordingInjector::class.java)!!
+        method.isAccessible = true
+        val expected = HiddenInputManager.Target(injector, method)
+        var laterAttemptRan = false
+
+        val resolved = HiddenInputManager.resolveFrom(
+            listOf(
+                { error("InputManagerGlobal missing") },
+                { expected },
+                {
+                    laterAttemptRan = true
+                    error("should not run after a usable target")
+                }
+            )
+        )
+
+        assertThat(resolved).isSameInstanceAs(expected)
+        assertThat(resolved!!.injectMethod.name).isEqualTo("injectInputEvent")
+        assertThat(resolved.injectMethod.parameterTypes.toList()).containsExactly(
+            Any::class.java,
+            Int::class.javaPrimitiveType,
+            Int::class.javaPrimitiveType
+        ).inOrder()
+        assertThat(laterAttemptRan).isFalse()
+
+        val injected = HiddenInputManager.invokeInject(resolved, event = "move", mode = 0)
+        assertThat(injected).isEqualTo(true)
+        assertThat(injector.event).isEqualTo("move")
+        assertThat(injector.mode).isEqualTo(0)
+        assertThat(injector.targetUid).isEqualTo(-1)
+    }
+
+    @Test
+    fun `resolve returns null when every strategy fails`() {
+        val resolved = HiddenInputManager.resolveFrom(
+            listOf(
+                { null },
+                { throw IllegalStateException("stub InputManager") }
+            )
+        )
+        assertThat(resolved).isNull()
     }
 
     @Test

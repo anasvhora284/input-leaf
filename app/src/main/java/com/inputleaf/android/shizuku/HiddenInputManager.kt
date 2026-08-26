@@ -21,39 +21,38 @@ internal object HiddenInputManager {
         val injectMethod: Method
     )
 
-    fun resolve(): Target? {
+    fun resolve(): Target? = resolveFrom(productionAttempts())
+
+    internal fun resolveFrom(attempts: List<() -> Target?>): Target? {
         return try {
-            resolveOrNull()
+            for (attempt in attempts) {
+                try {
+                    val target = attempt()
+                    if (target != null) {
+                        logInfo(
+                            "Using ${target.instance.javaClass.name}#${target.injectMethod.name}" +
+                                "(${target.injectMethod.parameterCount} args)"
+                        )
+                        return target
+                    }
+                } catch (e: Throwable) {
+                    logWarn("Input manager resolve attempt failed", e)
+                }
+            }
+            logError("No InputManager injectInputEvent available")
+            null
         } catch (e: Throwable) {
             logError("No InputManager injectInputEvent available", e)
             null
         }
     }
 
-    private fun resolveOrNull(): Target? {
-        val attempts = listOf(
-            { fromNamedSingleton("android.hardware.input.InputManagerGlobal") },
-            { fromNamedSingleton("android.hardware.input.InputManager") },
-            { fromApplicationInputService() },
-            { fromIInputManagerBinder() }
-        )
-        for (attempt in attempts) {
-            try {
-                val target = attempt()
-                if (target != null) {
-                    logInfo(
-                        "Using ${target.instance.javaClass.name}#${target.injectMethod.name}" +
-                            "(${target.injectMethod.parameterCount} args)"
-                    )
-                    return target
-                }
-            } catch (e: Throwable) {
-                logWarn("Input manager resolve attempt failed", e)
-            }
-        }
-        logError("No InputManager injectInputEvent available")
-        return null
-    }
+    private fun productionAttempts(): List<() -> Target?> = listOf(
+        { fromNamedSingleton("android.hardware.input.InputManagerGlobal") },
+        { fromNamedSingleton("android.hardware.input.InputManager") },
+        { fromApplicationInputService() },
+        { fromIInputManagerBinder() }
+    )
 
     fun inject(target: Target?, event: InputEvent, mode: Int): Boolean {
         if (target == null) return false
