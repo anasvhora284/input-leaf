@@ -2,6 +2,7 @@ package com.inputleaf.android.network
 
 import com.google.common.truth.Truth.assertThat
 import com.inputleaf.android.model.InputLeapEvent
+import com.inputleaf.android.protocol.ProtocolConstants
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
@@ -326,10 +327,8 @@ internal class TlsLoopbackServer(
         0,
         50,
         InetAddress.getByName(LOOPBACK_HOST),
-    ) as SSLServerSocket).apply { soTimeout = 2_000 },
-    handler = { socket, index ->
-        (socket as SSLSocket).apply { soTimeout = 1_000 }.let { handler(it, index) }
-    },
+    ) as SSLServerSocket,
+    handler = { socket, index -> handler(socket as SSLSocket, index) },
 )
 
 internal data class TestTlsIdentity(
@@ -395,7 +394,10 @@ internal fun writeFrame(output: DataOutputStream, body: ByteArray) {
     output.flush()
 }
 
-internal fun readFrame(input: DataInputStream): ByteArray =
-    ByteArray(input.readInt()).also { input.readFully(it) }
+internal fun readFrame(input: DataInputStream): ByteArray {
+    val length = input.readInt()
+    require(length in 4..ProtocolConstants.MAX_MESSAGE_LEN) { "Invalid test frame length: $length" }
+    return ByteArray(length).also { input.readFully(it) }
+}
 
 private fun CompletableDeferred<Unit>.awaitBlocking() = runBlocking { await() }

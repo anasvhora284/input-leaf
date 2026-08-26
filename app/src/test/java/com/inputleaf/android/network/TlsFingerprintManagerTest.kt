@@ -49,6 +49,24 @@ class TlsFingerprintManagerTest {
             .isEqualTo(fingerprint)
     }
 
+    @Test fun `too-short fingerprint is rejected`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            TlsFingerprintManager.normalizeFingerprint("0".repeat(63))
+        }
+    }
+
+    @Test fun `too-long fingerprint is rejected`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            TlsFingerprintManager.normalizeFingerprint("0".repeat(65))
+        }
+    }
+
+    @Test fun `non-hex fingerprint is rejected`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            TlsFingerprintManager.normalizeFingerprint("0".repeat(63) + "g")
+        }
+    }
+
     @Test fun `capturing SSL context is initialized for TLS`() {
         val context = TlsFingerprintManager.buildCapturingSSLContext { }
 

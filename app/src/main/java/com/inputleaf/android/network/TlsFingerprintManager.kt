@@ -16,7 +16,7 @@ object TlsFingerprintManager {
     fun fingerprintOf(cert: X509Certificate): String {
         val digest = MessageDigest.getInstance("SHA-256")
         val hash = digest.digest(cert.encoded)
-        return hash.joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        return hash.joinToString("") { "%02x".format(Locale.ROOT, it.toInt() and 0xff) }
     }
 
     fun formatFingerprint(fingerprint: String): String =
@@ -46,8 +46,13 @@ object TlsFingerprintManager {
         }
     }
 
-    internal fun normalizeFingerprint(fingerprint: String): String =
-        fingerprint.trim().replace(":", "").lowercase(Locale.ROOT)
+    internal fun normalizeFingerprint(fingerprint: String): String {
+        val normalized = fingerprint.trim().replace(":", "").lowercase(Locale.ROOT)
+        require(normalized.matches(Regex("[0-9a-f]{64}"))) {
+            "Fingerprint must be a SHA-256 value"
+        }
+        return normalized
+    }
 
     /**
      * Creates an SSLContext for TOFU fingerprint capture.
