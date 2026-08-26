@@ -33,4 +33,25 @@ class PlainServerTlsErrorTest {
         assertThat(InputLeapConnection.isPlainServerTlsError(error)).isFalse()
         assertThat(InputLeapConnection.isCertificateMismatch(error)).isTrue()
     }
+
+    @Test fun `detects a server requiring a client certificate`() {
+        assertThat(
+            InputLeapConnection.isClientCertificateRequired(
+                SSLException("Received fatal alert: certificate_required")
+            )
+        ).isTrue()
+        assertThat(
+            InputLeapConnection.isClientCertificateRequired(
+                IllegalStateException(
+                    "Handshake failed",
+                    SSLException("Received fatal alert: bad_certificate"),
+                )
+            )
+        ).isTrue()
+        assertThat(
+            InputLeapConnection.isClientCertificateRequired(
+                SSLException("Certificate fingerprint mismatch")
+            )
+        ).isFalse()
+    }
 }

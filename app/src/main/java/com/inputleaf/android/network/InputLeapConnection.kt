@@ -26,6 +26,7 @@ private const val HANDSHAKE_READ_TIMEOUT_MS = 15_000
 private const val TLS_CONNECT_TIMEOUT_CACHED_MS = 800
 private const val TLS_CONNECT_TIMEOUT_MS = 2_000
 private const val TLS_HANDSHAKE_TIMEOUT_MS = 1_500
+private const val TLS_CLIENT_AUTH_HANDSHAKE_TIMEOUT_MS = 90_000
 private const val PLAIN_CONNECT_TIMEOUT_CACHED_MS = 800
 private const val PLAIN_CONNECT_TIMEOUT_MS = 2_000
 
@@ -35,6 +36,7 @@ class InputLeapConnection(
     private val preferredTransport: ServerTransport? = null,
     private val pinnedFingerprint: String? = null,
     private val transportPolicy: ConnectionTransportPolicy = ConnectionTransportPolicy.AUTO,
+    private val clientCertificate: ClientCertificateMaterial? = null,
     private val onCertificate: suspend (X509Certificate) -> Boolean,
 ) {
     private val _events = MutableSharedFlow<InputLeapEvent>(replay = 0, extraBufferCapacity = 64)
@@ -52,9 +54,16 @@ class InputLeapConnection(
 
     suspend fun connect(screenName: String, screenWidth: Int, screenHeight: Int): ConnectResult =
         withContext(Dispatchers.IO) {
+            val detectedMode =
+                if (transportPolicy == ConnectionTransportPolicy.AUTO) {
+                    TransportProber.detect(ip, port)
+                } else {
+                    null
+                }
             val transports = TransportPolicy.order(
                 policy = transportPolicy,
                 preferredTransport = preferredTransport,
+                detectedMode = detectedMode,
             )
             var lastFailure: ConnectResult.Failed? = null
             for (transport in transports) {
@@ -126,47 +135,47 @@ class InputLeapConnection(
             TLS_CONNECT_TIMEOUT_MS
         }
         return try {
-            val rawSocket = if (pinnedFingerprint != null) {
-                val sslContext = TlsFingerprintManager.buildPinningSSLContext(pinnedFingerprint)
-                val sslSock = sslContext.socketFactory.createSocket() as SSLSocket
-                openedSocket = sslSock
-                sslSock.connect(InetSocketAddress(ip, port), connectTimeout)
-                sslSock.soTimeout = TLS_HANDSHAKE_TIMEOUT_MS
-                sslSock.startHandshake()
-                sslSock.soTimeout = HANDSHAKE_READ_TIMEOUT_MS
-                sslSock
-            } else {
-                var capturedCert: X509Certificate? = null
-                val sslContext = TlsFingerprintManager.buildCapturingSSLContext { cert ->
-                    capturedCert = cert
-                }
-                val sslSock = sslContext.socketFactory.createSocket() as SSLSocket
-                openedSocket = sslSock
-                sslSock.connect(InetSocketAddress(ip, port), connectTimeout)
-                sslSock.soTimeout = TLS_HANDSHAKE_TIMEOUT_MS
-                sslSock.startHandshake()
-                sslSock.soTimeout = HANDSHAKE_READ_TIMEOUT_MS
-                val cert = capturedCert ?: run {
-                    sslSock.close()
-                    openedSocket = null
-                    return SocketOpenResult.Failed(
-                        ConnectResult.Failed(
-                            ConnectResult.FailureReason.NETWORK,
-                            "No certificate captured",
-                        ),
-                    )
-                }
-                if (!onCertificate(cert)) {
-                    sslSock.close()
-                    openedSocket = null
-                    return SocketOpenResult.Rejected
-                }
-                sslSock
+            var capturedCert: X509Certificate? = null
+            val sslContext = TlsFingerprintManager.buildCapturingSSLContext(
+                clientCertificate = clientCertificate,
+                onCertificate = { cert -> capturedCert = cert },
+            )
+            val sslSock = sslContext.socketFactory.createSocket() as SSLSocket
+            openedSocket = sslSock
+            sslSock.connect(InetSocketAddress(ip, port), connectTimeout)
+            sslSock.soTimeout = tlsHandshakeTimeoutMs()
+            sslSock.startHandshake()
+            sslSock.soTimeout = HANDSHAKE_READ_TIMEOUT_MS
+            val cert = capturedCert ?: run {
+                sslSock.close()
+                openedSocket = null
+                return SocketOpenResult.Failed(
+                    ConnectResult.Failed(
+                        ConnectResult.FailureReason.NETWORK,
+                        "No certificate captured",
+                    ),
+                )
             }
-            SocketOpenResult.Ok(rawSocket, ServerTransport.TLS)
+            val fingerprint = TlsFingerprintManager.fingerprintOf(cert)
+            val alreadyTrusted =
+                pinnedFingerprint != null && fingerprint == pinnedFingerprint
+            if (!alreadyTrusted && !onCertificate(cert)) {
+                sslSock.close()
+                openedSocket = null
+                return SocketOpenResult.Rejected
+            }
+            SocketOpenResult.Ok(sslSock, ServerTransport.TLS)
         } catch (e: Exception) {
             runCatching { openedSocket?.close() }
-            if (isCertificateMismatch(e)) {
+            if (clientCertificate == null && isClientCertificateRequired(e)) {
+                Log.w(TAG, "Deskflow requires a client certificate")
+                SocketOpenResult.Failed(
+                    ConnectResult.Failed(
+                        ConnectResult.FailureReason.CLIENT_CERT_REQUIRED,
+                        e.message,
+                    ),
+                )
+            } else if (isCertificateMismatch(e)) {
                 Log.w(TAG, "TLS certificate changed for $ip")
                 SocketOpenResult.Failed(
                     ConnectResult.Failed(
@@ -190,6 +199,16 @@ class InputLeapConnection(
             }
         }
     }
+
+    private fun tlsHandshakeTimeoutMs(): Int =
+        if (clientCertificate != null) {
+            // Deskflow blocks the TLS handshake until the user trusts this phone's
+            // certificate. Aborting at 1.5s drops that dialog and Auto then waits
+            // 15s on a doomed plaintext attempt.
+            TLS_CLIENT_AUTH_HANDSHAKE_TIMEOUT_MS
+        } else {
+            TLS_HANDSHAKE_TIMEOUT_MS
+        }
 
     private fun openPlainSocket(): Socket {
         val connectTimeout = if (
@@ -325,7 +344,12 @@ class InputLeapConnection(
         try {
             while (true) {
                 val event = parser.readNext()
-                Log.d(TAG, "Read event: $event")
+                if (event !is InputLeapEvent.MouseMoveAbs &&
+                    event !is InputLeapEvent.MouseMoveRel &&
+                    event !is InputLeapEvent.KeepAlive
+                ) {
+                    Log.d(TAG, "Read event: $event")
+                }
                 _events.emit(event)
             }
         } catch (e: CancellationException) {
@@ -370,6 +394,7 @@ class InputLeapConnection(
 
         private fun failurePriority(reason: ConnectResult.FailureReason): Int = when (reason) {
             ConnectResult.FailureReason.CERTIFICATE_MISMATCH,
+            ConnectResult.FailureReason.CLIENT_CERT_REQUIRED,
             ConnectResult.FailureReason.INCOMPATIBLE,
             ConnectResult.FailureReason.BUSY -> 4
             ConnectResult.FailureReason.NETWORK -> 3
@@ -380,6 +405,16 @@ class InputLeapConnection(
         internal fun isCertificateMismatch(error: Exception): Boolean =
             generateSequence<Throwable>(error) { it.cause }
                 .any { "certificate fingerprint mismatch" in it.message.orEmpty().lowercase() }
+
+        internal fun isClientCertificateRequired(error: Exception): Boolean {
+            val message = generateSequence<Throwable>(error) { it.cause }
+                .joinToString(" ") { it.message.orEmpty() }
+                .lowercase()
+            return "certificate required" in message ||
+                "certificate_required" in message ||
+                "bad certificate" in message ||
+                "bad_certificate" in message
+        }
 
         internal fun isPlainServerTlsError(error: Exception): Boolean {
             val causes = generateSequence<Throwable>(error) { it.cause }.toList()

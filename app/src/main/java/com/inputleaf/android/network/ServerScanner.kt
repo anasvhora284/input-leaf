@@ -8,7 +8,6 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import java.io.DataInputStream
-import java.io.InputStream
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.security.cert.X509Certificate
@@ -18,6 +17,8 @@ import javax.net.ssl.X509TrustManager
 
 class ServerScanner {
     companion object {
+        private const val SCAN_CONCURRENCY = 8
+
         fun subnetHosts(deviceIp: String): List<String> {
             val parts = deviceIp.split(".")
             require(parts.size == 4) { "Expected a valid IPv4 address, got: $deviceIp" }
@@ -34,33 +35,52 @@ class ServerScanner {
             return ServerInfo(ip = host, name = "InputLeap $major.$minor")
         }
 
-        private val trustAllSslContext: SSLContext by lazy {
-            val tm = object : X509TrustManager {
-                override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
-                override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
-                override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
-            }
-            SSLContext.getInstance("TLS").also { it.init(null, arrayOf(tm), null) }
+        private val trustAllManager: X509TrustManager = object : X509TrustManager {
+            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
         }
+
+        private fun discoverySslContext(): SSLContext =
+            SSLContext.getInstance("TLS").also { context ->
+                context.init(null, arrayOf(trustAllManager), null)
+            }
     }
 
-    suspend fun scan(deviceIp: String, timeoutMs: Int = 500): List<ServerInfo> =
+    suspend fun scan(
+        deviceIp: String,
+        timeoutMs: Int = 500,
+    ): List<ServerInfo> =
         coroutineScope {
             val hosts = subnetHosts(deviceIp)
-            val semaphore = Semaphore(32)
+            val semaphore = Semaphore(SCAN_CONCURRENCY)
+            val sslContext = discoverySslContext()
             hosts.map { host ->
                 async(Dispatchers.IO) {
-                    semaphore.withPermit { probe(host, timeoutMs) }
+                    semaphore.withPermit {
+                        ensureActive()
+                        probe(host, timeoutMs, sslContext)
+                    }
                 }
             }.awaitAll().filterNotNull()
         }
 
-    private fun probe(host: String, timeoutMs: Int): ServerInfo? {
-        val tls = probeTls(host, timeoutMs)
-        if (tls != null) return tls
-        val plain = probePlain(host, timeoutMs)
-        if (plain != null) return plain
-        return null
+    private fun probe(
+        host: String,
+        timeoutMs: Int,
+        sslContext: SSLContext,
+    ): ServerInfo? {
+        if (!portOpen(host, timeoutMs)) return null
+        return probeTls(host, timeoutMs, sslContext) ?: probePlain(host, timeoutMs)
+    }
+
+    private fun portOpen(host: String, timeoutMs: Int): Boolean = try {
+        Socket().use { socket ->
+            socket.connect(InetSocketAddress(host, ProtocolConstants.DEFAULT_PORT), timeoutMs)
+            true
+        }
+    } catch (_: Exception) {
+        false
     }
 
     private fun probePlain(host: String, timeoutMs: Int): ServerInfo? = try {
@@ -69,14 +89,16 @@ class ServerScanner {
             socket.soTimeout = timeoutMs
             readHello(host, DataInputStream(socket.inputStream))
         }
-    } catch (e: Exception) {
-        Log.v("ServerScanner", "Plain probe failed for $host: ${e.message}")
+    } catch (_: Exception) {
         null
     }
 
-    private fun probeTls(host: String, timeoutMs: Int): ServerInfo? = try {
-        val raw = trustAllSslContext.socketFactory.createSocket()
-        val sslSocket = (raw as SSLSocket).apply {
+    private fun probeTls(
+        host: String,
+        timeoutMs: Int,
+        sslContext: SSLContext,
+    ): ServerInfo? = try {
+        val sslSocket = (sslContext.socketFactory.createSocket() as SSLSocket).apply {
             connect(InetSocketAddress(host, ProtocolConstants.DEFAULT_PORT), timeoutMs)
             soTimeout = timeoutMs
             startHandshake()
@@ -84,8 +106,7 @@ class ServerScanner {
         val result = sslSocket.use { readHello(host, DataInputStream(it.inputStream)) }
         if (result != null) Log.d("ServerScanner", "TLS probe succeeded for $host")
         result
-    } catch (e: Exception) {
-        Log.v("ServerScanner", "TLS probe failed for $host: ${e.javaClass.simpleName}: ${e.message}")
+    } catch (_: Exception) {
         null
     }
 

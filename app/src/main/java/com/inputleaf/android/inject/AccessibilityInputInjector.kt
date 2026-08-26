@@ -5,7 +5,6 @@ import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
 import com.inputleaf.android.model.InputLeapEvent
-import com.inputleaf.android.service.CursorOverlayService
 import kotlinx.coroutines.delay
 
 private const val TAG = "AccessibilityInputInjector"
@@ -68,14 +67,12 @@ class AccessibilityInputInjector(
                 is InputLeapEvent.MouseMoveAbs -> {
                     mouseX = event.x.toFloat().coerceIn(0f, screenWidth.toFloat())
                     mouseY = event.y.toFloat().coerceIn(0f, screenHeight.toFloat())
-                    CursorOverlayService.updatePosition(mouseX, mouseY)
                     svc.injectTouchMove(mouseX, mouseY)
                 }
 
                 is InputLeapEvent.MouseMoveRel -> {
                     mouseX = (mouseX + event.dx).coerceIn(0f, screenWidth.toFloat())
                     mouseY = (mouseY + event.dy).coerceIn(0f, screenHeight.toFloat())
-                    CursorOverlayService.updatePosition(mouseX, mouseY)
                     svc.injectTouchMove(mouseX, mouseY)
                 }
 

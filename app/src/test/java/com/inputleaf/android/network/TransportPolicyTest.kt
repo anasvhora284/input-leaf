@@ -46,6 +46,30 @@ class TransportPolicyTest {
         ).containsExactly(ServerTransport.TLS, ServerTransport.PLAIN).inOrder()
     }
 
+    @Test fun `auto uses the probed server mode instead of a stale learned transport`() {
+        assertThat(
+            TransportPolicy.order(
+                policy = ConnectionTransportPolicy.AUTO,
+                preferredTransport = ServerTransport.PLAIN,
+                detectedMode = ServerSecurityMode.TLS,
+            )
+        ).containsExactly(ServerTransport.TLS)
+        assertThat(
+            TransportPolicy.order(
+                policy = ConnectionTransportPolicy.AUTO,
+                preferredTransport = ServerTransport.TLS,
+                detectedMode = ServerSecurityMode.PLAIN,
+            )
+        ).containsExactly(ServerTransport.PLAIN)
+        assertThat(
+            TransportPolicy.order(
+                policy = ConnectionTransportPolicy.AUTO,
+                preferredTransport = null,
+                detectedMode = ServerSecurityMode.TLS_CLIENT_CERT_REQUIRED,
+            )
+        ).containsExactly(ServerTransport.TLS)
+    }
+
     @Test fun `unknown stored policy safely defaults to auto`() {
         assertThat(ConnectionTransportPolicy.fromStorage("future_mode"))
             .isEqualTo(ConnectionTransportPolicy.AUTO)
@@ -57,6 +81,11 @@ class TransportPolicyTest {
         assertThat(
             ConnectionTransportPolicy.AUTO.shouldFallbackWithinAttempt(
                 ConnectResult.FailureReason.CERTIFICATE_MISMATCH
+            )
+        ).isFalse()
+        assertThat(
+            ConnectionTransportPolicy.AUTO.shouldFallbackWithinAttempt(
+                ConnectResult.FailureReason.CLIENT_CERT_REQUIRED
             )
         ).isFalse()
         assertThat(
@@ -73,7 +102,12 @@ class TransportPolicyTest {
             ConnectionTransportPolicy.AUTO.shouldFallbackWithinAttempt(
                 ConnectResult.FailureReason.NETWORK
             )
-        ).isTrue()
+        ).isFalse()
+        assertThat(
+            ConnectionTransportPolicy.AUTO.shouldFallbackWithinAttempt(
+                ConnectResult.FailureReason.HANDSHAKE
+            )
+        ).isFalse()
         assertThat(
             ConnectionTransportPolicy.AUTO.shouldFallbackWithinAttempt(
                 ConnectResult.FailureReason.TLS_AGAINST_PLAIN_SERVER
@@ -108,6 +142,11 @@ class TransportPolicyTest {
         assertThat(
             ConnectionTransportPolicy.AUTO.shouldRetry(
                 ConnectResult.FailureReason.CERTIFICATE_MISMATCH
+            )
+        ).isFalse()
+        assertThat(
+            ConnectionTransportPolicy.AUTO.shouldRetry(
+                ConnectResult.FailureReason.CLIENT_CERT_REQUIRED
             )
         ).isFalse()
     }

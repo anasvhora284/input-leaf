@@ -29,7 +29,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.BorderStroke
+import com.inputleaf.android.network.ClientCertificateSummary
 import com.inputleaf.android.network.ConnectionTransportPolicy
+import com.inputleaf.android.network.TlsFingerprintManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,6 +47,7 @@ fun SettingsScreen(
     accessibilityAvailable: Boolean,
     canDrawOverlays: Boolean,
     fingerprints: Map<String, String>,
+    clientCertificateSummary: ClientCertificateSummary?,
     onScreenNameChange: (String) -> Unit,
     onAutoConnectChange: (Boolean) -> Unit,
     onShowCursorChange: (Boolean) -> Unit,
@@ -54,6 +57,8 @@ fun SettingsScreen(
     onCursorStyleChange: (String) -> Unit,
     onRequestOverlayPermission: () -> Unit,
     onDeleteFingerprint: (String) -> Unit,
+    onImportClientCertificate: () -> Unit,
+    onRegenerateClientCertificate: () -> Unit,
     onBack: () -> Unit,
 ) {
     var editingName by remember(screenName) { mutableStateOf(screenName) }
@@ -62,6 +67,8 @@ fun SettingsScreen(
     var showInputMethodDialog by remember { mutableStateOf(false) }
     var showTransportPolicyDialog by remember { mutableStateOf(false) }
     var showCursorStyleDialog by remember { mutableStateOf(false) }
+    var showLocalFingerprint by remember { mutableStateOf(false) }
+    var showRegenerateConfirm by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -252,6 +259,32 @@ fun SettingsScreen(
                 padding = 0.dp
             ) {
                 Column {
+                    SettingsRow(
+                        icon = Icons.Rounded.Badge,
+                        title = "This device's fingerprint",
+                        subtitle = clientCertificateSummary?.let { summary ->
+                            TlsFingerprintManager.formatFingerprint(summary.fingerprint.take(16)) +
+                                "…"
+                        } ?: "Creating a certificate for this device…",
+                        onClick = { if (clientCertificateSummary != null) showLocalFingerprint = true },
+                        trailingContent = {
+                            IconButton(
+                                onClick = { showRegenerateConfirm = true },
+                                enabled = clientCertificateSummary != null,
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Refresh,
+                                    contentDescription = "Regenerate certificate",
+                                    tint = MaterialTheme.colorScheme.outline,
+                                )
+                            }
+                        }
+                    )
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        thickness = 1.dp,
+                        modifier = Modifier.padding(start = 72.dp)
+                    )
                     // Trusted servers header
                     SettingsRow(
                         icon = Icons.Rounded.Lock,
@@ -300,6 +333,51 @@ fun SettingsScreen(
             
             Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+
+    if (showLocalFingerprint) {
+        clientCertificateSummary?.let { summary ->
+            LocalFingerprintDialog(
+                fingerprint = summary.fingerprint,
+                onDismiss = { showLocalFingerprint = false },
+                onRegenerate = {
+                    showLocalFingerprint = false
+                    showRegenerateConfirm = true
+                },
+                onImport = {
+                    showLocalFingerprint = false
+                    onImportClientCertificate()
+                },
+            )
+        }
+    }
+
+    if (showRegenerateConfirm) {
+        AlertDialog(
+            onDismissRequest = { showRegenerateConfirm = false },
+            title = { Text("Regenerate certificate?") },
+            text = {
+                Text(
+                    "Deskflow will ask you to trust this phone again. Only regenerate if you " +
+                        "want a new identity."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showRegenerateConfirm = false
+                        onRegenerateClientCertificate()
+                    }
+                ) {
+                    Text("Regenerate")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRegenerateConfirm = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
     }
 
     if (showThemeDialog) {
@@ -612,7 +690,6 @@ fun SettingsScreen(
         )
     }
 }
-
 
 @Composable
 private fun SettingsChoiceOption(

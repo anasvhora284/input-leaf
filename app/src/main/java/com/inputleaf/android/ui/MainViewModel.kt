@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.net.wifi.WifiManager
 import android.os.IBinder
 import android.os.PowerManager
@@ -15,16 +16,21 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.inputleaf.android.model.ConnectionState
 import com.inputleaf.android.model.ServerInfo
+import com.inputleaf.android.network.ClientCertificateSummary
+import com.inputleaf.android.network.ClientCertificateValidationResult
 import com.inputleaf.android.network.ConnectResult
 import com.inputleaf.android.network.ConnectionTransportPolicy
 import com.inputleaf.android.network.ServerScanner
 import com.inputleaf.android.service.ConnectionService
-import com.inputleaf.android.service.CursorOverlayService
 import com.inputleaf.android.storage.AppPreferences
+import com.inputleaf.android.storage.ClientCertificateStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import rikka.shizuku.Shizuku
+import java.io.ByteArrayOutputStream
 import java.net.InetAddress
 import java.net.NetworkInterface
 
@@ -33,6 +39,8 @@ enum class ThemeMode {
     LIGHT,
     DARK
 }
+
+private const val MAX_CLIENT_CERTIFICATE_BYTES = 16 * 1024 * 1024
 
 internal fun connectionFailureMessage(
     reason: ConnectResult.FailureReason,
@@ -43,6 +51,8 @@ internal fun connectionFailureMessage(
         "Server is not using TLS. Select Auto or Plain only, or enable TLS in Deskflow."
     ConnectResult.FailureReason.CERTIFICATE_MISMATCH ->
         "Deskflow's TLS certificate changed. Remove the trusted server only if you expect this."
+    ConnectResult.FailureReason.CLIENT_CERT_REQUIRED ->
+        "Deskflow is asking to trust this phone. Open Settings, compare the fingerprint, and accept it in Deskflow."
     ConnectResult.FailureReason.HANDSHAKE ->
         "Deskflow handshake failed on the selected transport"
     ConnectResult.FailureReason.INCOMPATIBLE ->
@@ -51,9 +61,30 @@ internal fun connectionFailureMessage(
         "This screen name is already connected to Deskflow"
 }
 
+internal fun clientCertificateImportError(
+    result: ClientCertificateValidationResult,
+): String? = when (result) {
+    is ClientCertificateValidationResult.Success -> null
+    ClientCertificateValidationResult.IncorrectPassword -> "Incorrect PKCS12 password"
+    ClientCertificateValidationResult.InvalidFormat ->
+        "File is not a valid PKCS12 (.p12 or .pfx) bundle"
+    ClientCertificateValidationResult.NoPrivateKey ->
+        "The certificate bundle does not contain a private key"
+    ClientCertificateValidationResult.KeyMismatch ->
+        "The private key does not match the client certificate"
+    ClientCertificateValidationResult.Expired -> "The client certificate has expired"
+    ClientCertificateValidationResult.NotYetValid ->
+        "The client certificate is not valid yet"
+    ClientCertificateValidationResult.UnsupportedKey ->
+        "The client certificate uses an unsupported key type"
+    ClientCertificateValidationResult.StorageError ->
+        "Could not securely store the client certificate"
+}
+
 class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val prefs = AppPreferences(app)
+    private val clientCertificateStore = ClientCertificateStore(app)
     private val scanner = ServerScanner()
     private var service: ConnectionService? = null
 
@@ -66,8 +97,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _errorState = MutableStateFlow<String?>(null)
     val errorState: StateFlow<String?> = _errorState
 
+    private val _clientCertificateSummary = MutableStateFlow<ClientCertificateSummary?>(null)
+    val clientCertificateSummary: StateFlow<ClientCertificateSummary?> =
+        _clientCertificateSummary
+
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning
+    private var scanJob: Job? = null
     private val permissionProvider = PermissionStatusProvider(app)
     
     // Shizuku status
@@ -148,6 +184,72 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun saveConnectionTransportPolicy(policy: ConnectionTransportPolicy) {
         viewModelScope.launch { prefs.saveConnectionTransportPolicy(policy) }
     }
+    fun importClientCertificate(uri: Uri, password: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val pkcs12 = try {
+                readClientCertificate(uri)
+            } catch (_: IllegalArgumentException) {
+                _errorState.value = "Client certificate must be smaller than 16 MB"
+                return@launch
+            } catch (error: Exception) {
+                Log.e("InputLeaf", "Failed to read client certificate", error)
+                _errorState.value = "Could not read the selected certificate file"
+                return@launch
+            }
+            val passwordChars = password.toCharArray()
+            val result = try {
+                clientCertificateStore.importCertificate(pkcs12, passwordChars)
+            } finally {
+                pkcs12.fill(0)
+                passwordChars.fill('\u0000')
+            }
+            Log.i("InputLeaf", "Client certificate import result=$result")
+            if (result is ClientCertificateValidationResult.Success) {
+                _clientCertificateSummary.value = result.summary
+            }
+            clientCertificateImportError(result)?.let { _errorState.value = it }
+        }
+    }
+
+    fun regenerateClientCertificate() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = clientCertificateStore.regenerate()
+            Log.i("InputLeaf", "Client certificate regenerate result=$result")
+            if (result is ClientCertificateValidationResult.Success) {
+                _clientCertificateSummary.value = result.summary
+            }
+            clientCertificateImportError(result)?.let { _errorState.value = it }
+        }
+    }
+
+    fun clearClientCertificate() {
+        viewModelScope.launch(Dispatchers.IO) {
+            clientCertificateStore.clear()
+            _clientCertificateSummary.value = null
+        }
+    }
+
+    private fun readClientCertificate(uri: Uri): ByteArray {
+        val input = checkNotNull(getApplication<Application>().contentResolver.openInputStream(uri))
+        return input.use {
+            ByteArrayOutputStream().use { output ->
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                try {
+                    var total = 0
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        total += count
+                        require(total <= MAX_CLIENT_CERTIFICATE_BYTES)
+                        output.write(buffer, 0, count)
+                    }
+                    output.toByteArray()
+                } finally {
+                    buffer.fill(0)
+                }
+            }
+        }
+    }
 
     // Called by UI after user taps Trust/Cancel in FingerprintDialog
     fun respondToFingerprint(request: FingerprintRequest, trusted: Boolean) {
@@ -201,6 +303,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     init {
         bindService()
 
+        viewModelScope.launch(Dispatchers.IO) {
+            when (val result = clientCertificateStore.ensureGenerated()) {
+                is ClientCertificateValidationResult.Success ->
+                    _clientCertificateSummary.value = result.summary
+                else -> {
+                    _clientCertificateSummary.value = null
+                    clientCertificateImportError(result)?.let { _errorState.value = it }
+                }
+            }
+        }
+
         // Observe showCursor preference and update service
         viewModelScope.launch {
             prefs.showCursor.collect { enabled ->
@@ -228,19 +341,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun scan() {
-        viewModelScope.launch {
+        if (scanJob?.isActive == true) return
+        scanJob = viewModelScope.launch(Dispatchers.IO) {
             _isScanning.value = true
             val ip = com.inputleaf.android.network.NetworkUtils.getLocalIpAddress(getApplication())
             Log.d("InputLeaf", "Scanning from IP: $ip")
-            if (ip != null) {
-                val results = scanner.scan(ip)
-                Log.d("InputLeaf", "Scan done: ${results.size} servers found: $results")
-                _discoveredServers.value = results
-            } else {
-                Log.e("InputLeaf", "Could not determine local IP address")
-                _discoveredServers.value = emptyList()
+            try {
+                if (ip != null) {
+                    val results = scanner.scan(ip)
+                    Log.d("InputLeaf", "Scan done: ${results.size} servers found: $results")
+                    _discoveredServers.value = results
+                } else {
+                    Log.e("InputLeaf", "Could not determine local IP address")
+                    _discoveredServers.value = emptyList()
+                }
+            } finally {
+                _isScanning.value = false
             }
-            _isScanning.value = false
         }
     }
 
@@ -271,6 +388,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun connect(server: ServerInfo) {
+        scanJob?.cancel()
         viewModelScope.launch {
             val state = _connectionState.value
             if (state is ConnectionState.Connecting || state is ConnectionState.Handshaking) {
@@ -304,6 +422,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        scanJob?.cancel()
         permissionProvider.cleanup()
         if (serviceBound) {
             getApplication<Application>().unbindService(serviceConnection)
