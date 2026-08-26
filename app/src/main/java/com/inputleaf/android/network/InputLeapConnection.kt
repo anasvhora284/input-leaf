@@ -55,7 +55,6 @@ class InputLeapConnection(
             val transports = TransportPolicy.order(
                 policy = transportPolicy,
                 preferredTransport = preferredTransport,
-                hasPinnedFingerprint = pinnedFingerprint != null,
             )
             var lastFailure: ConnectResult.Failed? = null
             for (transport in transports) {
@@ -201,11 +200,14 @@ class InputLeapConnection(
         } else {
             PLAIN_CONNECT_TIMEOUT_MS
         }
-        return Socket().apply {
-            connect(InetSocketAddress(ip, port), connectTimeout)
-            tcpNoDelay = true
-            soTimeout = HANDSHAKE_READ_TIMEOUT_MS
-        }
+        // Resolve the destination before touching Socket. Inside Socket.apply,
+        // `port` is Socket.port (0 until connected), not Deskflow's 24800.
+        val destination = InetSocketAddress(ip, port)
+        val socket = Socket()
+        socket.connect(destination, connectTimeout)
+        socket.tcpNoDelay = true
+        socket.soTimeout = HANDSHAKE_READ_TIMEOUT_MS
+        return socket
     }
 
     /**

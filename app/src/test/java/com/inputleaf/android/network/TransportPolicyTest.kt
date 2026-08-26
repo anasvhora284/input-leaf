@@ -9,7 +9,6 @@ class TransportPolicyTest {
             TransportPolicy.order(
                 policy = ConnectionTransportPolicy.TLS_ONLY,
                 preferredTransport = ServerTransport.PLAIN,
-                hasPinnedFingerprint = false,
             )
         ).containsExactly(ServerTransport.TLS)
     }
@@ -19,7 +18,6 @@ class TransportPolicyTest {
             TransportPolicy.order(
                 policy = ConnectionTransportPolicy.PLAIN_ONLY,
                 preferredTransport = ServerTransport.TLS,
-                hasPinnedFingerprint = true,
             )
         ).containsExactly(ServerTransport.PLAIN)
     }
@@ -29,36 +27,23 @@ class TransportPolicyTest {
             TransportPolicy.order(
                 policy = ConnectionTransportPolicy.AUTO,
                 preferredTransport = ServerTransport.TLS,
-                hasPinnedFingerprint = false,
             )
         ).containsExactly(ServerTransport.TLS, ServerTransport.PLAIN).inOrder()
         assertThat(
             TransportPolicy.order(
                 policy = ConnectionTransportPolicy.AUTO,
                 preferredTransport = ServerTransport.PLAIN,
-                hasPinnedFingerprint = true,
             )
         ).containsExactly(ServerTransport.PLAIN, ServerTransport.TLS).inOrder()
     }
 
-    @Test fun `auto uses a fingerprint as a TLS hint when no transport was learned`() {
+    @Test fun `auto uses TLS first even without a stored fingerprint`() {
         assertThat(
             TransportPolicy.order(
                 policy = ConnectionTransportPolicy.AUTO,
                 preferredTransport = null,
-                hasPinnedFingerprint = true,
             )
         ).containsExactly(ServerTransport.TLS, ServerTransport.PLAIN).inOrder()
-    }
-
-    @Test fun `auto defaults to plain first for a new server`() {
-        assertThat(
-            TransportPolicy.order(
-                policy = ConnectionTransportPolicy.AUTO,
-                preferredTransport = null,
-                hasPinnedFingerprint = false,
-            )
-        ).containsExactly(ServerTransport.PLAIN, ServerTransport.TLS).inOrder()
     }
 
     @Test fun `unknown stored policy safely defaults to auto`() {

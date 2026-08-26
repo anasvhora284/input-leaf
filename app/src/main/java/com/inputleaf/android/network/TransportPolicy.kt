@@ -4,16 +4,14 @@ object TransportPolicy {
     fun order(
         policy: ConnectionTransportPolicy,
         preferredTransport: ServerTransport?,
-        hasPinnedFingerprint: Boolean,
     ): List<ServerTransport> = when (policy) {
         ConnectionTransportPolicy.TLS_ONLY -> listOf(ServerTransport.TLS)
         ConnectionTransportPolicy.PLAIN_ONLY -> listOf(ServerTransport.PLAIN)
-        ConnectionTransportPolicy.AUTO -> autoOrder(preferredTransport, hasPinnedFingerprint)
+        ConnectionTransportPolicy.AUTO -> autoOrder(preferredTransport)
     }
 
     private fun autoOrder(
         preferredTransport: ServerTransport?,
-        hasPinnedFingerprint: Boolean,
     ): List<ServerTransport> {
         if (preferredTransport != null) {
             val fallback = when (preferredTransport) {
@@ -22,10 +20,8 @@ object TransportPolicy {
             }
             return listOf(preferredTransport, fallback)
         }
-        return if (hasPinnedFingerprint) {
-            listOf(ServerTransport.TLS, ServerTransport.PLAIN)
-        } else {
-            listOf(ServerTransport.PLAIN, ServerTransport.TLS)
-        }
+        // Deskflow is TLS by default. Probing TLS first fails fast on plain servers;
+        // probing plain first stalls for the handshake timeout on TLS servers.
+        return listOf(ServerTransport.TLS, ServerTransport.PLAIN)
     }
 }
