@@ -25,20 +25,29 @@ object TlsFingerprintManager {
     fun buildPinningSSLContext(
         expectedFingerprint: String,
         clientCertificate: ClientCertificateMaterial? = null,
-    ): SSLContext {
-        val trustManager = object : X509TrustManager {
+    ): SSLContext = SSLContext.getInstance("TLS").also {
+        it.init(
+            keyManagers(clientCertificate),
+            arrayOf(pinningTrustManager(expectedFingerprint)),
+            null,
+        )
+    }
+
+    internal fun pinningTrustManager(expectedFingerprint: String): X509TrustManager {
+        val canonicalExpected = normalizeFingerprint(expectedFingerprint)
+        return object : X509TrustManager {
             override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
             override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
             override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
-                if (chain.isEmpty() || fingerprintOf(chain[0]) != expectedFingerprint) {
+                if (chain.isEmpty() || fingerprintOf(chain[0]) != canonicalExpected) {
                     throw SSLException("Certificate fingerprint mismatch")
                 }
             }
         }
-        return SSLContext.getInstance("TLS").also {
-            it.init(keyManagers(clientCertificate), arrayOf(trustManager), null)
-        }
     }
+
+    internal fun normalizeFingerprint(fingerprint: String): String =
+        fingerprint.trim().replace(":", "").lowercase(Locale.ROOT)
 
     /**
      * Creates an SSLContext for TOFU fingerprint capture.
@@ -49,17 +58,24 @@ object TlsFingerprintManager {
     fun buildCapturingSSLContext(
         clientCertificate: ClientCertificateMaterial? = null,
         onCertificate: (X509Certificate) -> Unit,
-    ): SSLContext {
-        val trustManager = object : X509TrustManager {
-            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
-            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
-            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
-                if (chain.isEmpty()) throw SSLException("Server did not provide a certificate")
-                onCertificate(chain[0])
+    ): SSLContext = SSLContext.getInstance("TLS").also {
+        it.init(
+            keyManagers(clientCertificate),
+            arrayOf(capturingTrustManager(onCertificate)),
+            null,
+        )
+    }
+
+    internal fun capturingTrustManager(
+        onCertificate: (X509Certificate) -> Unit,
+    ): X509TrustManager = object : X509TrustManager {
+        override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+        override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+        override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
+            if (chain.isEmpty()) {
+                throw SSLException("Server did not provide a certificate")
             }
-        }
-        return SSLContext.getInstance("TLS").also {
-            it.init(keyManagers(clientCertificate), arrayOf(trustManager), null)
+            onCertificate(chain[0])
         }
     }
 
