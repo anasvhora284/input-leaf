@@ -139,9 +139,25 @@ class KeysymResolverTest {
         assertThat(action).isEqualTo(KeysymAction.Text("с"))
     }
 
+    @Test fun `Gujarati with Ctrl uses physical key for shortcuts`() {
+        val action = KeysymResolver.resolve(
+            0x0a85,
+            scancode = 30,
+            isDown = true,
+            shortcutModifiers = true,
+        )
+        assertThat(action).isInstanceOf(KeysymAction.KeyEventAction::class.java)
+        assertThat((action as KeysymAction.KeyEventAction).keyCode).isEqualTo(KeyEvent.KEYCODE_A)
+    }
+
+    @Test fun `NoSymbol falls back to the physical scancode`() {
+        val action = KeysymResolver.resolve(0, scancode = 30, isDown = true)
+        assertThat(action).isInstanceOf(KeysymAction.KeyEventAction::class.java)
+        assertThat((action as KeysymAction.KeyEventAction).keyCode).isEqualTo(KeyEvent.KEYCODE_A)
+    }
+
     @Test fun `falls back to scancode when keysym is unknown`() {
         val action = KeysymResolver.resolve(0x123456, scancode = 30, isDown = true)
-        assertThat(action).isInstanceOf(KeysymAction.KeyEventAction::class.java)
         assertThat((action as KeysymAction.KeyEventAction).keyCode).isEqualTo(KeyEvent.KEYCODE_A)
         assertThat(action.scanCode).isEqualTo(30)
     }

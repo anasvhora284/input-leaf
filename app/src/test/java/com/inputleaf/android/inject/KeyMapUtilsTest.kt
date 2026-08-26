@@ -21,4 +21,23 @@ class KeyMapUtilsTest {
         assertThat(KeyMapUtils.hasShortcutModifiers(KeyEvent.META_SHIFT_ON)).isFalse()
         assertThat(KeyMapUtils.hasShortcutModifiers(0)).isFalse()
     }
+
+    @Test fun `protocol mask treats ctrl alt win as shortcuts but not shift or altgr`() {
+        assertThat(KeyMapUtils.protocolMaskHasShortcuts(KeyMapUtils.PROTOCOL_MASK_CONTROL)).isTrue()
+        assertThat(KeyMapUtils.protocolMaskHasShortcuts(KeyMapUtils.PROTOCOL_MASK_ALT)).isTrue()
+        assertThat(KeyMapUtils.protocolMaskHasShortcuts(KeyMapUtils.PROTOCOL_MASK_SUPER)).isTrue()
+        assertThat(KeyMapUtils.protocolMaskHasShortcuts(KeyMapUtils.PROTOCOL_MASK_SHIFT)).isFalse()
+        assertThat(KeyMapUtils.protocolMaskHasShortcuts(0x0020)).isFalse()
+        assertThat(KeyMapUtils.protocolMaskHasShortcuts(0)).isFalse()
+    }
+
+    @Test fun `protocol mask maps to Android meta flags`() {
+        assertThat(KeyMapUtils.androidMetaFromProtocolMask(KeyMapUtils.PROTOCOL_MASK_CONTROL))
+            .isEqualTo(KeyEvent.META_CTRL_ON)
+        assertThat(
+            KeyMapUtils.androidMetaFromProtocolMask(
+                KeyMapUtils.PROTOCOL_MASK_CONTROL or KeyMapUtils.PROTOCOL_MASK_SHIFT
+            )
+        ).isEqualTo(KeyEvent.META_CTRL_ON or KeyEvent.META_SHIFT_ON)
+    }
 }

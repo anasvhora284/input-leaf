@@ -21,6 +21,7 @@ class AccessibilityInputInjector(
     private var mouseX = 0f
     private var mouseY = 0f
     private var metaState = 0
+    private val scanCodeDecoder = ProtocolScanCodeDecoder()
 
     override fun isAvailable(): Boolean {
         return try {
@@ -95,11 +96,14 @@ class AccessibilityInputInjector(
                     svc.injectSwipe(mouseX, startY, mouseX, endY, 150)
                 }
 
-                is InputLeapEvent.KeyDown -> handleKeyEvent(event.keyId, event.scancode, isDown = true)
+                is InputLeapEvent.KeyDown ->
+                    handleKeyEvent(event.keyId, event.mask, event.scancode, isDown = true)
 
-                is InputLeapEvent.KeyUp -> handleKeyEvent(event.keyId, event.scancode, isDown = false)
+                is InputLeapEvent.KeyUp ->
+                    handleKeyEvent(event.keyId, event.mask, event.scancode, isDown = false)
 
-                is InputLeapEvent.KeyRepeat -> handleKeyRepeat(event.keyId, event.scancode, event.count)
+                is InputLeapEvent.KeyRepeat ->
+                    handleKeyRepeat(event.keyId, event.mask, event.scancode, event.count)
 
                 else -> {}
             }
@@ -108,18 +112,21 @@ class AccessibilityInputInjector(
         }
     }
 
-    private fun handleKeyEvent(keysym: Int, scancode: Int, isDown: Boolean) {
+    private fun handleKeyEvent(keysym: Int, mask: Int, button: Int, isDown: Boolean) {
         val ime = InputLeafIME.getInstance()
         if (ime == null) {
             Log.w(TAG, "InputLeafIME not running, dropping key event")
             return
         }
 
+        val scancode = scanCodeDecoder.toEvdev(button, keysym)
+        val shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState) ||
+            KeyMapUtils.protocolMaskHasShortcuts(mask)
         when (val resolved = KeysymResolver.resolve(
             keysym,
             scancode,
             isDown,
-            shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState),
+            shortcutModifiers = shortcutModifiers,
         )) {
             is KeysymAction.KeyEventAction -> {
                 KeysymInjection.applyKeyEventAction(
@@ -128,30 +135,49 @@ class AccessibilityInputInjector(
                     metaState = metaState,
                     onMetaStateChanged = { metaState = it },
                 ) { keyEventAction, keyCode, updatedMetaState ->
-                    ime.injectKeyEvent(keyEventAction, keyCode, updatedMetaState)
+                    ime.injectKeyEvent(
+                        keyEventAction,
+                        keyCode,
+                        updatedMetaState or KeyMapUtils.androidMetaFromProtocolMask(mask),
+                    )
                 }
             }
             is KeysymAction.Text -> ime.commitText(resolved.char)
-            is KeysymAction.Ignore -> Unit
+            is KeysymAction.Ignore -> {
+                if (isDown) {
+                    Log.w(
+                        TAG,
+                        "Ignoring key id=0x${keysym.toString(16)} button=$button evdev=$scancode",
+                    )
+                }
+            }
         }
     }
 
-    private fun handleKeyRepeat(keysym: Int, scancode: Int, count: Int) {
+    private fun handleKeyRepeat(keysym: Int, mask: Int, button: Int, count: Int) {
         val ime = InputLeafIME.getInstance()
         if (ime == null) {
             Log.w(TAG, "InputLeafIME not running, dropping KeyRepeat")
             return
         }
 
+        val scancode = scanCodeDecoder.toEvdev(button, keysym)
+        val shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState) ||
+            KeyMapUtils.protocolMaskHasShortcuts(mask)
+        val injectionMeta = metaState or KeyMapUtils.androidMetaFromProtocolMask(mask)
         when (val resolved = KeysymResolver.resolve(
             keysym,
             scancode,
             isDown = true,
-            shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState),
+            shortcutModifiers = shortcutModifiers,
         )) {
             is KeysymAction.KeyEventAction -> {
                 repeat(count) {
-                    ime.injectKeyEvent(KeyEvent.ACTION_DOWN, resolved.keyCode, metaState)
+                    ime.injectKeyEvent(
+                        KeyEvent.ACTION_DOWN,
+                        resolved.keyCode,
+                        injectionMeta,
+                    )
                 }
             }
             is KeysymAction.Text -> repeat(count) { ime.commitText(resolved.char) }

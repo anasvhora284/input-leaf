@@ -3,6 +3,13 @@ package com.inputleaf.android.inject
 import android.view.KeyEvent
 
 object KeyMapUtils {
+    const val PROTOCOL_MASK_SHIFT = 0x0001
+    const val PROTOCOL_MASK_CONTROL = 0x0002
+    const val PROTOCOL_MASK_ALT = 0x0004
+    const val PROTOCOL_MASK_META = 0x0008
+    const val PROTOCOL_MASK_SUPER = 0x0010
+    const val PROTOCOL_MASK_CAPS_LOCK = 0x1000
+
     private val scanCodeToKeyCode: Map<Int, Int> by lazy {
         buildMap {
             listOf(
@@ -122,6 +129,36 @@ object KeyMapUtils {
         val shortcutBits =
             KeyEvent.META_CTRL_ON or KeyEvent.META_ALT_ON or KeyEvent.META_META_ON
         return (metaState and shortcutBits) != 0
+    }
+
+    /**
+     * Deskflow/Input Leap KeyModifierMask bits from key_types.h.
+     * Shift is not a shortcut; AltGr (0x20) stays on the Unicode text path.
+     */
+    fun protocolMaskHasShortcuts(mask: Int): Boolean {
+        val shortcutBits = PROTOCOL_MASK_CONTROL or PROTOCOL_MASK_ALT or
+            PROTOCOL_MASK_META or PROTOCOL_MASK_SUPER
+        return (mask and shortcutBits) != 0
+    }
+
+    fun androidMetaFromProtocolMask(mask: Int): Int {
+        var meta = 0
+        if (mask and PROTOCOL_MASK_SHIFT != 0) {
+            meta = meta or KeyEvent.META_SHIFT_ON
+        }
+        if (mask and PROTOCOL_MASK_CONTROL != 0) {
+            meta = meta or KeyEvent.META_CTRL_ON
+        }
+        if (mask and PROTOCOL_MASK_ALT != 0) {
+            meta = meta or KeyEvent.META_ALT_ON
+        }
+        if (mask and (PROTOCOL_MASK_META or PROTOCOL_MASK_SUPER) != 0) {
+            meta = meta or KeyEvent.META_META_ON
+        }
+        if (mask and PROTOCOL_MASK_CAPS_LOCK != 0) {
+            meta = meta or KeyEvent.META_CAPS_LOCK_ON
+        }
+        return meta
     }
 
     /**
