@@ -12,8 +12,8 @@ android {
         applicationId = "com.inputleaf.android"
         minSdk = 26
         targetSdk = 34
-        versionCode = 5
-        versionName = "1.3.1"
+        versionCode = 6
+        versionName = "1.4.0"
     }
     
     signingConfigs {
@@ -85,6 +85,10 @@ android {
 }
 
 tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach {
+    dependsOn(":uhid-server:buildDex")
+}
+
+tasks.matching { it.name.contains("lintVital", ignoreCase = true) }.configureEach {
     dependsOn(":uhid-server:buildDex")
 }
 
