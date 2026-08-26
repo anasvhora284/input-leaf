@@ -268,9 +268,9 @@ class InputLeapConnectionTest {
     }
 
     private object NoOpLogger : InputLeapConnection.Logger {
-        override fun debug(message: String) = System.err.println(message)
-        override fun warn(message: String) = System.err.println(message)
-        override fun error(message: String) = System.err.println(message)
+        override fun debug(message: String) = Unit
+        override fun warn(message: String) = Unit
+        override fun error(message: String) = Unit
     }
 
     private fun connection(
@@ -311,12 +311,10 @@ internal open class LoopbackServer(
     // Keep the ephemeral port reserved until close(). A transport fallback can otherwise
     // connect to a later test that was assigned this port after the listener was released.
     private val acceptThread = thread(name = "loopback-accept-$port") {
-        System.err.println("Listening on $port for $connectionCount connections")
         ready.countDown()
         try {
             repeat(connectionCount) { index ->
                 val socket = serverSocket.accept()
-                System.err.println("Accepted connection $index on $port")
                 activeSockets += socket
                 workers += thread(name = "loopback-worker-$port-$index") {
                     socket.use {
