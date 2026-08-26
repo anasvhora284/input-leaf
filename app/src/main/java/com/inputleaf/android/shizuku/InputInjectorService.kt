@@ -13,25 +13,14 @@ import android.view.MotionEvent
  * This class is instantiated by Shizuku in a separate process with elevated privileges.
  */
 class InputInjectorService : IInputInjector.Stub() {
-    
-    private val inputManager: Any?
-    private val injectInputEventMethod: java.lang.reflect.Method?
-    
-    init {
-        // Get InputManager instance via reflection
-        // InputManager.getInstance() is a hidden API
-        val inputManagerClass = Class.forName("android.hardware.input.InputManager")
-        val getInstanceMethod = inputManagerClass.getMethod("getInstance")
-        inputManager = getInstanceMethod.invoke(null)
-        
-        // Get the injectInputEvent method
-        // Signature: boolean injectInputEvent(InputEvent event, int mode)
-        injectInputEventMethod = inputManagerClass.getMethod(
-            "injectInputEvent",
-            android.view.InputEvent::class.java,
-            Int::class.javaPrimitiveType
-        )
-    }
+
+    private val inputManager: HiddenInputManager.Target? =
+        try {
+            HiddenInputManager.resolve()
+        } catch (e: Throwable) {
+            android.util.Log.e("InputInjectorService", "Failed to resolve InputManager", e)
+            null
+        }
     
     companion object {
         // Injection mode: async (don't wait for injection to complete)
@@ -84,12 +73,12 @@ class InputInjectorService : IInputInjector.Stub() {
                 0                  // flags
             )
             
-            val result = injectInputEventMethod?.invoke(
-                inputManager, 
-                event, 
+            val result = HiddenInputManager.inject(
+                inputManager,
+                event,
                 INJECT_INPUT_EVENT_MODE_ASYNC
-            ) as? Boolean ?: false
-            
+            )
+
             event.recycle()
             result
         } catch (e: Exception) {
@@ -130,12 +119,12 @@ class InputInjectorService : IInputInjector.Stub() {
                 0                  // flags
             )
             
-            val result = injectInputEventMethod?.invoke(
-                inputManager, 
-                event, 
+            val result = HiddenInputManager.inject(
+                inputManager,
+                event,
                 INJECT_INPUT_EVENT_MODE_ASYNC
-            ) as? Boolean ?: false
-            
+            )
+
             event.recycle()
             result
         } catch (e: Exception) {
@@ -161,13 +150,11 @@ class InputInjectorService : IInputInjector.Stub() {
                 InputDevice.SOURCE_KEYBOARD
             )
             
-            val result = injectInputEventMethod?.invoke(
-                inputManager, 
-                event, 
+            HiddenInputManager.inject(
+                inputManager,
+                event,
                 INJECT_INPUT_EVENT_MODE_ASYNC
-            ) as? Boolean ?: false
-            
-            result
+            )
         } catch (e: Exception) {
             android.util.Log.e("InputInjectorService", "Failed to inject key event", e)
             false
