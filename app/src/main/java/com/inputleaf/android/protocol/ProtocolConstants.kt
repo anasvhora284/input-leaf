@@ -6,6 +6,8 @@ object ProtocolConstants {
     const val PROTOCOL_MINOR = 6
     const val MAX_MESSAGE_LEN = 4 * 1024 * 1024
 
+    fun negotiateMinor(serverMinor: Int): Int = minOf(serverMinor, PROTOCOL_MINOR)
+
     // Server→Client tags
     const val TAG_HELLO         = "HELO"
     const val TAG_QUERY_INFO    = "QINF"

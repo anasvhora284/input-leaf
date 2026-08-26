@@ -1,6 +1,7 @@
 package com.inputleaf.android.protocol
 
 import com.google.common.truth.Truth.assertThat
+import com.inputleaf.android.model.WireProtocol
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.io.ByteArrayInputStream
@@ -76,6 +77,36 @@ class ProtocolWriterTest {
             0, 1, 0, 6,
             0, 0, 0, 0
         ))
+    }
+
+    @Test fun `echoes both protocol magics while capping a newer server minor version`() {
+        val nameBytes = "android".toByteArray(Charsets.UTF_8)
+        for (protocol in WireProtocol.entries) {
+            val (writer, output) = writerWith()
+            writer.writeHelloBack(
+                screenName = "android",
+                major = ProtocolConstants.PROTOCOL_MAJOR,
+                minor = ProtocolConstants.negotiateMinor(serverMinor = 8),
+                protocol = protocol,
+            )
+
+            assertThat(output.toByteArray()).isEqualTo(
+                frame(
+                    protocol.magic,
+                    u16(ProtocolConstants.PROTOCOL_MAJOR) +
+                        u16(ProtocolConstants.PROTOCOL_MINOR) +
+                        u32(nameBytes.size) +
+                        nameBytes,
+                )
+            )
+        }
+    }
+
+    @Test fun `caps newer protocol versions and preserves equal or older versions`() {
+        assertThat(ProtocolConstants.negotiateMinor(serverMinor = 8))
+            .isEqualTo(ProtocolConstants.PROTOCOL_MINOR)
+        assertThat(ProtocolConstants.negotiateMinor(serverMinor = 6)).isEqualTo(6)
+        assertThat(ProtocolConstants.negotiateMinor(serverMinor = 4)).isEqualTo(4)
     }
 
     @Test fun `writes complete data information frame in protocol order`() {

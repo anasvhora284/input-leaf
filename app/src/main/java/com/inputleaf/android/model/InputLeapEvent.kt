@@ -1,8 +1,18 @@
 package com.inputleaf.android.model
 
+enum class WireProtocol(val magic: String) {
+    BARRIER("Barrier"),
+    SYNERGY("Synergy"),
+}
+
 sealed class InputLeapEvent {
     // Handshake
-    data class Hello(val majorVersion: Int, val minorVersion: Int, val serverName: String) : InputLeapEvent()
+    data class Hello(
+        val majorVersion: Int,
+        val minorVersion: Int,
+        val serverName: String,
+        val protocol: WireProtocol = WireProtocol.BARRIER,
+    ) : InputLeapEvent()
     data class QueryInfo(val dummy: Unit = Unit) : InputLeapEvent()
     // Control
     data class Enter(val x: Int, val y: Int, val seqNum: Int, val mask: Int) : InputLeapEvent()
