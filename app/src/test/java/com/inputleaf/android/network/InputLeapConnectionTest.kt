@@ -161,6 +161,27 @@ class InputLeapConnectionTest {
         }
     }
 
+    @Test fun `loopback listener remains bound until teardown`() = runBlocking {
+        val listener = ServerSocket(0, 50, InetAddress.getByName(LOOPBACK_HOST))
+        val handshakeFinished = CompletableDeferred<Unit>()
+        LoopbackServer(serverSocket = listener) { socket, _ ->
+            try {
+                performServerHandshake(socket)
+            } finally {
+                handshakeFinished.complete(Unit)
+            }
+        }.use { server ->
+            connection(server.port, preferredTransport = ServerTransport.PLAIN).useConnection { connection ->
+                assertThat(connection.connect("android", 1920, 1080))
+                    .isInstanceOf(ConnectResult.Ok::class.java)
+            }
+
+            withTimeout(1_000) { handshakeFinished.await() }
+            assertThat(listener.isClosed).isFalse()
+        }
+        assertThat(listener.isClosed).isTrue()
+    }
+
     @Test fun `handshake keepalive is acknowledged`() = runBlocking {
         LoopbackServer { socket, _ ->
             val input = DataInputStream(socket.inputStream)
@@ -247,9 +268,9 @@ class InputLeapConnectionTest {
     }
 
     private object NoOpLogger : InputLeapConnection.Logger {
-        override fun debug(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String) = Unit
+        override fun debug(message: String) = System.err.println(message)
+        override fun warn(message: String) = System.err.println(message)
+        override fun error(message: String) = System.err.println(message)
     }
 
     private fun connection(
@@ -287,11 +308,15 @@ internal open class LoopbackServer(
     private val workers = CopyOnWriteArrayList<Thread>()
     private val activeSockets = CopyOnWriteArrayList<Socket>()
     private val ready = CountDownLatch(1)
+    // Keep the ephemeral port reserved until close(). A transport fallback can otherwise
+    // connect to a later test that was assigned this port after the listener was released.
     private val acceptThread = thread(name = "loopback-accept-$port") {
+        System.err.println("Listening on $port for $connectionCount connections")
         ready.countDown()
         try {
             repeat(connectionCount) { index ->
                 val socket = serverSocket.accept()
+                System.err.println("Accepted connection $index on $port")
                 activeSockets += socket
                 workers += thread(name = "loopback-worker-$port-$index") {
                     socket.use {
