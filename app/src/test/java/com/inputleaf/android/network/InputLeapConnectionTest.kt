@@ -119,26 +119,66 @@ class InputLeapConnectionTest {
 
     @Test fun `pinned certificate mismatch is rejected`() = runBlocking {
         val identity = TestTlsIdentity.create()
-        TlsLoopbackServer(identity.context, connectionCount = 2) { socket, index ->
-            if (index == 0) {
-                try {
-                    socket.startHandshake()
-                } catch (_: Exception) {
-                    // The client terminates the handshake when pin validation fails.
-                }
+        TlsLoopbackServer(identity.context) { socket, _ ->
+            try {
+                socket.startHandshake()
+            } catch (_: Exception) {
+                // The client terminates the handshake when pin validation fails.
             }
         }.use { server ->
             connection(
                 server.port,
                 pinnedFingerprint = "0".repeat(64),
+                onCertificate = { false },
             ).useConnection { connection ->
                 assertThat(connection.connect("android", 1920, 1080))
-                    .isEqualTo(ConnectResult.NetworkError)
+                    .isEqualTo(ConnectResult.RejectedByUser)
             }
         }
     }
 
-    @Test fun `saved TLS preference is attempted before plain fallback`() = runBlocking {
+    @Test fun `failed pinned TLS attempt never falls back to plaintext`() = runBlocking {
+        val tlsAttempted = CompletableDeferred<Unit>()
+        LoopbackServer(connectionCount = 2) { socket, index ->
+            if (index == 0) {
+                assertThat(socket.inputStream.read()).isEqualTo(0x16)
+                tlsAttempted.complete(Unit)
+            } else {
+                performServerHandshake(socket)
+            }
+        }.use { server ->
+            connection(
+                server.port,
+                preferredTransport = ServerTransport.TLS,
+                pinnedFingerprint = "0".repeat(64),
+            ).useConnection { connection ->
+                assertFailure(connection.connect("android", 1920, 1080))
+                withTimeout(1_000) { tlsAttempted.await() }
+            }
+        }
+    }
+
+    @Test fun `socket from a failed TLS open is closed`() = runBlocking {
+        val closedByClient = CompletableDeferred<Unit>()
+        LoopbackServer { socket, _ ->
+            val input = socket.inputStream
+            assertThat(input.read()).isEqualTo(0x16)
+            socket.shutdownOutput()
+            while (input.read() != -1) Unit
+            closedByClient.complete(Unit)
+        }.use { server ->
+            connection(
+                server.port,
+                preferredTransport = ServerTransport.TLS,
+                pinnedFingerprint = "0".repeat(64),
+            ).useConnection { connection ->
+                assertFailure(connection.connect("android", 1920, 1080))
+                withTimeout(1_000) { closedByClient.await() }
+            }
+        }
+    }
+
+    @Test fun `explicit TLS policy does not fall back to plain`() = runBlocking {
         val firstAttempt = CompletableDeferred<Int>()
         LoopbackServer(connectionCount = 2) { socket, index ->
             if (index == 0) {
@@ -151,12 +191,8 @@ class InputLeapConnectionTest {
                 server.port,
                 preferredTransport = ServerTransport.TLS,
             ).useConnection { connection ->
-                val result = connection.connect("android", 1920, 1080)
-
+                assertFailure(connection.connect("android", 1920, 1080))
                 assertThat(withTimeout(1_000) { firstAttempt.await() }).isEqualTo(0x16)
-                assertThat(result).isEqualTo(
-                    ConnectResult.Ok(InputLeapConnection.ServerBanner(1, 6), ServerTransport.PLAIN)
-                )
             }
         }
     }
@@ -241,6 +277,38 @@ class InputLeapConnectionTest {
         }
     }
 
+    @Test fun `connect attempts serialize reject an open connection and resume after close`() = runBlocking {
+        val firstAccepted = CompletableDeferred<Unit>()
+        val releaseFirst = CompletableDeferred<Unit>()
+        LoopbackServer(connectionCount = 2) { socket, index ->
+            if (index == 0) {
+                firstAccepted.complete(Unit)
+                releaseFirst.awaitBlocking()
+            }
+            performServerHandshake(socket)
+        }.use { server ->
+            connection(server.port, preferredTransport = ServerTransport.PLAIN).useConnection { connection ->
+                val first = async { connection.connect("android", 1920, 1080) }
+                withTimeout(1_000) { firstAccepted.await() }
+                val second = async(start = CoroutineStart.UNDISPATCHED) {
+                    runCatching { connection.connect("android", 1920, 1080) }
+                }
+
+                assertThat(second.isCompleted).isFalse()
+                releaseFirst.complete(Unit)
+                assertThat(withTimeout(1_000) { first.await() })
+                    .isInstanceOf(ConnectResult.Ok::class.java)
+                assertThat(withTimeout(1_000) { second.await() }.exceptionOrNull())
+                    .isInstanceOf(IllegalStateException::class.java)
+
+                connection.close()
+
+                assertThat(connection.connect("android", 1920, 1080))
+                    .isInstanceOf(ConnectResult.Ok::class.java)
+            }
+        }
+    }
+
     @Test fun `malformed handshake surfaces as a network error`() = runBlocking {
         LoopbackServer { socket, _ ->
             DataOutputStream(socket.outputStream).apply {
@@ -249,22 +317,38 @@ class InputLeapConnectionTest {
                 flush()
             }
         }.use { server ->
-            connection(server.port).useConnection { connection ->
-                assertThat(connection.connect("android", 1920, 1080))
-                    .isEqualTo(ConnectResult.NetworkError)
+            connection(server.port, preferredTransport = ServerTransport.PLAIN).useConnection { connection ->
+                assertFailureReason(
+                    connection.connect("android", 1920, 1080),
+                    ConnectResult.FailureReason.HANDSHAKE,
+                )
             }
         }
     }
 
-    @Test fun `busy server preserves the general network error result`() = runBlocking {
+    @Test fun `busy server preserves its failure reason`() = runBlocking {
         LoopbackServer { socket, _ ->
             writeFrame(DataOutputStream(socket.outputStream), "EBSY".toByteArray())
         }.use { server ->
-            connection(server.port).useConnection { connection ->
-                assertThat(connection.connect("android", 1920, 1080))
-                    .isEqualTo(ConnectResult.NetworkError)
+            connection(server.port, preferredTransport = ServerTransport.PLAIN).useConnection { connection ->
+                assertFailureReason(
+                    connection.connect("android", 1920, 1080),
+                    ConnectResult.FailureReason.BUSY,
+                )
             }
         }
+    }
+
+    private fun assertFailure(result: ConnectResult) {
+        assertThat(result).isInstanceOf(ConnectResult.Failed::class.java)
+    }
+
+    private fun assertFailureReason(
+        result: ConnectResult,
+        expectedReason: ConnectResult.FailureReason,
+    ) {
+        assertThat(result).isInstanceOf(ConnectResult.Failed::class.java)
+        assertThat((result as ConnectResult.Failed).reason).isEqualTo(expectedReason)
     }
 
     private object NoOpLogger : InputLeapConnection.Logger {
@@ -283,6 +367,11 @@ class InputLeapConnectionTest {
         port = port,
         preferredTransport = preferredTransport,
         pinnedFingerprint = pinnedFingerprint,
+        transportPolicy = if (preferredTransport == ServerTransport.PLAIN) {
+            ConnectionTransportPolicy.PLAIN_ONLY
+        } else {
+            ConnectionTransportPolicy.TLS_ONLY
+        },
         onCertificate = onCertificate,
         logger = NoOpLogger,
     )

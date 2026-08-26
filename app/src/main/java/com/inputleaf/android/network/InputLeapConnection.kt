@@ -13,6 +13,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.DataInputStream
 import java.net.InetSocketAddress
@@ -49,10 +51,12 @@ class InputLeapConnection(
     private var sharedParser: ProtocolParser? = null
     private val readerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var readJob: Job? = null
+    private val connectMutex = Mutex()
 
     /** Version advertised by the server before client-side minor-version negotiation. */
     data class ServerBanner(val major: Int, val minor: Int)
 
+    /** Minimal logging seam for tests and advanced integrations. */
     interface Logger {
         fun debug(message: String)
         fun warn(message: String)
@@ -73,52 +77,63 @@ class InputLeapConnection(
         }
     }
 
+    /**
+     * Opens and handshakes a connection. Attempts are serialized, and calling this while the
+     * connection is already open throws [IllegalStateException]. Call [close] before reconnecting.
+     */
     suspend fun connect(screenName: String, screenWidth: Int, screenHeight: Int): ConnectResult =
-        withContext(Dispatchers.IO) {
-            val detectedMode =
-                if (transportPolicy == ConnectionTransportPolicy.AUTO) {
-                    TransportProber.detect(ip, port)
-                } else {
-                    null
-                }
-            val transports = TransportPolicy.order(
-                policy = transportPolicy,
-                preferredTransport = preferredTransport,
-                detectedMode = detectedMode,
-            )
-            var lastFailure: ConnectResult.Failed? = null
-            for (transport in transports) {
-                when (val opened = openSocket(transport)) {
-                    is SocketOpenResult.Ok -> {
-                        val result = runHandshake(
-                            opened.socket,
-                            opened.transport,
-                            screenName,
-                            screenWidth,
-                            screenHeight,
-                        )
-                        if (result is ConnectResult.Ok) {
-                            return@withContext result
-                        }
-                        if (result is ConnectResult.Failed) {
-                            if (!transportPolicy.shouldFallbackWithinAttempt(result.reason)) {
+        connectMutex.withLock {
+            check(socket == null) { "Connection is already open; close it before reconnecting" }
+            withContext(Dispatchers.IO) {
+                val detectedMode =
+                    if (transportPolicy == ConnectionTransportPolicy.AUTO) {
+                        TransportProber.detect(ip, port)
+                    } else {
+                        null
+                    }
+                val transports = TransportPolicy.order(
+                    policy = transportPolicy,
+                    preferredTransport = preferredTransport,
+                    detectedMode = detectedMode,
+                )
+                var lastFailure: ConnectResult.Failed? = null
+                for (transport in transports) {
+                    when (val opened = openSocket(transport)) {
+                        is SocketOpenResult.Ok -> {
+                            val result = runHandshake(
+                                opened.socket,
+                                opened.transport,
+                                screenName,
+                                screenWidth,
+                                screenHeight,
+                            )
+                            if (result is ConnectResult.Ok) {
                                 return@withContext result
                             }
-                            lastFailure = selectFailureToReport(lastFailure, result)
+                            if (result is ConnectResult.Failed) {
+                                if (pinnedFingerprint != null ||
+                                    !transportPolicy.shouldFallbackWithinAttempt(result.reason)
+                                ) {
+                                    return@withContext result
+                                }
+                                lastFailure = selectFailureToReport(lastFailure, result)
+                            }
                         }
-                    }
-                    is SocketOpenResult.Rejected -> return@withContext ConnectResult.RejectedByUser
-                    is SocketOpenResult.Failed -> {
-                        if (!transportPolicy.shouldFallbackWithinAttempt(opened.failure.reason)) {
-                            return@withContext opened.failure
+                        is SocketOpenResult.Rejected -> return@withContext ConnectResult.RejectedByUser
+                        is SocketOpenResult.Failed -> {
+                            if (pinnedFingerprint != null ||
+                                !transportPolicy.shouldFallbackWithinAttempt(opened.failure.reason)
+                            ) {
+                                return@withContext opened.failure
+                            }
+                            lastFailure = selectFailureToReport(lastFailure, opened.failure)
                         }
-                        lastFailure = selectFailureToReport(lastFailure, opened.failure)
                     }
                 }
+                val failure = lastFailure ?: ConnectResult.Failed(ConnectResult.FailureReason.NETWORK)
+                logger.error("All transports failed for $ip: ${failure.reason} ${failure.detail}")
+                failure
             }
-            val failure = lastFailure ?: ConnectResult.Failed(ConnectResult.FailureReason.NETWORK)
-            logger.error("All transports failed for $ip: ${failure.reason} ${failure.detail}")
-            failure
         }
 
     private sealed class SocketOpenResult {
@@ -178,8 +193,7 @@ class InputLeapConnection(
                 )
             }
             val fingerprint = TlsFingerprintManager.fingerprintOf(cert)
-            val alreadyTrusted =
-                pinnedFingerprint != null && fingerprint == pinnedFingerprint
+            val alreadyTrusted = pinnedFingerprint?.let(TlsFingerprintManager::normalizeFingerprint) == fingerprint
             if (!alreadyTrusted && !onCertificate(cert)) {
                 sslSock.close()
                 openedSocket = null
