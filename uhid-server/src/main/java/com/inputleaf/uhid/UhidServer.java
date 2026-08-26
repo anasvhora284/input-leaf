@@ -1,83 +1,216 @@
 package com.inputleaf.uhid;
 
-import java.io.*;
+import java.io.Closeable;
+import java.io.DataInputStream;
+import java.io.EOFException;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Objects;
 
 public class UhidServer implements Closeable {
+    interface DeviceFactory {
+        KeyboardDevice createKeyboard() throws IOException;
+        MouseDevice createMouse() throws IOException;
+    }
+
+    private static final String SOCKET_NAME = "inputleaf_uhid";
+    private static final String EXPECTED_PACKAGE = "com.inputleaf.android";
+    private static final String READY_LINE = "READY";
+    private static final byte[] READY_MESSAGE = (READY_LINE + "\n").getBytes(StandardCharsets.US_ASCII);
+    private static final DeviceFactory DEFAULT_DEVICE_FACTORY = new DeviceFactory() {
+        @Override public KeyboardDevice createKeyboard() throws IOException {
+            return new KeyboardDevice();
+        }
+
+        @Override public MouseDevice createMouse() throws IOException {
+            return new MouseDevice();
+        }
+    };
+
     private final KeyboardDevice keyboard;
     private final MouseDevice mouse;
+    private final UhidEventDispatcher dispatcher;
 
     public UhidServer() throws IOException {
-        keyboard = new KeyboardDevice();
-        mouse = new MouseDevice();
+        this(DEFAULT_DEVICE_FACTORY);
+    }
+
+    UhidServer(DeviceFactory deviceFactory) throws IOException {
+        Objects.requireNonNull(deviceFactory, "deviceFactory");
+        KeyboardDevice createdKeyboard = Objects.requireNonNull(
+            deviceFactory.createKeyboard(), "deviceFactory keyboard"
+        );
+        MouseDevice createdMouse;
+        try {
+            createdMouse = Objects.requireNonNull(
+                deviceFactory.createMouse(), "deviceFactory mouse"
+            );
+        } catch (IOException | RuntimeException | Error creationFailure) {
+            closeAfterFailure(createdKeyboard, creationFailure);
+            throw creationFailure;
+        }
+
+        keyboard = createdKeyboard;
+        mouse = createdMouse;
+        dispatcher = createDispatcher();
+    }
+
+    UhidServer(KeyboardDevice keyboard, MouseDevice mouse) {
+        this.keyboard = Objects.requireNonNull(keyboard, "keyboard");
+        this.mouse = Objects.requireNonNull(mouse, "mouse");
+        dispatcher = createDispatcher();
+    }
+
+    private UhidEventDispatcher createDispatcher() {
+        return new UhidEventDispatcher(new UhidEventDispatcher.EventSink() {
+            @Override public void keyDown(int hidUsage, byte modifiers) throws IOException {
+                keyboard.keyDown(hidUsage, modifiers);
+            }
+
+            @Override public void keyUp(int hidUsage, byte modifiers) throws IOException {
+                keyboard.keyUp(hidUsage, modifiers);
+            }
+
+            @Override public void mouseMove(int dx, int dy) throws IOException {
+                mouse.move(dx, dy);
+            }
+
+            @Override public void mouseButtonDown(byte button) throws IOException {
+                mouse.buttonDown(button);
+            }
+
+            @Override public void mouseButtonUp(byte button) throws IOException {
+                mouse.buttonUp(button);
+            }
+
+            @Override public void mouseWheel(short deltaX, short deltaY) throws IOException {
+                mouse.wheel(deltaX, deltaY);
+            }
+        });
     }
 
     public void run() throws IOException {
-        // Use Android's LocalServerSocket for abstract namespace
-        android.net.LocalServerSocket server = new android.net.LocalServerSocket("inputleaf_uhid");
-        System.out.println("READY");
-        System.out.flush();
-
-        android.net.LocalSocket client = server.accept();
-        verifyPeerIdentity(client);
-        // Send socket-level READY after PID verification
-        client.getOutputStream().write("READY\n".getBytes());
-        client.getOutputStream().flush();
-
-        DataInputStream din = new DataInputStream(client.getInputStream());
-        while (true) {
-            byte type = din.readByte();
-            if (type == EventProtocol.TYPE_SHUTDOWN) break;
-            handleEvent(type, din);
-        }
-        client.close();
-        server.close();
-    }
-
-    private void verifyPeerIdentity(android.net.LocalSocket client) throws IOException {
-        android.net.Credentials cred = client.getPeerCredentials();
-        int pid = cred.getPid();
+        android.net.LocalServerSocket server = new android.net.LocalServerSocket(SOCKET_NAME);
+        Throwable serverFailure = null;
         try {
-            byte[] cmdline = Files.readAllBytes(java.nio.file.Paths.get("/proc/" + pid + "/cmdline"));
-            String cmd = new String(cmdline).replace('\0', ' ').trim();
-            if (!cmd.contains("com.inputleaf.android")) {
-                throw new SecurityException("Rejected connection from unknown process: " + cmd);
+            System.out.println(READY_LINE);
+            System.out.flush();
+
+            android.net.LocalSocket client = server.accept();
+            Throwable clientFailure = null;
+            try {
+                verifyPeerIdentity(client);
+                client.getOutputStream().write(READY_MESSAGE);
+                client.getOutputStream().flush();
+
+                runSession(new DataInputStream(client.getInputStream()), dispatcher);
+            } catch (IOException | RuntimeException | Error failure) {
+                clientFailure = failure;
+                throw failure;
+            } finally {
+                close(client, clientFailure);
             }
-        } catch (IOException e) {
-            throw new SecurityException("Cannot verify peer PID " + pid);
+        } catch (IOException | RuntimeException | Error failure) {
+            serverFailure = failure;
+            throw failure;
+        } finally {
+            close(server, serverFailure);
         }
     }
 
-    private void handleEvent(byte type, DataInputStream din) throws IOException {
-        switch (type) {
-            case EventProtocol.TYPE_KEY_EVENT: {
-                int keysym = din.readInt();
-                byte action = din.readByte();
-                byte modifiers = din.readByte();
-                Integer hid = KeysymToHid.lookup(keysym);
-                if (hid == null) break;
-                if (action == EventProtocol.ACTION_DOWN) keyboard.keyDown(hid, modifiers);
-                else keyboard.keyUp(hid);
-                break;
+    static void runSession(DataInputStream input, UhidEventDispatcher dispatcher) throws IOException {
+        while (true) {
+            byte type;
+            try {
+                type = input.readByte();
+            } catch (EOFException disconnected) {
+                return;
             }
-            case EventProtocol.TYPE_MOUSE_MOVE:
-                mouse.move(din.readInt(), din.readInt());
-                break;
-            case EventProtocol.TYPE_MOUSE_BTN: {
-                byte btn = din.readByte(), act = din.readByte();
-                if (act == EventProtocol.ACTION_DOWN) mouse.buttonDown(btn);
-                else mouse.buttonUp(btn);
-                break;
-            }
-            case EventProtocol.TYPE_MOUSE_WHEEL:
-                // Protocol: [2B deltaX (horizontal)][2B deltaY (vertical)]
-                din.readShort(); // deltaX — horizontal scroll, ignored in v1
-                mouse.wheel(din.readShort()); // deltaY — vertical scroll
-                break;
+            if (type == EventProtocol.TYPE_SHUTDOWN) return;
+            dispatcher.dispatch(type, input);
         }
+    }
+
+    private static void close(android.net.LocalSocket socket, Throwable failure) throws IOException {
+        try {
+            socket.close();
+        } catch (IOException closeFailure) {
+            if (failure == null) throw closeFailure;
+            failure.addSuppressed(closeFailure);
+        }
+    }
+
+    private static void close(android.net.LocalServerSocket socket, Throwable failure) throws IOException {
+        try {
+            socket.close();
+        } catch (IOException closeFailure) {
+            if (failure == null) throw closeFailure;
+            failure.addSuppressed(closeFailure);
+        }
+    }
+
+    private static void closeAfterFailure(Closeable resource, Throwable failure) {
+        try {
+            resource.close();
+        } catch (IOException closeFailure) {
+            failure.addSuppressed(closeFailure);
+        }
+    }
+
+    private void verifyPeerIdentity(android.net.LocalSocket client) {
+        int pid = -1;
+        try {
+            android.net.Credentials credentials = client.getPeerCredentials();
+            pid = credentials.getPid();
+            byte[] cmdline = Files.readAllBytes(Paths.get("/proc/" + pid + "/cmdline"));
+            String processName = firstArgument(cmdline);
+            if (!isAllowedProcessName(processName)) {
+                throw new SecurityException("Rejected connection from unknown process: " + processName);
+            }
+        } catch (IOException failure) {
+            String peer = pid < 0 ? "unknown" : Integer.toString(pid);
+            throw new SecurityException("Cannot verify peer PID " + peer, failure);
+        }
+    }
+
+    static String firstArgument(byte[] cmdline) {
+        int end = 0;
+        while (end < cmdline.length && cmdline[end] != 0) end++;
+        return new String(cmdline, 0, end, StandardCharsets.UTF_8);
+    }
+
+    static boolean isAllowedProcessName(String processName) {
+        if (processName.equals(EXPECTED_PACKAGE)) return true;
+        String prefix = EXPECTED_PACKAGE + ":";
+        if (!processName.startsWith(prefix)) return false;
+
+        String suffix = processName.substring(prefix.length());
+        if (suffix.isEmpty()) return false;
+        for (int index = 0; index < suffix.length(); index++) {
+            char character = suffix.charAt(index);
+            if (!Character.isLetterOrDigit(character) && character != '_' && character != '.') return false;
+        }
+        return true;
     }
 
     @Override public void close() throws IOException {
-        keyboard.close(); mouse.close();
+        IOException failure = null;
+        try {
+            keyboard.close();
+        } catch (IOException keyboardFailure) {
+            failure = keyboardFailure;
+        }
+        try {
+            mouse.close();
+        } catch (IOException mouseFailure) {
+            if (failure == null) {
+                failure = mouseFailure;
+            } else {
+                failure.addSuppressed(mouseFailure);
+            }
+        }
+        if (failure != null) throw failure;
     }
 }

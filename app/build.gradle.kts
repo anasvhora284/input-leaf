@@ -50,6 +50,12 @@ android {
         compose = true
         aidl = true  // Enable AIDL for Shizuku IPC
     }
+
+    sourceSets {
+        getByName("main").assets.srcDir(
+            project(":uhid-server").layout.buildDirectory.dir("generated/assets/uhid")
+        )
+    }
     
     packaging {
         jniLibs {
@@ -76,6 +82,10 @@ android {
             output.outputFileName = "input-leaf_${versionName}_${abiName}.apk"
         }
     }
+}
+
+tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach {
+    dependsOn(":uhid-server:buildDex")
 }
 
 dependencies {

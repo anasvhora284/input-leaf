@@ -16,7 +16,7 @@ From the repository root, run:
 ./gradlew :app:testDebugUnitTest :uhid-server:test
 ```
 
-The same command runs in the `fast-jvm` GitHub Actions job. The app task runs local Android JVM tests. The UHID task runs plain Java JVM tests and may report `NO-SOURCE` until tests are added to that module.
+The same command runs in the `fast-jvm` GitHub Actions job. The app task runs local Android JVM tests. The UHID task runs plain Java JVM tests.
 
 ## Test locations and conventions
 
@@ -39,6 +39,20 @@ uhid-server/src/test/java/com/inputleaf/uhid/
 ```
 
 The UHID module is Java-only. Keep its tests in Java so test coverage does not add the Kotlin plugin or runtime to the generated JAR and DEX pipeline. Use JUnit 4 and Truth.
+
+Socket lifecycle paths in `UhidServer.run()` are not covered by JVM unit tests because `android.net.LocalServerSocket` and `LocalSocket` come from a compile-only Android stub that throws at runtime. Keep explicit `finally` cleanup around both sockets rather than adding brittle stub-dependent tests.
+
+### Generated UHID DEX asset
+
+The app consumes the UHID sidecar from generated build output rather than a committed binary. App asset-merge tasks automatically depend on `:uhid-server:buildDex`, so packaging the app always uses the current Java source.
+
+To generate the asset directly, run:
+
+```sh
+./gradlew :uhid-server:buildDex
+```
+
+This task requires Android platform 34 and build tools 34.0.0. It compiles against the platform API, targets the app's minimum API 26, and writes `uhid-server/build/generated/assets/uhid/classes.dex`. JVM tests do not generate the DEX because they do not package app assets.
 
 ## Test design principles
 
@@ -66,7 +80,7 @@ A small emulator smoke suite and coverage guardrails are planned as later, separ
 
 The initial baseline was verified with JDK 17 and Android SDK 34 when the fast CI workflow was introduced:
 
-- `:app:testDebugUnitTest` passes.
-- `:uhid-server:test` is configured and currently reports `NO-SOURCE`; UHID tests are planned as follow-up work.
+- `:app:testDebugUnitTest` passes and runs the app’s Kotlin behavior tests.
+- `:uhid-server:test` passes and runs the UHID module’s Java behavior tests.
 
 Before making changes, run the complete fast suite and treat failures as real regressions or document them explicitly. Do not skip, mute, or retry failing tests merely to produce a green build. GitHub Actions retains available test reports when the `fast-jvm` job fails.
