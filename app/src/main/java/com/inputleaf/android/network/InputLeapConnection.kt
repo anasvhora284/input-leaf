@@ -26,6 +26,7 @@ private const val HANDSHAKE_READ_TIMEOUT_MS = 15_000
 private const val TLS_CONNECT_TIMEOUT_CACHED_MS = 800
 private const val TLS_CONNECT_TIMEOUT_MS = 2_000
 private const val TLS_HANDSHAKE_TIMEOUT_MS = 1_500
+private const val TLS_CLIENT_AUTH_HANDSHAKE_TIMEOUT_MS = 90_000
 private const val PLAIN_CONNECT_TIMEOUT_CACHED_MS = 800
 private const val PLAIN_CONNECT_TIMEOUT_MS = 2_000
 
@@ -53,9 +54,16 @@ class InputLeapConnection(
 
     suspend fun connect(screenName: String, screenWidth: Int, screenHeight: Int): ConnectResult =
         withContext(Dispatchers.IO) {
+            val detectedMode =
+                if (transportPolicy == ConnectionTransportPolicy.AUTO) {
+                    TransportProber.detect(ip, port)
+                } else {
+                    null
+                }
             val transports = TransportPolicy.order(
                 policy = transportPolicy,
                 preferredTransport = preferredTransport,
+                detectedMode = detectedMode,
             )
             var lastFailure: ConnectResult.Failed? = null
             for (transport in transports) {
@@ -135,7 +143,7 @@ class InputLeapConnection(
             val sslSock = sslContext.socketFactory.createSocket() as SSLSocket
             openedSocket = sslSock
             sslSock.connect(InetSocketAddress(ip, port), connectTimeout)
-            sslSock.soTimeout = TLS_HANDSHAKE_TIMEOUT_MS
+            sslSock.soTimeout = tlsHandshakeTimeoutMs()
             sslSock.startHandshake()
             sslSock.soTimeout = HANDSHAKE_READ_TIMEOUT_MS
             val cert = capturedCert ?: run {
@@ -191,6 +199,16 @@ class InputLeapConnection(
             }
         }
     }
+
+    private fun tlsHandshakeTimeoutMs(): Int =
+        if (clientCertificate != null) {
+            // Deskflow blocks the TLS handshake until the user trusts this phone's
+            // certificate. Aborting at 1.5s drops that dialog and Auto then waits
+            // 15s on a doomed plaintext attempt.
+            TLS_CLIENT_AUTH_HANDSHAKE_TIMEOUT_MS
+        } else {
+            TLS_HANDSHAKE_TIMEOUT_MS
+        }
 
     private fun openPlainSocket(): Socket {
         val connectTimeout = if (
@@ -326,7 +344,12 @@ class InputLeapConnection(
         try {
             while (true) {
                 val event = parser.readNext()
-                Log.d(TAG, "Read event: $event")
+                if (event !is InputLeapEvent.MouseMoveAbs &&
+                    event !is InputLeapEvent.MouseMoveRel &&
+                    event !is InputLeapEvent.KeepAlive
+                ) {
+                    Log.d(TAG, "Read event: $event")
+                }
                 _events.emit(event)
             }
         } catch (e: CancellationException) {

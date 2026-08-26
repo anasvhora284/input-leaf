@@ -23,9 +23,11 @@ enum class ConnectionTransportPolicy(val storageValue: String) {
 
     fun shouldFallbackWithinAttempt(reason: ConnectResult.FailureReason): Boolean =
         this == AUTO && when (reason) {
+            // Plain TCP to a TLS Deskflow deadlocks until the protocol timeout.
+            // Only a confirmed "this is not TLS" error should try plaintext.
+            ConnectResult.FailureReason.TLS_AGAINST_PLAIN_SERVER -> true
             ConnectResult.FailureReason.NETWORK,
-            ConnectResult.FailureReason.TLS_AGAINST_PLAIN_SERVER,
-            ConnectResult.FailureReason.HANDSHAKE -> true
+            ConnectResult.FailureReason.HANDSHAKE,
             ConnectResult.FailureReason.CERTIFICATE_MISMATCH,
             ConnectResult.FailureReason.CLIENT_CERT_REQUIRED,
             ConnectResult.FailureReason.INCOMPATIBLE,
