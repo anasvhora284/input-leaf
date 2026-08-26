@@ -323,7 +323,7 @@ internal class TlsLoopbackServer(
     handler: (SSLSocket, Int) -> Unit,
 ) : LoopbackServer(
     connectionCount = connectionCount,
-    serverSocket = (sslContext.serverSocketFactory.createServerSocket(
+    serverSocket = sslContext.serverSocketFactory.createServerSocket(
         0,
         50,
         InetAddress.getByName(LOOPBACK_HOST),
