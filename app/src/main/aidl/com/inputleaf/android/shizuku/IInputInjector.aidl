@@ -35,13 +35,6 @@ interface IInputInjector {
      * @return true if injection succeeded
      */
     boolean injectKeyEvent(int action, int keyCode, int scanCode, int metaState);
-
-    /**
-     * Inject printable text (for non-Latin keyboard layouts).
-     * @param text UTF-8 text to inject
-     * @return true if injection succeeded
-     */
-    boolean injectText(String text);
     
     /**
      * Destroy the service and release resources.

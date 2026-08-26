@@ -38,15 +38,6 @@ class InputLeafIME : InputMethodService() {
         ic.sendKeyEvent(event)
     }
 
-    fun commitText(text: String) {
-        val ic = currentInputConnection
-        if (ic == null) {
-            Log.w(TAG, "commitText: No InputConnection available")
-            return
-        }
-        ic.commitText(text, 1)
-    }
-
     companion object {
         private const val TAG = "InputLeafIME"
         private var instance: InputLeafIME? = null

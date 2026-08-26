@@ -16,7 +16,6 @@ object ProtocolConstants {
     const val TAG_KEEPALIVE     = "CALV"
     const val TAG_RESET_OPTIONS = "CROP"
     const val TAG_KEY_DOWN      = "DKDN"
-    const val TAG_KEY_DOWN_LANG = "DKDL"
     const val TAG_KEY_UP        = "DKUP"
     const val TAG_KEY_REPEAT    = "DKRP"
     const val TAG_MOUSE_MOVE    = "DMMV"

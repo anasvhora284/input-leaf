@@ -85,27 +85,16 @@ class ProtocolParser(input: DataInputStream) {
             requireExact(payload.size, 6, tag)
             InputLeapEvent.KeyDown(payload.u16(0), payload.u16(2), payload.u16(4))
         }
-        ProtocolConstants.TAG_KEY_DOWN_LANG -> {
-            // Protocol 1.8+: DKDL%2i%2i%2is — same key fields as DKDN, plus a language string
-            // we do not need on Android. Official clients treat this as a normal key down.
-            requireAtLeast(payload.size, 6, "payload", tag)
-            InputLeapEvent.KeyDown(payload.u16(0), payload.u16(2), payload.u16(4))
-        }
         ProtocolConstants.TAG_KEY_UP -> {
             requireExact(payload.size, 6, tag)
             InputLeapEvent.KeyUp(payload.u16(0), payload.u16(2), payload.u16(4))
         }
         ProtocolConstants.TAG_KEY_REPEAT -> {
-            // 1.0: id+mask+count (6). 1.1: +button (8). 1.8: +language string after button.
-            requireAtLeast(payload.size, 6, "payload", tag)
-            if (payload.size == 6) {
-                InputLeapEvent.KeyRepeat(payload.u16(0), payload.u16(2), payload.u16(4), 0)
-            } else {
-                requireAtLeast(payload.size, 8, "payload", tag)
-                InputLeapEvent.KeyRepeat(
-                    payload.u16(0), payload.u16(2), payload.u16(4), payload.u16(6)
-                )
-            }
+            requireOneOf(payload.size, 6, 8, tag)
+            InputLeapEvent.KeyRepeat(
+                payload.u16(0), payload.u16(2), payload.u16(4),
+                if (payload.size == 8) payload.u16(6) else 0
+            )
         }
         ProtocolConstants.TAG_MOUSE_MOVE -> {
             requireExact(payload.size, 4, tag)
@@ -159,6 +148,14 @@ class ProtocolParser(input: DataInputStream) {
     private fun requireAtLeast(actual: Int, minimum: Int, unit: String, tag: String) {
         if (actual < minimum) {
             protocolError("Malformed $tag message: expected at least $minimum $unit bytes, got $actual")
+        }
+    }
+
+    private fun requireOneOf(actual: Int, first: Int, second: Int, tag: String) {
+        if (actual != first && actual != second) {
+            protocolError(
+                "Malformed $tag message: expected $first or $second payload bytes, got $actual"
+            )
         }
     }
 
