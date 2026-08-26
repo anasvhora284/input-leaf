@@ -95,6 +95,50 @@ class KeysymResolverTest {
         assertThat((action as KeysymAction.KeyEventAction).keyCode).isEqualTo(KeyEvent.KEYCODE_SHIFT_LEFT)
     }
 
+    @Test fun `Cyrillic with Ctrl uses physical key for shortcuts`() {
+        val action = KeysymResolver.resolve(
+            0x0441,
+            scancode = 46,
+            isDown = true,
+            shortcutModifiers = true,
+        )
+        assertThat(action).isInstanceOf(KeysymAction.KeyEventAction::class.java)
+        val keyEvent = action as KeysymAction.KeyEventAction
+        assertThat(keyEvent.keyCode).isEqualTo(KeyEvent.KEYCODE_C)
+        assertThat(keyEvent.scanCode).isEqualTo(46)
+    }
+
+    @Test fun `Cyrillic Ctrl key up still releases the physical key`() {
+        val action = KeysymResolver.resolve(
+            0x0441,
+            scancode = 46,
+            isDown = false,
+            shortcutModifiers = true,
+        )
+        assertThat(action).isInstanceOf(KeysymAction.KeyEventAction::class.java)
+        assertThat((action as KeysymAction.KeyEventAction).keyCode).isEqualTo(KeyEvent.KEYCODE_C)
+    }
+
+    @Test fun `Cyrillic with Shift only still uses text path`() {
+        val action = KeysymResolver.resolve(
+            0x0441,
+            scancode = 46,
+            isDown = true,
+            shortcutModifiers = false,
+        )
+        assertThat(action).isEqualTo(KeysymAction.Text("с"))
+    }
+
+    @Test fun `Cyrillic Ctrl without scancode stays on text path`() {
+        val action = KeysymResolver.resolve(
+            0x0441,
+            scancode = 0,
+            isDown = true,
+            shortcutModifiers = true,
+        )
+        assertThat(action).isEqualTo(KeysymAction.Text("с"))
+    }
+
     @Test fun `falls back to scancode when keysym is unknown`() {
         val action = KeysymResolver.resolve(0x123456, scancode = 30, isDown = true)
         assertThat(action).isInstanceOf(KeysymAction.KeyEventAction::class.java)

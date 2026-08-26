@@ -118,6 +118,12 @@ object KeyMapUtils {
         }
     }
 
+    fun hasShortcutModifiers(metaState: Int): Boolean {
+        val shortcutBits =
+            KeyEvent.META_CTRL_ON or KeyEvent.META_ALT_ON or KeyEvent.META_META_ON
+        return (metaState and shortcutBits) != 0
+    }
+
     /**
      * Convert X11 keysym to Android keycode.
      * X11 keysym values: https://www.cl.cam.ac.uk/~mgk25/ucs/keysyms.txt

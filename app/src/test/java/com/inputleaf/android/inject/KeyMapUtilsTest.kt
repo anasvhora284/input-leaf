@@ -13,4 +13,12 @@ class KeyMapUtilsTest {
     @Test fun `scancodeToAndroidKeyCode returns unknown for unmapped codes`() {
         assertThat(KeyMapUtils.scancodeToAndroidKeyCode(9999)).isEqualTo(KeyEvent.KEYCODE_UNKNOWN)
     }
+
+    @Test fun `hasShortcutModifiers is true for ctrl alt and win but not shift`() {
+        assertThat(KeyMapUtils.hasShortcutModifiers(KeyEvent.META_CTRL_ON)).isTrue()
+        assertThat(KeyMapUtils.hasShortcutModifiers(KeyEvent.META_ALT_ON)).isTrue()
+        assertThat(KeyMapUtils.hasShortcutModifiers(KeyEvent.META_META_ON)).isTrue()
+        assertThat(KeyMapUtils.hasShortcutModifiers(KeyEvent.META_SHIFT_ON)).isFalse()
+        assertThat(KeyMapUtils.hasShortcutModifiers(0)).isFalse()
+    }
 }

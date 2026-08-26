@@ -9,6 +9,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import com.inputleaf.android.inject.InputInjector
 import com.inputleaf.android.inject.InputLeafIME
+import com.inputleaf.android.inject.KeyMapUtils
 import com.inputleaf.android.inject.KeysymAction
 import com.inputleaf.android.inject.KeysymInjection
 import com.inputleaf.android.inject.KeysymResolver
@@ -205,7 +206,12 @@ class ShizukuInputInjector(
     }
     
     private fun handleKeyEvent(svc: IInputInjector, keysym: Int, scancode: Int, isDown: Boolean) {
-        when (val resolved = KeysymResolver.resolve(keysym, scancode, isDown)) {
+        when (val resolved = KeysymResolver.resolve(
+            keysym,
+            scancode,
+            isDown,
+            shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState),
+        )) {
             is KeysymAction.KeyEventAction -> {
                 Log.d(TAG, "Mapped to Android keyCode: ${resolved.keyCode}")
                 KeysymInjection.applyKeyEventAction(
@@ -223,7 +229,12 @@ class ShizukuInputInjector(
     }
 
     private fun handleKeyRepeat(svc: IInputInjector, keysym: Int, scancode: Int, count: Int) {
-        when (val resolved = KeysymResolver.resolve(keysym, scancode, isDown = true)) {
+        when (val resolved = KeysymResolver.resolve(
+            keysym,
+            scancode,
+            isDown = true,
+            shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState),
+        )) {
             is KeysymAction.KeyEventAction -> {
                 repeat(count) {
                     svc.injectKeyEvent(KeyEvent.ACTION_DOWN, resolved.keyCode, resolved.scanCode, metaState)

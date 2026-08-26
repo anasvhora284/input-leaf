@@ -15,12 +15,30 @@ sealed class KeysymAction {
 }
 
 object KeysymResolver {
-    fun resolve(keysym: Int, scancode: Int, isDown: Boolean): KeysymAction {
+    fun resolve(
+        keysym: Int,
+        scancode: Int,
+        isDown: Boolean,
+        shortcutModifiers: Boolean = false,
+    ): KeysymAction {
         val keyCode = KeyMapUtils.keysymToAndroidKeyCode(keysym)
         if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {
             return KeysymAction.KeyEventAction(
                 keyCode = keyCode,
                 scanCode = resolveScanCode(keyCode, scancode),
+                metaState = 0,
+            )
+        }
+
+        val scancodeKeyCode = if (scancode > 0) {
+            KeyMapUtils.scancodeToAndroidKeyCode(scancode)
+        } else {
+            KeyEvent.KEYCODE_UNKNOWN
+        }
+        if (shortcutModifiers && scancodeKeyCode != KeyEvent.KEYCODE_UNKNOWN) {
+            return KeysymAction.KeyEventAction(
+                keyCode = scancodeKeyCode,
+                scanCode = scancode,
                 metaState = 0,
             )
         }
@@ -34,15 +52,12 @@ object KeysymResolver {
             }
         }
 
-        if (scancode > 0) {
-            val fallbackKeyCode = KeyMapUtils.scancodeToAndroidKeyCode(scancode)
-            if (fallbackKeyCode != KeyEvent.KEYCODE_UNKNOWN) {
-                return KeysymAction.KeyEventAction(
-                    keyCode = fallbackKeyCode,
-                    scanCode = scancode,
-                    metaState = 0,
-                )
-            }
+        if (scancodeKeyCode != KeyEvent.KEYCODE_UNKNOWN) {
+            return KeysymAction.KeyEventAction(
+                keyCode = scancodeKeyCode,
+                scanCode = scancode,
+                metaState = 0,
+            )
         }
 
         return KeysymAction.Ignore

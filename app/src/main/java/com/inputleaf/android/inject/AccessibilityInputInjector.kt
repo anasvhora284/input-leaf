@@ -115,7 +115,12 @@ class AccessibilityInputInjector(
             return
         }
 
-        when (val resolved = KeysymResolver.resolve(keysym, scancode, isDown)) {
+        when (val resolved = KeysymResolver.resolve(
+            keysym,
+            scancode,
+            isDown,
+            shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState),
+        )) {
             is KeysymAction.KeyEventAction -> {
                 KeysymInjection.applyKeyEventAction(
                     action = resolved,
@@ -138,7 +143,12 @@ class AccessibilityInputInjector(
             return
         }
 
-        when (val resolved = KeysymResolver.resolve(keysym, scancode, isDown = true)) {
+        when (val resolved = KeysymResolver.resolve(
+            keysym,
+            scancode,
+            isDown = true,
+            shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState),
+        )) {
             is KeysymAction.KeyEventAction -> {
                 repeat(count) {
                     ime.injectKeyEvent(KeyEvent.ACTION_DOWN, resolved.keyCode, metaState)
