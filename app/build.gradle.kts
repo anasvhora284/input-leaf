@@ -88,7 +88,7 @@ tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.con
     dependsOn(":uhid-server:buildDex")
 }
 
-tasks.matching { it.name.contains("lintVital") }.configureEach {
+tasks.matching { it.name.contains("lintVital", ignoreCase = true) }.configureEach {
     dependsOn(":uhid-server:buildDex")
 }
 
