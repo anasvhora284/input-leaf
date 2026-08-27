@@ -86,16 +86,27 @@ class InputLeapConnection(
             check(socket == null) { "Connection is already open; close it before reconnecting" }
             withContext(Dispatchers.IO) {
                 val detectedMode =
-                    if (transportPolicy == ConnectionTransportPolicy.AUTO) {
+                    if (
+                        transportPolicy == ConnectionTransportPolicy.AUTO &&
+                        pinnedFingerprint == null
+                    ) {
                         TransportProber.detect(ip, port)
                     } else {
                         null
                     }
-                val transports = TransportPolicy.order(
-                    policy = transportPolicy,
-                    preferredTransport = preferredTransport,
-                    detectedMode = detectedMode,
-                )
+                val transports =
+                    if (
+                        transportPolicy == ConnectionTransportPolicy.AUTO &&
+                        pinnedFingerprint != null
+                    ) {
+                        listOf(ServerTransport.TLS)
+                    } else {
+                        TransportPolicy.order(
+                            policy = transportPolicy,
+                            preferredTransport = preferredTransport,
+                            detectedMode = detectedMode,
+                        )
+                    }
                 var lastFailure: ConnectResult.Failed? = null
                 for (transport in transports) {
                     when (val opened = openSocket(transport)) {

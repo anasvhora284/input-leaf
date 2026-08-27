@@ -82,6 +82,27 @@ class InputLeapConnectionTest {
         }
     }
 
+    @Test fun `AUTO with a pinned fingerprint does not downgrade to plaintext`() = runBlocking {
+        val tlsAttempted = CompletableDeferred<Unit>()
+        LoopbackServer { socket, _ ->
+            assertThat(socket.inputStream.read()).isEqualTo(0x16)
+            tlsAttempted.complete(Unit)
+        }.use { server ->
+            connection(
+                server.port,
+                transportPolicy = ConnectionTransportPolicy.AUTO,
+                pinnedFingerprint = "0".repeat(64),
+            ).useConnection { connection ->
+                assertFailure(
+                    withTimeout(TEST_TIMEOUT_MS) {
+                        connection.connect("android", 1920, 1080)
+                    },
+                )
+                withTimeout(TEST_TIMEOUT_MS) { tlsAttempted.await() }
+            }
+        }
+    }
+
     @Test fun `AUTO policy connects to a TLS listener`() = runBlocking {
         val identity = TestTlsIdentity.create()
         val acceptedConnections = CountDownLatch(3)
