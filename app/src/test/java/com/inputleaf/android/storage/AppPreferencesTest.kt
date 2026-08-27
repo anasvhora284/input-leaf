@@ -37,7 +37,7 @@ class AppPreferencesTest {
         dataStoreScope.cancel()
     }
 
-    @Test fun `defaults are deterministic and screen name falls back when blank`() = runBlocking {
+    @Test fun `defaults are deterministic and screen name falls back when blank`() = runBlocking<Unit> {
         assertThat(preferences.lastServerIp.first()).isNull()
         assertThat(preferences.screenName.first()).isEqualTo("pixel-xl")
         assertThat(preferences.autoConnect.first()).isTrue()
@@ -53,7 +53,7 @@ class AppPreferencesTest {
         assertThat(preferences.screenName.first()).isEqualTo("pixel-xl")
     }
 
-    @Test fun `preference updates are persisted`() = runBlocking {
+    @Test fun `preference updates are persisted`() = runBlocking<Unit> {
         preferences.saveLastServer("192.168.1.10")
         preferences.saveScreenName("  desk phone  ")
         preferences.saveAutoConnect(false)
@@ -76,7 +76,7 @@ class AppPreferencesTest {
             .isEqualTo(ConnectionTransportPolicy.TLS_ONLY)
     }
 
-    @Test fun `favorites are trimmed deduplicated added and removed`() = runBlocking {
+    @Test fun `favorites are trimmed deduplicated added and removed`() = runBlocking<Unit> {
         dataStore.edit {
             it[stringPreferencesKey("favorite_servers")] = " server-a \nserver-a\n\nserver-b"
         }
@@ -91,7 +91,7 @@ class AppPreferencesTest {
         assertThat(preferences.favoriteServers.first()).containsExactly("server-b", "server-c")
     }
 
-    @Test fun `fingerprints read legacy host and IPv6 records and ignore malformed data`() = runBlocking {
+    @Test fun `fingerprints read legacy host and IPv6 records and ignore malformed data`() = runBlocking<Unit> {
         val first = "ab".repeat(32)
         val replacement = "CD".repeat(32).chunked(2).joinToString(":")
         dataStore.edit {
@@ -113,7 +113,7 @@ class AppPreferencesTest {
         assertThat(preferences.fingerprintFor("2001:db8::1").first()).isEqualTo(first)
     }
 
-    @Test fun `fingerprint updates migrate records to canonical format and support removal`() = runBlocking {
+    @Test fun `fingerprint updates migrate records to canonical format and support removal`() = runBlocking<Unit> {
         val first = "ab".repeat(32)
         val second = "cd".repeat(32)
         val key = stringPreferencesKey("tls_fingerprints")
@@ -133,7 +133,7 @@ class AppPreferencesTest {
         assertThat(preferences.allFingerprints().first()).containsExactly("2001:db8::2", second)
     }
 
-    @Test fun `transport records migrate replace and remove IPv6 values`() = runBlocking {
+    @Test fun `transport records migrate replace and remove IPv6 values`() = runBlocking<Unit> {
         val key = stringPreferencesKey("server_transport_modes")
         dataStore.edit {
             it[key] = "server-a:TLS\n2001:db8::1:plain\nbad:mode\nserver-a:plain"
@@ -151,7 +151,7 @@ class AppPreferencesTest {
         assertThat(preferences.transportFor("server-a").first()).isEqualTo("plain")
     }
 
-    @Test fun `onboarding reads legacy value and writes both keys`() = runBlocking {
+    @Test fun `onboarding reads legacy value and writes both keys`() = runBlocking<Unit> {
         val legacyKey = booleanPreferencesKey("onboarding_complete")
         val leafKey = booleanPreferencesKey("leaf_onboarding_complete")
         dataStore.edit { it[legacyKey] = true }
