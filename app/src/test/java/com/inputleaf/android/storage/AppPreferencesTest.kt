@@ -1,9 +1,174 @@
-package com.inputleaf.android.storage
-
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.google.common.truth.Truth.assertThat
+import com.inputleaf.android.network.ConnectionTransportPolicy
+import java.io.File
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 class AppPreferencesTest {
+    @get:Rule val temporaryFolder = TemporaryFolder()
+
+    private lateinit var dataStore: DataStore<Preferences>
+    private lateinit var dataStoreScope: CoroutineScope
+    private lateinit var preferences: AppPreferences
+
+    @Before fun setUp() {
+        dataStoreScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val file = File(temporaryFolder.root, "preferences.preferences_pb")
+        dataStore = PreferenceDataStoreFactory.create(scope = dataStoreScope) { file }
+        preferences = AppPreferences(dataStore, "  Pixel XL!  ")
+    }
+
+    @After fun tearDown() {
+        dataStoreScope.cancel()
+    }
+
+    @Test fun `defaults are deterministic and screen name falls back when blank`() = runBlocking {
+        assertThat(preferences.lastServerIp.first()).isNull()
+        assertThat(preferences.screenName.first()).isEqualTo("pixel-xl")
+        assertThat(preferences.autoConnect.first()).isTrue()
+        assertThat(preferences.showCursor.first()).isTrue()
+        assertThat(preferences.mouseEnabled.first()).isTrue()
+        assertThat(preferences.keyboardEnabled.first()).isTrue()
+        assertThat(preferences.leafOnboardingComplete.first()).isFalse()
+        assertThat(preferences.connectionTransportPolicy.first())
+            .isEqualTo(ConnectionTransportPolicy.AUTO)
+
+        preferences.saveScreenName("   ")
+
+        assertThat(preferences.screenName.first()).isEqualTo("pixel-xl")
+    }
+
+    @Test fun `preference updates are persisted`() = runBlocking {
+        preferences.saveLastServer("192.168.1.10")
+        preferences.saveScreenName("  desk phone  ")
+        preferences.saveAutoConnect(false)
+        preferences.saveShowCursor(false)
+        preferences.saveMouseEnabled(false)
+        preferences.saveKeyboardEnabled(false)
+        preferences.saveInputMethod("uhid")
+        preferences.saveCursorStyle("dot")
+        preferences.saveConnectionTransportPolicy(ConnectionTransportPolicy.TLS_ONLY)
+
+        assertThat(preferences.lastServerIp.first()).isEqualTo("192.168.1.10")
+        assertThat(preferences.screenName.first()).isEqualTo("desk phone")
+        assertThat(preferences.autoConnect.first()).isFalse()
+        assertThat(preferences.showCursor.first()).isFalse()
+        assertThat(preferences.mouseEnabled.first()).isFalse()
+        assertThat(preferences.keyboardEnabled.first()).isFalse()
+        assertThat(preferences.inputMethod.first()).isEqualTo("uhid")
+        assertThat(preferences.cursorStyle.first()).isEqualTo("dot")
+        assertThat(preferences.connectionTransportPolicy.first())
+            .isEqualTo(ConnectionTransportPolicy.TLS_ONLY)
+    }
+
+    @Test fun `favorites are trimmed deduplicated added and removed`() = runBlocking {
+        dataStore.edit {
+            it[stringPreferencesKey("favorite_servers")] = " server-a \nserver-a\n\nserver-b"
+        }
+
+        assertThat(preferences.favoriteServers.first()).containsExactly("server-a", "server-b")
+
+        preferences.toggleFavoriteServer(" server-c ")
+        assertThat(preferences.favoriteServers.first())
+            .containsExactly("server-a", "server-b", "server-c")
+
+        preferences.toggleFavoriteServer("server-a")
+        assertThat(preferences.favoriteServers.first()).containsExactly("server-b", "server-c")
+    }
+
+    @Test fun `fingerprints read legacy host and IPv6 records and ignore malformed data`() = runBlocking {
+        val first = "ab".repeat(32)
+        val replacement = "CD".repeat(32).chunked(2).joinToString(":")
+        dataStore.edit {
+            it[stringPreferencesKey("tls_fingerprints")] = listOf(
+                "server-a:$first",
+                "malformed",
+                "server-a:$replacement",
+                "2001:db8::1:$first",
+                "server-b:not-a-fingerprint",
+                "v2|bad!|bad!",
+                "",
+            ).joinToString("\n")
+        }
+
+        assertThat(preferences.allFingerprints().first()).containsExactly(
+            "server-a", "cd".repeat(32),
+            "2001:db8::1", first,
+        )
+        assertThat(preferences.fingerprintFor("2001:db8::1").first()).isEqualTo(first)
+    }
+
+    @Test fun `fingerprint updates migrate records to canonical format and support removal`() = runBlocking {
+        val first = "ab".repeat(32)
+        val second = "cd".repeat(32)
+        val key = stringPreferencesKey("tls_fingerprints")
+        dataStore.edit { it[key] = "server-a:$first\ninvalid" }
+
+        preferences.saveFingerprint("2001:db8::2", second.uppercase())
+
+        val stored = dataStore.data.first()[key]
+        assertThat(stored).contains("v2|")
+        assertThat(stored).doesNotContain("server-a")
+        assertThat(preferences.allFingerprints().first()).containsExactly(
+            "server-a", first,
+            "2001:db8::2", second,
+        )
+
+        preferences.removeFingerprint("server-a")
+        assertThat(preferences.allFingerprints().first()).containsExactly("2001:db8::2", second)
+    }
+
+    @Test fun `transport records migrate replace and remove IPv6 values`() = runBlocking {
+        val key = stringPreferencesKey("server_transport_modes")
+        dataStore.edit {
+            it[key] = "server-a:TLS\n2001:db8::1:plain\nbad:mode\nserver-a:plain"
+        }
+
+        assertThat(preferences.transportFor("server-a").first()).isEqualTo("plain")
+        assertThat(preferences.transportFor("2001:db8::1").first()).isEqualTo("plain")
+
+        preferences.saveTransport("2001:db8::1", "TLS")
+        assertThat(preferences.transportFor("2001:db8::1").first()).isEqualTo("tls")
+        assertThat(dataStore.data.first()[key]).contains("v2|")
+
+        preferences.clearTransport("2001:db8::1")
+        assertThat(preferences.transportFor("2001:db8::1").first()).isNull()
+        assertThat(preferences.transportFor("server-a").first()).isEqualTo("plain")
+    }
+
+    @Test fun `onboarding reads legacy value and writes both keys`() = runBlocking {
+        val legacyKey = booleanPreferencesKey("onboarding_complete")
+        val leafKey = booleanPreferencesKey("leaf_onboarding_complete")
+        dataStore.edit { it[legacyKey] = true }
+
+        assertThat(preferences.leafOnboardingComplete.first()).isTrue()
+
+        dataStore.edit {
+            it[legacyKey] = false
+            it.remove(leafKey)
+        }
+        preferences.saveLeafOnboardingComplete()
+
+        val stored = dataStore.data.first()
+        assertThat(stored[legacyKey]).isTrue()
+        assertThat(stored[leafKey]).isTrue()
+    }
+
     @Test
     fun `getDefaultScreenName sanitizes model name properly`() {
         assertThat(AppPreferences.getDefaultScreenName("Pixel 7 Pro")).isEqualTo("pixel-7-pro")
