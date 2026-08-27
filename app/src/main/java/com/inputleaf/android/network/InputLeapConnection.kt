@@ -13,6 +13,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.DataInputStream
 import java.net.InetSocketAddress
@@ -37,6 +39,7 @@ class InputLeapConnection(
     private val pinnedFingerprint: String? = null,
     private val transportPolicy: ConnectionTransportPolicy = ConnectionTransportPolicy.AUTO,
     private val clientCertificate: ClientCertificateMaterial? = null,
+    private val logger: Logger = AndroidLogger,
     private val onCertificate: suspend (X509Certificate) -> Boolean,
 ) {
     private val _events = MutableSharedFlow<InputLeapEvent>(replay = 0, extraBufferCapacity = 64)
@@ -48,56 +51,100 @@ class InputLeapConnection(
     private var sharedParser: ProtocolParser? = null
     private val readerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var readJob: Job? = null
+    private val connectMutex = Mutex()
 
     /** Version advertised by the server before client-side minor-version negotiation. */
     data class ServerBanner(val major: Int, val minor: Int)
 
+    /** Minimal logging seam for tests and advanced integrations. */
+    interface Logger {
+        fun debug(message: String)
+        fun warn(message: String)
+        fun error(message: String)
+    }
+
+    private object AndroidLogger : Logger {
+        override fun debug(message: String) {
+            Log.d(TAG, message)
+        }
+
+        override fun warn(message: String) {
+            Log.w(TAG, message)
+        }
+
+        override fun error(message: String) {
+            Log.e(TAG, message)
+        }
+    }
+
+    /**
+     * Opens and handshakes a connection. Attempts are serialized, and calling this while the
+     * connection is already open throws [IllegalStateException]. Call [close] before reconnecting.
+     */
     suspend fun connect(screenName: String, screenWidth: Int, screenHeight: Int): ConnectResult =
-        withContext(Dispatchers.IO) {
-            val detectedMode =
-                if (transportPolicy == ConnectionTransportPolicy.AUTO) {
-                    TransportProber.detect(ip, port)
-                } else {
-                    null
-                }
-            val transports = TransportPolicy.order(
-                policy = transportPolicy,
-                preferredTransport = preferredTransport,
-                detectedMode = detectedMode,
-            )
-            var lastFailure: ConnectResult.Failed? = null
-            for (transport in transports) {
-                when (val opened = openSocket(transport)) {
-                    is SocketOpenResult.Ok -> {
-                        val result = runHandshake(
-                            opened.socket,
-                            opened.transport,
-                            screenName,
-                            screenWidth,
-                            screenHeight,
+        connectMutex.withLock {
+            check(socket == null) { "Connection is already open; close it before reconnecting" }
+            withContext(Dispatchers.IO) {
+                val detectedMode =
+                    if (
+                        transportPolicy == ConnectionTransportPolicy.AUTO &&
+                        pinnedFingerprint == null
+                    ) {
+                        TransportProber.detect(ip, port)
+                    } else {
+                        null
+                    }
+                val transports =
+                    if (
+                        transportPolicy == ConnectionTransportPolicy.AUTO &&
+                        pinnedFingerprint != null
+                    ) {
+                        listOf(ServerTransport.TLS)
+                    } else {
+                        TransportPolicy.order(
+                            policy = transportPolicy,
+                            preferredTransport = preferredTransport,
+                            detectedMode = detectedMode,
                         )
-                        if (result is ConnectResult.Ok) {
-                            return@withContext result
-                        }
-                        if (result is ConnectResult.Failed) {
-                            if (!transportPolicy.shouldFallbackWithinAttempt(result.reason)) {
+                    }
+                var lastFailure: ConnectResult.Failed? = null
+                for (transport in transports) {
+                    when (val opened = openSocket(transport)) {
+                        is SocketOpenResult.Ok -> {
+                            val result = runHandshake(
+                                opened.socket,
+                                opened.transport,
+                                screenName,
+                                screenWidth,
+                                screenHeight,
+                            )
+                            if (result is ConnectResult.Ok) {
                                 return@withContext result
                             }
-                            lastFailure = selectFailureToReport(lastFailure, result)
+                            if (result is ConnectResult.Failed) {
+                                if (pinnedFingerprint != null ||
+                                    !transportPolicy.shouldFallbackWithinAttempt(result.reason)
+                                ) {
+                                    return@withContext result
+                                }
+                                lastFailure = selectFailureToReport(lastFailure, result)
+                            }
                         }
-                    }
-                    is SocketOpenResult.Rejected -> return@withContext ConnectResult.RejectedByUser
-                    is SocketOpenResult.Failed -> {
-                        if (!transportPolicy.shouldFallbackWithinAttempt(opened.failure.reason)) {
-                            return@withContext opened.failure
+                        is SocketOpenResult.Rejected -> return@withContext ConnectResult.RejectedByUser
+                        is SocketOpenResult.Failed -> {
+                            if (pinnedFingerprint != null ||
+                                !transportPolicy.shouldFallbackWithinAttempt(opened.failure.reason)
+                            ) {
+                                return@withContext opened.failure
+                            }
+                            lastFailure = selectFailureToReport(lastFailure, opened.failure)
                         }
-                        lastFailure = selectFailureToReport(lastFailure, opened.failure)
                     }
                 }
+                val failure = lastFailure ?: ConnectResult.Failed(ConnectResult.FailureReason.NETWORK)
+                logger.error("All transports failed for $ip: ${failure.reason} ${failure.detail}")
+                failure
             }
-            val failure = lastFailure ?: ConnectResult.Failed(ConnectResult.FailureReason.NETWORK)
-            Log.e(TAG, "All transports failed for $ip: ${failure.reason} ${failure.detail}")
-            failure
         }
 
     private sealed class SocketOpenResult {
@@ -112,7 +159,7 @@ class InputLeapConnection(
             ServerTransport.PLAIN -> try {
                 SocketOpenResult.Ok(openPlainSocket(), ServerTransport.PLAIN)
             } catch (e: Exception) {
-                Log.w(TAG, "Plain open failed for $ip: ${e.message}")
+                logger.warn("Plain open failed for $ip: ${e.message}")
                 SocketOpenResult.Failed(
                     ConnectResult.Failed(ConnectResult.FailureReason.NETWORK, e.message),
                 )
@@ -157,8 +204,7 @@ class InputLeapConnection(
                 )
             }
             val fingerprint = TlsFingerprintManager.fingerprintOf(cert)
-            val alreadyTrusted =
-                pinnedFingerprint != null && fingerprint == pinnedFingerprint
+            val alreadyTrusted = pinnedFingerprint?.let(TlsFingerprintManager::normalizeFingerprint) == fingerprint
             if (!alreadyTrusted && !onCertificate(cert)) {
                 sslSock.close()
                 openedSocket = null
@@ -168,7 +214,7 @@ class InputLeapConnection(
         } catch (e: Exception) {
             runCatching { openedSocket?.close() }
             if (clientCertificate == null && isClientCertificateRequired(e)) {
-                Log.w(TAG, "Deskflow requires a client certificate")
+                logger.warn("Deskflow requires a client certificate")
                 SocketOpenResult.Failed(
                     ConnectResult.Failed(
                         ConnectResult.FailureReason.CLIENT_CERT_REQUIRED,
@@ -176,7 +222,7 @@ class InputLeapConnection(
                     ),
                 )
             } else if (isCertificateMismatch(e)) {
-                Log.w(TAG, "TLS certificate changed for $ip")
+                logger.warn("TLS certificate changed for $ip")
                 SocketOpenResult.Failed(
                     ConnectResult.Failed(
                         ConnectResult.FailureReason.CERTIFICATE_MISMATCH,
@@ -184,7 +230,7 @@ class InputLeapConnection(
                     ),
                 )
             } else if (isPlainServerTlsError(e)) {
-                Log.i(TAG, "TLS required, but $ip speaks plain Deskflow")
+                logger.debug("TLS required, but $ip speaks plain Deskflow")
                 SocketOpenResult.Failed(
                     ConnectResult.Failed(
                         ConnectResult.FailureReason.TLS_AGAINST_PLAIN_SERVER,
@@ -192,7 +238,7 @@ class InputLeapConnection(
                     ),
                 )
             } else {
-                Log.w(TAG, "TLS open failed for $ip: ${e.message}")
+                logger.warn("TLS open failed for $ip: ${e.message}")
                 SocketOpenResult.Failed(
                     ConnectResult.Failed(ConnectResult.FailureReason.NETWORK, e.message),
                 )
@@ -257,7 +303,7 @@ class InputLeapConnection(
         try {
             repeat(32) {
                 val event = parser.readNext()
-                Log.d(TAG, "Handshake recv: $event")
+                logger.debug("Handshake recv: $event")
                 when (event) {
                     is InputLeapEvent.Hello -> {
                         bannerMajor = event.majorVersion
@@ -273,8 +319,7 @@ class InputLeapConnection(
                                 protocol = negotiatedProtocol,
                             )
                             helloSent = true
-                            Log.d(
-                                TAG,
+                            logger.debug(
                                 "Handshake sent ${negotiatedProtocol.magic} client hello " +
                                     "as $screenName using 1.$negotiatedMinor",
                             )
@@ -283,7 +328,7 @@ class InputLeapConnection(
                     is InputLeapEvent.QueryInfo -> {
                         writer?.writeDataInfo(screenWidth, screenHeight, 0, 0, 0, 0)
                         dinfSent = true
-                        Log.d(TAG, "Handshake sent DINF ${screenWidth}x$screenHeight")
+                        logger.debug("Handshake sent DINF ${screenWidth}x$screenHeight")
                     }
                     is InputLeapEvent.KeepAlive -> {
                         writer?.writeKeepAlive()
@@ -297,7 +342,7 @@ class InputLeapConnection(
                         }
                     }
                     is InputLeapEvent.Incompatible -> {
-                        Log.e(TAG, "Server rejected handshake: $event")
+                        logger.error("Server rejected handshake: $event")
                         close()
                         return ConnectResult.Failed(
                             ConnectResult.FailureReason.INCOMPATIBLE,
@@ -305,7 +350,7 @@ class InputLeapConnection(
                         )
                     }
                     is InputLeapEvent.Busy -> {
-                        Log.e(TAG, "Server rejected handshake: busy")
+                        logger.error("Server rejected handshake: busy")
                         close()
                         return ConnectResult.Failed(ConnectResult.FailureReason.BUSY)
                     }
@@ -314,12 +359,12 @@ class InputLeapConnection(
                 if (helloSent && dinfSent && sawPostDinf) {
                     rawSocket.soTimeout = 0
                     readJob = readerScope.launch { readLoop(parser) }
-                    Log.d(TAG, "Handshake complete via $transport")
+                    logger.debug("Handshake complete via $transport")
                     return ConnectResult.Ok(ServerBanner(bannerMajor, bannerMinor), transport)
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Handshake error: ${e.javaClass.simpleName}: ${e.message}")
+            logger.error("Handshake error: ${e.javaClass.simpleName}: ${e.message}")
             close()
             return ConnectResult.Failed(ConnectResult.FailureReason.HANDSHAKE, e.message)
         }
@@ -328,11 +373,11 @@ class InputLeapConnection(
         if (helloSent && dinfSent) {
             rawSocket.soTimeout = 0
             readJob = readerScope.launch { readLoop(parser) }
-            Log.d(TAG, "Handshake complete (lenient) via $transport")
+            logger.debug("Handshake complete (lenient) via $transport")
             return ConnectResult.Ok(ServerBanner(bannerMajor, bannerMinor), transport)
         }
 
-        Log.e(TAG, "Handshake incomplete hello=$helloSent dinf=$dinfSent post=$sawPostDinf")
+        logger.error("Handshake incomplete hello=$helloSent dinf=$dinfSent post=$sawPostDinf")
         close()
         return ConnectResult.Failed(
             ConnectResult.FailureReason.HANDSHAKE,
@@ -348,14 +393,14 @@ class InputLeapConnection(
                     event !is InputLeapEvent.MouseMoveRel &&
                     event !is InputLeapEvent.KeepAlive
                 ) {
-                    Log.d(TAG, "Read event: $event")
+                    logger.debug("Read event: $event")
                 }
                 _events.emit(event)
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Read loop ended: ${e.javaClass.simpleName}: ${e.message}")
+            logger.error("Read loop ended: ${e.javaClass.simpleName}: ${e.message}")
             _events.emit(InputLeapEvent.Unhandled("__DISCONNECTED__"))
         }
     }
