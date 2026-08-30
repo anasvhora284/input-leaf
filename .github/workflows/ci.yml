@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -39,8 +40,19 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Run fast JVM tests
-        run: ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest :uhid-server:test
+      - name: Run fast JVM tests and generate coverage
+        run: ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest :uhid-server:test :koverXmlReportDebugJvm :uhid-server:jacocoTestReport
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          # Fork PRs use Codecov's tokenless upload; trusted runs authenticate with OIDC.
+          use_oidc: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          files: build/reports/kover/coverage-debug-jvm.xml,uhid-server/build/reports/jacoco/test/jacocoTestReport.xml
+          disable_search: true
+          # Codecov returns an authentication error until the upstream repository is enabled there.
+          # Its required patch status is enforced through upstream branch protection after setup.
+          fail_ci_if_error: false
 
       - name: Upload failed test reports
         if: failure()

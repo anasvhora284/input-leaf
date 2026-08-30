@@ -1,6 +1,6 @@
 # Testing
 
-Input Leaf uses a small, fast JVM test suite as the main feedback loop for local development and pull requests. Android emulator tests and coverage enforcement will be added separately so they do not slow down this required check.
+Input Leaf uses a small, fast JVM test suite and Kover coverage reporting as the main feedback loop for local development and pull requests. Android emulator tests remain outside this required check so it stays fast.
 
 ## Requirements
 
@@ -13,10 +13,10 @@ Input Leaf uses a small, fast JVM test suite as the main feedback loop for local
 From the repository root, run:
 
 ```sh
-./gradlew :app:testDebugUnitTest :uhid-server:test
+./gradlew :koverXmlReportDebugJvm :uhid-server:jacocoTestReport
 ```
 
-The same command runs in the `fast-jvm` GitHub Actions job. The app task runs local Android JVM tests. The UHID task runs plain Java JVM tests.
+The Kover task runs the app's local Android `debug` JVM tests and writes `build/reports/kover/coverage-debug-jvm.xml`. The JaCoCo task runs the UHID module's plain Java JVM tests and writes `uhid-server/build/reports/jacoco/test/jacocoTestReport.xml`. The same tasks run in the `fast-jvm` GitHub Actions job.
 
 ## Test locations and conventions
 
@@ -74,7 +74,15 @@ The required pull-request suite must not depend on:
 - Shizuku, accessibility, IME, or `/dev/uhid` access;
 - APK signing or release secrets.
 
-A small emulator smoke suite and coverage guardrails are planned as later, separate work. Lint and formatting are not part of the required test command because the repository does not currently configure dedicated formatting or static-analysis tooling.
+A small emulator smoke suite is planned as later, separate work. Lint and formatting are not part of the required test command because the repository does not currently configure dedicated formatting or static-analysis tooling.
+
+## Coverage guardrails
+
+Kover collects coverage from the local Android `debug` JVM tests. JaCoCo collects coverage from the Java-only UHID module because Kover's Gradle plugin does not create coverage variants for a pure Java project. Codecov uploads both JaCoCo-compatible XML reports on every CI run, merges them for reporting, and comments on pull requests with project and changed-line coverage.
+
+Codecov requires 100% patch coverage: every changed executable line must be exercised by the suite. This is a regression guardrail, not proof that a feature is behaviorally complete; tests must still assert the relevant observable behavior and edge cases.
+
+The repository administrator must first enable the upstream repository in Codecov (or configure its token/OIDC authentication), then enable Codecov's `patch/default` status as a required branch-protection check after the first report establishes the baseline. The upload does not fail CI until Codecov is configured, so a fork cannot block the fast test suite before that maintainer setup. The project status starts with Codecov's automatic target and a one-percentage-point tolerance; tighten it only after excluding generated and non-testable code deliberately.
 
 ## Current baseline
 
