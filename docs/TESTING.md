@@ -82,7 +82,6 @@ Kover collects coverage from the local Android `debug` JVM tests. JaCoCo collect
 
 Codecov requires 100% patch coverage: every changed executable line must be exercised by the suite. This is a regression guardrail, not proof that a feature is behaviorally complete; tests must still assert the relevant observable behavior and edge cases.
 
-The repository administrator must first enable the upstream repository in Codecov (or configure its token/OIDC authentication), then enable Codecov's `patch/default` status as a required branch-protection check after the first report establishes the baseline. The upload does not fail CI until Codecov is configured, so a fork cannot block the fast test suite before that maintainer setup. The project status starts with Codecov's automatic target and a one-percentage-point tolerance; tighten it only after excluding generated and non-testable code deliberately.
 
 ## Current baseline
 
