@@ -1,5 +1,6 @@
 package com.inputleaf.android.storage
 
+import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
+import org.mockito.Mockito
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -37,6 +39,14 @@ class AppPreferencesTest {
 
     @After fun tearDown() {
         dataStoreScope.cancel()
+    }
+
+    @Test fun `context constructor creates Android-backed preferences`() {
+        val context = Mockito.mock(Context::class.java)
+        Mockito.`when`(context.applicationContext).thenReturn(context)
+        Mockito.`when`(context.filesDir).thenReturn(temporaryFolder.root)
+
+        assertThat(AppPreferences(context)).isNotNull()
     }
 
     @Test fun `defaults are deterministic and screen name falls back when blank`() = runBlocking<Unit> {
