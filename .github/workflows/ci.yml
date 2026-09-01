@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -22,29 +23,40 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4.0.1
 
       - name: Install Android SDK packages
         run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6.3.0
 
-      - name: Run fast JVM tests
-        run: ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest :uhid-server:test
+      - name: Run fast JVM tests and generate coverage
+        run: ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest :uhid-server:test :koverXmlReportDebugJvm :uhid-server:jacocoTestReport
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          # Fork PRs use Codecov's tokenless upload; trusted runs authenticate with OIDC.
+          use_oidc: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          files: build/reports/kover/coverage-debug-jvm.xml,uhid-server/build/reports/jacoco/test/jacocoTestReport.xml
+          disable_search: true
+          # Codecov returns an authentication error until the upstream repository is enabled there.
+          # Its required patch status is enforced through upstream branch protection after setup.
+          fail_ci_if_error: false
 
       - name: Upload failed test reports
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: fast-jvm-test-reports
           path: |
