@@ -19,7 +19,7 @@ class ConnectionServiceTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun `bound service exposes local binder and starts disconnected`() {
+    fun boundServiceExposesLocalBinderAndStartsDisconnected() {
         ServiceBinding(context, ConnectionService::class.java).use { binding ->
             val binder = binding.awaitBinder()
             assertThat(binder).isInstanceOf(ConnectionService.LocalBinder::class.java)
@@ -30,7 +30,7 @@ class ConnectionServiceTest {
     }
 
     @Test
-    fun `disconnect from bound service keeps state disconnected`() {
+    fun disconnectFromBoundServiceKeepsStateDisconnected() {
         ServiceBinding(context, ConnectionService::class.java).use { binding ->
             val service =
                 (binding.awaitBinder() as ConnectionService.LocalBinder).getService()

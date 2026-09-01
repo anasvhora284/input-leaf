@@ -37,12 +37,12 @@ class MainActivitySmokeTest {
     }
 
     @Test
-    fun `fresh install shows onboarding welcome page`() {
+    fun freshInstallShowsOnboardingWelcomePage() {
         waitAndAssertText("Welcome to Input Leaf")
     }
 
     @Test
-    fun `next button advances to shizuku permission page`() {
+    fun nextButtonAdvancesToShizukuPermissionPage() {
         waitAndAssertText("Welcome to Input Leaf")
 
         composeRule.onNodeWithText("Next").performClick()
