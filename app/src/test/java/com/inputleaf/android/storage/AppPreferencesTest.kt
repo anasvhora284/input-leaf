@@ -1,3 +1,6 @@
+package com.inputleaf.android.storage
+
+import android.test.mock.MockContext
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -35,6 +38,10 @@ class AppPreferencesTest {
 
     @After fun tearDown() {
         dataStoreScope.cancel()
+    }
+
+    @Test fun `context constructor remains available for Android callers`() {
+        assertThat(AppPreferences(MockContext())).isNotNull()
     }
 
     @Test fun `defaults are deterministic and screen name falls back when blank`() = runBlocking<Unit> {
