@@ -48,6 +48,8 @@ class AppPreferencesTest {
         assertThat(preferences.inputMethod.first()).isEqualTo("auto")
         assertThat(preferences.cursorStyle.first()).isEqualTo("default")
         assertThat(preferences.favoriteServers.first()).isEmpty()
+        dataStore.edit { it[stringPreferencesKey("favorite_servers")] = "   \n server-a \n" }
+        assertThat(preferences.favoriteServers.first()).containsExactly("server-a")
         assertThat(preferences.allFingerprints().first()).isEmpty()
         assertThat(preferences.leafOnboardingComplete.first()).isFalse()
         assertThat(preferences.onboardingComplete.first()).isFalse()
@@ -215,6 +217,8 @@ class AppPreferencesTest {
         dataStore.edit {
             it[fingerprintKey] = listOf(
                 "v2|bad!|bad!",
+                "v2||${java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(fingerprint.toByteArray())}",
+                "v3|${java.util.Base64.getUrlEncoder().withoutPadding().encodeToString("server".toByteArray())}|${java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(fingerprint.toByteArray())}",
                 "v2|${java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(" ".toByteArray())}|${java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(fingerprint.toByteArray())}",
                 "v2|only-two-fields",
             ).joinToString("\n")
@@ -231,6 +235,7 @@ class AppPreferencesTest {
     }
 
     @Test fun `default screen name normalizes whitespace special characters and blanks`() {
+        assertThat(AppPreferences.getDefaultScreenName()).isNotEmpty()
         assertThat(AppPreferences.getDefaultScreenName("  Pixel   XL!  ")).isEqualTo("pixel-xl")
         assertThat(AppPreferences.getDefaultScreenName(" !@# ")).isEqualTo("android-phone")
     }
