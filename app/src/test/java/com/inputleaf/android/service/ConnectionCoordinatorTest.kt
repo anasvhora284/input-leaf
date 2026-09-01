@@ -46,7 +46,7 @@ class ConnectionCoordinatorTest {
         ).inOrder()
     }
 
-    @Test fun `user disconnect invalidates connection and suppresses retry`() {
+    @Test fun `user disconnect invalidates generation before callbacks can request retry`() {
         val coordinator = ConnectionCoordinator()
         val generation = coordinator.beginConnection()
         coordinator.onConnected(generation, "server", "phone")
