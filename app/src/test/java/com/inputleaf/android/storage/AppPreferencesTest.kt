@@ -42,9 +42,15 @@ class AppPreferencesTest {
         assertThat(preferences.screenName.first()).isEqualTo("pixel-xl")
         assertThat(preferences.autoConnect.first()).isTrue()
         assertThat(preferences.showCursor.first()).isTrue()
+        assertThat(preferences.themeMode.first()).isEqualTo("SYSTEM")
         assertThat(preferences.mouseEnabled.first()).isTrue()
         assertThat(preferences.keyboardEnabled.first()).isTrue()
+        assertThat(preferences.inputMethod.first()).isEqualTo("auto")
+        assertThat(preferences.cursorStyle.first()).isEqualTo("default")
+        assertThat(preferences.favoriteServers.first()).isEmpty()
+        assertThat(preferences.allFingerprints().first()).isEmpty()
         assertThat(preferences.leafOnboardingComplete.first()).isFalse()
+        assertThat(preferences.onboardingComplete.first()).isFalse()
         assertThat(preferences.connectionTransportPolicy.first())
             .isEqualTo(ConnectionTransportPolicy.AUTO)
 
@@ -58,6 +64,7 @@ class AppPreferencesTest {
         preferences.saveScreenName("  desk phone  ")
         preferences.saveAutoConnect(false)
         preferences.saveShowCursor(false)
+        preferences.saveThemeMode("DARK")
         preferences.saveMouseEnabled(false)
         preferences.saveKeyboardEnabled(false)
         preferences.saveInputMethod("uhid")
@@ -68,6 +75,7 @@ class AppPreferencesTest {
         assertThat(preferences.screenName.first()).isEqualTo("desk phone")
         assertThat(preferences.autoConnect.first()).isFalse()
         assertThat(preferences.showCursor.first()).isFalse()
+        assertThat(preferences.themeMode.first()).isEqualTo("DARK")
         assertThat(preferences.mouseEnabled.first()).isFalse()
         assertThat(preferences.keyboardEnabled.first()).isFalse()
         assertThat(preferences.inputMethod.first()).isEqualTo("uhid")
@@ -81,6 +89,9 @@ class AppPreferencesTest {
             it[stringPreferencesKey("favorite_servers")] = " server-a \nserver-a\n\nserver-b"
         }
 
+        assertThat(preferences.favoriteServers.first()).containsExactly("server-a", "server-b")
+
+        preferences.toggleFavoriteServer("   ")
         assertThat(preferences.favoriteServers.first()).containsExactly("server-a", "server-b")
 
         preferences.toggleFavoriteServer(" server-c ")
@@ -151,6 +162,57 @@ class AppPreferencesTest {
         assertThat(preferences.transportFor("server-a").first()).isEqualTo("plain")
     }
 
+    @Test fun `transport policy honors legacy migration and rejects unsupported modes`() = runBlocking<Unit> {
+        val legacyKey = booleanPreferencesKey("tls_enabled")
+        val policyKey = stringPreferencesKey("connection_transport_policy")
+        dataStore.edit { it[legacyKey] = true }
+
+        assertThat(preferences.connectionTransportPolicy.first())
+            .isEqualTo(ConnectionTransportPolicy.TLS_ONLY)
+
+        dataStore.edit {
+            it[legacyKey] = false
+            it[policyKey] = "plain_only"
+        }
+        assertThat(preferences.connectionTransportPolicy.first())
+            .isEqualTo(ConnectionTransportPolicy.PLAIN_ONLY)
+
+        preferences.saveConnectionTransportPolicy(ConnectionTransportPolicy.AUTO)
+        assertThat(dataStore.data.first()[legacyKey]).isNull()
+        assertThat(preferences.connectionTransportPolicy.first())
+            .isEqualTo(ConnectionTransportPolicy.AUTO)
+
+        val error = runCatching { preferences.saveTransport("server", "ssh") }.exceptionOrNull()
+        assertThat(error).isInstanceOf(IllegalArgumentException::class.java)
+    }
+
+    @Test fun `canonical records discard blank invalid and malformed fields`() = runBlocking<Unit> {
+        val fingerprint = "ab".repeat(32)
+        val fingerprintKey = stringPreferencesKey("tls_fingerprints")
+        val transportKey = stringPreferencesKey("server_transport_modes")
+        dataStore.edit {
+            it[fingerprintKey] = listOf(
+                "v2|bad!|bad!",
+                "v2|${java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(" ".toByteArray())}|${java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(fingerprint.toByteArray())}",
+                "v2|only-two-fields",
+            ).joinToString("\n")
+            it[transportKey] = "v2|only-two-fields\n:tls"
+        }
+
+        assertThat(preferences.allFingerprints().first()).isEmpty()
+        assertThat(preferences.transportFor("server").first()).isNull()
+
+        preferences.saveFingerprint("   ", fingerprint)
+        preferences.saveTransport("   ", "tls")
+        assertThat(preferences.allFingerprints().first()).isEmpty()
+        assertThat(preferences.transportFor("server").first()).isNull()
+    }
+
+    @Test fun `default screen name normalizes whitespace special characters and blanks`() {
+        assertThat(AppPreferences.getDefaultScreenName("  Pixel   XL!  ")).isEqualTo("pixel-xl")
+        assertThat(AppPreferences.getDefaultScreenName(" !@# ")).isEqualTo("android-phone")
+    }
+
     @Test fun `onboarding reads legacy value and writes both keys`() = runBlocking<Unit> {
         val legacyKey = booleanPreferencesKey("onboarding_complete")
         val leafKey = booleanPreferencesKey("leaf_onboarding_complete")
@@ -162,7 +224,7 @@ class AppPreferencesTest {
             it[legacyKey] = false
             it.remove(leafKey)
         }
-        preferences.saveLeafOnboardingComplete()
+        preferences.saveOnboardingComplete()
 
         val stored = dataStore.data.first()
         assertThat(stored[legacyKey]).isTrue()
