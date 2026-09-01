@@ -40,7 +40,7 @@ android {
             // regardless of which machine built them
             signingConfig = signingConfigs.getByName("release")
             // JaCoCo-instrument debug APKs so connected Android tests feed the Codecov report
-            isTestCoverageEnabled = true
+            enableAndroidTestCoverage = true
         }
         release {
             isMinifyEnabled = false
@@ -132,6 +132,6 @@ dependencies {
     androidTestImplementation("androidx.test:core:1.6.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
-    androidTestImplementation("androidx.test:rules:1.6.2")
+    androidTestImplementation("androidx.test:rules:1.6.1")
     androidTestImplementation("com.google.truth:truth:1.4.5")
 }
