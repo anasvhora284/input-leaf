@@ -50,6 +50,7 @@ jobs:
           # Fork PRs use Codecov's tokenless upload; trusted runs authenticate with OIDC.
           use_oidc: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
           files: build/reports/kover/coverage-debug-jvm.xml,uhid-server/build/reports/jacoco/test/jacocoTestReport.xml
+          flags: jvm
           disable_search: true
           # Codecov returns an authentication error until the upstream repository is enabled there.
           # Its required patch status is enforced through upstream branch protection after setup.
@@ -65,5 +66,69 @@ jobs:
             app/build/test-results/
             uhid-server/build/reports/tests/
             uhid-server/build/test-results/
+          if-no-files-found: warn
+          retention-days: 7
+
+  android-coverage:
+    name: android-coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4.0.1
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6.3.0
+
+      # app/build.gradle.kts signs debug builds with the gitignored project keystore;
+      # CI generates a throwaway key with the same credentials so the APKs install on the emulator.
+      - name: Generate CI signing keystore
+        run: keytool -genkeypair -keystore app/input-leaf.jks -storepass inputleaf123 -keypass inputleaf123 -alias input-leaf -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Input Leaf CI"
+
+      - name: Build debug APK and test APK
+        run: ./gradlew --no-daemon --stacktrace :app:assembleDebug :app:assembleDebugAndroidTest
+
+      - name: Run connected smoke tests and generate Android coverage
+        uses: reactivecircus/android-emulator-runner@v2.38.0
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          script: ./gradlew --no-daemon --stacktrace :app:createDebugCoverageReport
+
+      - name: Upload Android coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          # Fork PRs use Codecov's tokenless upload; trusted runs authenticate with OIDC.
+          use_oidc: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          files: app/build/reports/coverage/androidTest/debug/connected/report.xml
+          flags: android
+          disable_search: true
+          # Codecov returns an authentication error until the upstream repository is enabled there.
+          # Its required patch status is enforced through upstream branch protection after setup.
+          fail_ci_if_error: false
+
+      - name: Upload failed test reports
+        if: failure()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: android-coverage-test-reports
+          path: |
+            app/build/reports/
+            app/build/outputs/androidTest-results/
           if-no-files-found: warn
           retention-days: 7
