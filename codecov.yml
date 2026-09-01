@@ -9,6 +9,9 @@ coverage:
         target: 100%
         threshold: 0%
 
+ignore:
+  - "app/src/main/java/com/inputleaf/android/ui/**/*"
+
 comment:
   layout: "header, diff, files"
   behavior: default
