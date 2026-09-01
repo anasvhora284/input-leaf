@@ -26,16 +26,11 @@ class ConnectionCoordinator(
     @Volatile
     private var generation = 0
     @Volatile
-    private var userInitiatedDisconnect = false
-    @Volatile
     private var mouseEnabled = true
     @Volatile
     private var keyboardEnabled = true
 
-    fun beginConnection(): Int {
-        userInitiatedDisconnect = false
-        return ++generation
-    }
+    fun beginConnection(): Int = ++generation
 
     fun isCurrent(connectionGeneration: Int): Boolean =
         connectionGeneration == generation
@@ -60,7 +55,7 @@ class ConnectionCoordinator(
     fun onConnectionFailed(connectionGeneration: Int, retry: Boolean): List<Effect> {
         if (!isCurrent(connectionGeneration)) return emptyList()
         stateMachine.onDisconnected()
-        return if (retry && !userInitiatedDisconnect) listOf(Effect.ScheduleRetry) else emptyList()
+        return if (retry) listOf(Effect.ScheduleRetry) else emptyList()
     }
 
     fun onEvent(connectionGeneration: Int, event: InputLeapEvent): List<Effect> {
@@ -105,13 +100,13 @@ class ConnectionCoordinator(
     }
 
     fun onUnexpectedDisconnect(connectionGeneration: Int): List<Effect> {
-        if (!isCurrent(connectionGeneration) || userInitiatedDisconnect) return emptyList()
+        if (!isCurrent(connectionGeneration)) return emptyList()
         stateMachine.onDisconnected()
         return listOf(Effect.HideCursor, Effect.RestoreIme, Effect.ScheduleRetry)
     }
 
     fun onUserDisconnect() {
-        userInitiatedDisconnect = true
+        // Invalidating the generation makes all pending callbacks stale.
         generation++
         stateMachine.onDisconnected()
     }

@@ -124,6 +124,22 @@ class AppPreferencesTest {
         assertThat(preferences.fingerprintFor("2001:db8::1").first()).isEqualTo(first)
     }
 
+    @Test fun `canonical records reject blank servers and invalid normalized values`() = runBlocking<Unit> {
+        val fingerprintKey = stringPreferencesKey("tls_fingerprints")
+        val fingerprint = "ab".repeat(32)
+        val encoder = java.util.Base64.getUrlEncoder().withoutPadding()
+        val server = encoder.encodeToString("server".toByteArray())
+        val invalidFingerprint = encoder.encodeToString("not-a-fingerprint".toByteArray())
+        dataStore.edit {
+            it[fingerprintKey] = listOf(
+                " :$fingerprint",
+                "v2|$server|$invalidFingerprint",
+            ).joinToString("\n")
+        }
+
+        assertThat(preferences.allFingerprints().first()).isEmpty()
+    }
+
     @Test fun `fingerprint updates migrate records to canonical format and support removal`() = runBlocking<Unit> {
         val first = "ab".repeat(32)
         val second = "cd".repeat(32)
@@ -142,6 +158,12 @@ class AppPreferencesTest {
 
         preferences.removeFingerprint("server-a")
         assertThat(preferences.allFingerprints().first()).containsExactly("2001:db8::2", second)
+    }
+
+    @Test fun `first favorite is added when no records have been stored`() = runBlocking<Unit> {
+        preferences.toggleFavoriteServer("server-a")
+
+        assertThat(preferences.favoriteServers.first()).containsExactly("server-a")
     }
 
     @Test fun `transport records migrate replace and remove IPv6 values`() = runBlocking<Unit> {
@@ -219,6 +241,12 @@ class AppPreferencesTest {
         dataStore.edit { it[legacyKey] = true }
 
         assertThat(preferences.leafOnboardingComplete.first()).isTrue()
+
+        dataStore.edit {
+            it[legacyKey] = true
+            it[leafKey] = false
+        }
+        assertThat(preferences.leafOnboardingComplete.first()).isFalse()
 
         dataStore.edit {
             it[legacyKey] = false
