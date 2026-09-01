@@ -113,13 +113,25 @@ object BatteryOptimizationHelper {
             }
         }
 
-        // 2. AOSP standard per-app dialog (works on Pixel, stock, many OEMs)
+        // 2. AOSP standard per-app prompt dialog (requires REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
         intents += Intent(
             Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
             Uri.parse("package:${context.packageName}")
         )
 
-        // 3. Last resort: open the full battery optimization list
+        // 3. Android 12+ (API 31+) dedicated App Battery Usage page (Unrestricted / Optimized / Restricted)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            intents += Intent("android.settings.APP_BATTERY_USAGE").apply {
+                data = Uri.parse("package:${context.packageName}")
+            }
+        }
+
+        // 4. AOSP App Info page (Application Details Settings -> Battery section)
+        intents += Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.parse("package:${context.packageName}")
+        }
+
+        // 5. Fallback: full system-wide battery optimization list
         intents += Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
 
         // Try each intent in order; first one that successfully starts wins
@@ -131,20 +143,9 @@ object BatteryOptimizationHelper {
                 Log.d(TAG, "Launched: ${intent.component ?: intent.action}")
                 return
             } catch (e: Exception) {
-                Log.d(TAG, "Intent not available: ${intent.component ?: intent.action}")
+                Log.d(TAG, "Intent not available: ${intent.component ?: intent.action}", e)
                 // Continue to next intent
             }
-        }
-
-        // If absolutely nothing worked, open general app settings
-        try {
-            val fallback = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = Uri.parse("package:${context.packageName}")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(fallback)
-        } catch (e: Exception) {
-            Log.e(TAG, "Could not open any settings page", e)
         }
     }
 
