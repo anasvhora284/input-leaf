@@ -70,6 +70,14 @@ class ConnectionCoordinatorTest {
             .containsExactly(ConnectionCoordinator.Effect.ScheduleRetry)
     }
 
+    @Test fun `keepalive misses from an older connection generation are ignored`() {
+        val coordinator = ConnectionCoordinator()
+        val staleGeneration = coordinator.beginConnection()
+        coordinator.beginConnection()
+
+        assertThat(coordinator.onKeepAliveMiss(staleGeneration)).isEmpty()
+    }
+
     @Test fun `fourth keepalive miss closes connection and resets state`() {
         val coordinator = ConnectionCoordinator()
         val generation = coordinator.beginConnection()
@@ -114,16 +122,90 @@ class ConnectionCoordinatorTest {
         ).inOrder()
     }
 
+    @Test fun `connection lifecycle callbacks reject stale generations and handle rejection`() {
+        val coordinator = ConnectionCoordinator()
+        val staleGeneration = coordinator.beginConnection()
+        val generation = coordinator.beginConnection()
+
+        assertThat(coordinator.onConnecting(staleGeneration, "stale")).isFalse()
+        assertThat(coordinator.onConnected(staleGeneration, "stale", "phone")).isFalse()
+        coordinator.onConnectionRejected(staleGeneration)
+        assertThat(coordinator.state.value).isEqualTo(ConnectionState.Disconnected)
+
+        assertThat(coordinator.onConnecting(generation, "server")).isTrue()
+        coordinator.onConnectionRejected(generation)
+        assertThat(coordinator.state.value).isEqualTo(ConnectionState.Disconnected)
+    }
+
+    @Test fun `enter leave and all mouse events produce their expected effects`() {
+        val coordinator = ConnectionCoordinator()
+        val generation = coordinator.beginConnection()
+        coordinator.onConnected(generation, "server", "phone")
+
+        assertThat(coordinator.onEvent(generation, InputLeapEvent.Enter(1, 2, 3, 0)))
+            .containsExactly(ConnectionCoordinator.Effect.ShowCursor)
+        assertThat(coordinator.state.value).isEqualTo(ConnectionState.Active("server", "phone"))
+        assertThat(coordinator.onEvent(generation, InputLeapEvent.Leave))
+            .containsExactly(ConnectionCoordinator.Effect.HideCursor)
+        assertThat(coordinator.state.value).isEqualTo(ConnectionState.Idle("server", "phone"))
+
+        val mouseEvents = listOf(
+            InputLeapEvent.MouseMoveAbs(10, 20),
+            InputLeapEvent.MouseMoveRel(4, -2),
+            InputLeapEvent.MouseDown(1),
+            InputLeapEvent.MouseUp(1),
+            InputLeapEvent.MouseWheel(2, -3),
+        )
+        mouseEvents.forEach { event ->
+            assertThat(coordinator.onEvent(generation, event))
+                .containsExactly(ConnectionCoordinator.Effect.RouteInput(event))
+        }
+    }
+
     @Test fun `keyboard routing follows keyboard enablement`() {
         val coordinator = ConnectionCoordinator()
         val generation = coordinator.beginConnection()
-        val key = InputLeapEvent.KeyDown(1, 0, 2)
+        val keyEvents = listOf(
+            InputLeapEvent.KeyDown(1, 0, 2),
+            InputLeapEvent.KeyUp(1, 0, 2),
+            InputLeapEvent.KeyRepeat(1, 0, 1, 2),
+        )
 
-        assertThat(coordinator.onEvent(generation, key))
-            .containsExactly(ConnectionCoordinator.Effect.RouteInput(key))
+        keyEvents.forEach { event ->
+            assertThat(coordinator.onEvent(generation, event))
+                .containsExactly(ConnectionCoordinator.Effect.RouteInput(event))
+        }
 
         coordinator.setKeyboardEnabled(false)
-        assertThat(coordinator.onEvent(generation, key)).isEmpty()
+        keyEvents.forEach { event -> assertThat(coordinator.onEvent(generation, event)).isEmpty() }
+    }
+
+    @Test fun `unhandled disconnect and control events use their coordinator behavior`() {
+        val coordinator = ConnectionCoordinator()
+        val generation = coordinator.beginConnection()
+        coordinator.onConnected(generation, "server", "phone")
+
+        assertThat(coordinator.onEvent(generation, InputLeapEvent.Unhandled("__DISCONNECTED__")))
+            .containsExactly(
+                ConnectionCoordinator.Effect.HideCursor,
+                ConnectionCoordinator.Effect.RestoreIme,
+                ConnectionCoordinator.Effect.ScheduleRetry,
+            ).inOrder()
+        assertThat(coordinator.state.value).isEqualTo(ConnectionState.Disconnected)
+
+        val nextGeneration = coordinator.beginConnection()
+        listOf(
+            InputLeapEvent.Hello(1, 0, "server"),
+            InputLeapEvent.QueryInfo(),
+            InputLeapEvent.ResetOptions,
+            InputLeapEvent.Incompatible(1, 0),
+            InputLeapEvent.Busy,
+            InputLeapEvent.Unknown,
+            InputLeapEvent.BadMessage,
+        ).forEach { event ->
+            assertThat(coordinator.onEvent(nextGeneration, event))
+                .containsExactly(ConnectionCoordinator.Effect.RouteInput(event))
+        }
     }
 
     @Test fun `mouse routing follows mouse enablement`() {
@@ -138,5 +220,6 @@ class ConnectionCoordinatorTest {
             .containsExactly(ConnectionCoordinator.Effect.HideCursor)
         assertThat(coordinator.onEvent(generation, move)).isEmpty()
         assertThat(coordinator.onEvent(generation, InputLeapEvent.Enter(0, 0, 1, 0))).isEmpty()
+        assertThat(coordinator.setMouseEnabled(true)).isEmpty()
     }
 }
