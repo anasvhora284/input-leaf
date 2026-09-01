@@ -2,6 +2,7 @@ package com.inputleaf.android.ui
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,6 +22,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.inputleaf.android.R
 import com.inputleaf.android.model.ConnectionState
 import com.inputleaf.android.model.ServerInfo
 import com.inputleaf.android.ui.components.FeatureToggleCard
@@ -94,12 +96,11 @@ fun MainScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = "Input Leaf",
-                        fontWeight = FontWeight.ExtraBold,
-                        style = MaterialTheme.typography.titleLarge,
-                        letterSpacing = 0.5.sp,
-                        color = MaterialTheme.colorScheme.primary
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_splash_text),
+                        contentDescription = "Input Leaf",
+                        modifier = Modifier.height(32.dp),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Fit
                     )
                 }
             )
@@ -754,7 +755,7 @@ private fun DeviceVisualRepresentation(
                             Box(modifier = Modifier.size(4.dp).background(accentColor.copy(alpha = 0.3f), androidx.compose.foundation.shape.CircleShape))
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Box(modifier = Modifier.size(4.dp).background(accentColor.copy(alpha = 0.3f), androidx.compose.foundation.shape.CircleShape))
+                            Box(modifier = Modifier.size(4.dp).background(accentColor, androidx.compose.foundation.shape.CircleShape))
                             Box(modifier = Modifier.size(4.dp).background(accentColor, androidx.compose.foundation.shape.CircleShape))
                         }
                     }
