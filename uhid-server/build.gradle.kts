@@ -1,3 +1,6 @@
+import java.io.File
+import java.util.Properties
+
 plugins {
     id("java")
     id("jacoco")
@@ -35,17 +38,31 @@ tasks.register<Exec>("buildDex") {
     val jarPath = layout.buildDirectory.file("libs/inputleaf-uhid.jar").get().asFile
     val dexOut = layout.buildDirectory.dir("generated/assets/uhid").get().asFile
     val dexFile = dexOut.resolve("classes.dex")
-    val sdkRoot = System.getenv("ANDROID_SDK_ROOT") ?: System.getenv("ANDROID_HOME") ?: ""
-    val d8Path = "$sdkRoot/build-tools/34.0.0/d8"
-    val androidJar = "$sdkRoot/platforms/android-34/android.jar"
+
+    fun resolveSdkDir(): String {
+        val env = System.getenv("ANDROID_SDK_ROOT") ?: System.getenv("ANDROID_HOME")
+        if (!env.isNullOrBlank()) return env
+        val localProps = rootProject.file("local.properties")
+        if (localProps.exists()) {
+            val properties = Properties()
+            localProps.inputStream().use { properties.load(it) }
+            val dir = properties.getProperty("sdk.dir")
+            if (!dir.isNullOrBlank()) return dir
+        }
+        return ""
+    }
+
+    val sdkRoot = resolveSdkDir()
+    val d8Path = if (sdkRoot.isNotBlank()) "$sdkRoot/build-tools/34.0.0/d8" else ""
+    val androidJar = if (sdkRoot.isNotBlank()) "$sdkRoot/platforms/android-34/android.jar" else ""
 
     inputs.file(jarPath)
     outputs.file(dexFile)
 
     doFirst {
-        require(sdkRoot.isNotBlank()) { "ANDROID_SDK_ROOT or ANDROID_HOME is required to build the UHID DEX" }
-        require(File(d8Path).exists()) { "Android build tools 34.0.0 are required to build the UHID DEX" }
-        require(File(androidJar).exists()) { "Android platform 34 is required to build the UHID DEX" }
+        require(sdkRoot.isNotBlank()) { "ANDROID_SDK_ROOT, ANDROID_HOME, or sdk.dir in local.properties is required to build the UHID DEX" }
+        require(File(d8Path).exists()) { "Android build tools 34.0.0 are required to build the UHID DEX (checked $d8Path)" }
+        require(File(androidJar).exists()) { "Android platform 34 is required to build the UHID DEX (checked $androidJar)" }
         project.delete(dexOut)
         dexOut.mkdirs()
     }
@@ -57,3 +74,4 @@ tasks.register<Exec>("buildDex") {
         jarPath.absolutePath
     )
 }
+

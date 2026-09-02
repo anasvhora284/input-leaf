@@ -51,6 +51,7 @@ class ConnectionService : Service() {
     private var keyboardEnabled = true
     private var previousImeId: String? = null
     private var previousImeLabel: String? = null
+    private var isUsingAccessibilityIme = false
     private var screenWidth = 0
     private var screenHeight = 0
     private var currentMouseX = 0f
@@ -426,10 +427,14 @@ class ConnectionService : Service() {
     }
 
     private fun autoSwitchImeToOurs() {
+        if (injector !is com.inputleaf.android.inject.AccessibilityInputInjector) {
+            return
+        }
         try {
             val currentIme = Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
             val ourIme = android.content.ComponentName(this, com.inputleaf.android.inject.InputLeafIME::class.java).flattenToShortString()
             if (currentIme != ourIme) {
+                isUsingAccessibilityIme = true
                 previousImeId = currentIme
                 val imm = getSystemService(android.view.inputmethod.InputMethodManager::class.java)
                 val list = imm.enabledInputMethodList
@@ -452,6 +457,10 @@ class ConnectionService : Service() {
     }
 
     private fun restorePreviousIme() {
+        if (!isUsingAccessibilityIme) {
+            return
+        }
+        isUsingAccessibilityIme = false
         try {
             val currentIme = Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
             val ourIme = android.content.ComponentName(this, com.inputleaf.android.inject.InputLeafIME::class.java).flattenToShortString()

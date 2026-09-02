@@ -348,9 +348,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             Log.d("InputLeaf", "Scanning from IP: $ip")
             try {
                 if (ip != null) {
-                    val results = scanner.scan(ip)
-                    Log.d("InputLeaf", "Scan done: ${results.size} servers found: $results")
-                    _discoveredServers.value = results
+                    scanner.scan(ip) { server ->
+                        _discoveredServers.update { currentServers ->
+                            val existingMap = currentServers.associateBy { it.ip }.toMutableMap()
+                            existingMap[server.ip] = server
+                            existingMap.values.toList()
+                        }
+                    }
                 } else {
                     Log.e("InputLeaf", "Could not determine local IP address")
                     _discoveredServers.value = emptyList()
@@ -360,8 +364,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
-
-
 
     fun clearError() {
         _errorState.value = null
@@ -418,7 +420,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun disconnect() { service?.disconnect() }
 
     fun addManualServer(ip: String) {
-        _discoveredServers.value = _discoveredServers.value + ServerInfo(ip = ip)
+        val trimmed = ip.trim()
+        if (isValidServerAddress(trimmed)) {
+            _discoveredServers.update { currentServers ->
+                val existing = currentServers.filter { it.ip != trimmed }
+                existing + ServerInfo(ip = trimmed)
+            }
+        }
+    }
+
+    private fun isValidServerAddress(address: String): Boolean {
+        if (address.isBlank()) return false
+        val parts = address.split(".")
+        if (parts.size == 4 && parts.all { it.toIntOrNull()?.let { num -> num in 0..255 } == true }) {
+            return true
+        }
+        return address.matches(Regex("^[a-zA-Z0-9.-]+$"))
     }
 
     override fun onCleared() {
