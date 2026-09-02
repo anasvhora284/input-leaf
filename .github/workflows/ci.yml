@@ -116,6 +116,10 @@ jobs:
           api-level: 34
           target: google_apis
           arch: x86_64
+          # The smoke tests assume fresh-install app state; a brand-new AVD every run
+          # guarantees it. Never adopt AVD caching for this job.
+          avd-name: test
+          force-avd-creation: true
           disable-linux-hw-accel: false
           # Guard so a stuck device fails the step instead of hanging to the job timeout.
           script: timeout 1200 ./gradlew --no-daemon --stacktrace :app:createDebugCoverageReport
