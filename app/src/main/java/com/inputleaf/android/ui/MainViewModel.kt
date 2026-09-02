@@ -348,12 +348,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             Log.d("InputLeaf", "Scanning from IP: $ip")
             try {
                 if (ip != null) {
-                    val results = scanner.scan(ip)
-                    Log.d("InputLeaf", "Scan done: ${results.size} servers found: $results")
-                    _discoveredServers.value = results
+                    scanner.scan(ip) { server ->
+                        val existingMap = _discoveredServers.value.associateBy { it.ip }.toMutableMap()
+                        existingMap[server.ip] = server
+                        _discoveredServers.value = existingMap.values.toList()
+                    }
                 } else {
                     Log.e("InputLeaf", "Could not determine local IP address")
-                    _discoveredServers.value = emptyList()
                 }
             } finally {
                 _isScanning.value = false
@@ -418,7 +419,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun disconnect() { service?.disconnect() }
 
     fun addManualServer(ip: String) {
-        _discoveredServers.value = _discoveredServers.value + ServerInfo(ip = ip)
+        val trimmed = ip.trim()
+        if (trimmed.isNotBlank()) {
+            val existing = _discoveredServers.value.filter { it.ip != trimmed }
+            _discoveredServers.value = existing + ServerInfo(ip = trimmed)
+        }
     }
 
     override fun onCleared() {

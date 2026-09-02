@@ -49,5 +49,16 @@ class ServerScannerTest {
                 WireProtocol.BARRIER.magic.toByteArray(Charsets.US_ASCII),
             )
         ).isNull()
+        assertThat(
+            ServerScanner.parseHello(
+                "192.168.1.10",
+                ByteArray(5),
+            )
+        ).isNull()
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `subnetHosts throws on invalid IP format`() {
+        ServerScanner.subnetHosts("invalid-ip")
     }
 }

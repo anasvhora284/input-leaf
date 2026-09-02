@@ -17,7 +17,7 @@ import javax.net.ssl.X509TrustManager
 
 class ServerScanner {
     companion object {
-        private const val SCAN_CONCURRENCY = 8
+        private const val SCAN_CONCURRENCY = 64
 
         fun subnetHosts(deviceIp: String): List<String> {
             val parts = deviceIp.split(".")
@@ -49,7 +49,8 @@ class ServerScanner {
 
     suspend fun scan(
         deviceIp: String,
-        timeoutMs: Int = 500,
+        timeoutMs: Int = 400,
+        onServerDiscovered: (ServerInfo) -> Unit = {},
     ): List<ServerInfo> =
         coroutineScope {
             val hosts = subnetHosts(deviceIp)
@@ -59,7 +60,11 @@ class ServerScanner {
                 async(Dispatchers.IO) {
                     semaphore.withPermit {
                         ensureActive()
-                        probe(host, timeoutMs, sslContext)
+                        val server = probe(host, timeoutMs, sslContext)
+                        if (server != null) {
+                            onServerDiscovered(server)
+                        }
+                        server
                     }
                 }
             }.awaitAll().filterNotNull()
@@ -70,42 +75,66 @@ class ServerScanner {
         timeoutMs: Int,
         sslContext: SSLContext,
     ): ServerInfo? {
-        if (!portOpen(host, timeoutMs)) return null
-        return probeTls(host, timeoutMs, sslContext) ?: probePlain(host, timeoutMs)
-    }
-
-    private fun portOpen(host: String, timeoutMs: Int): Boolean = try {
-        Socket().use { socket ->
-            socket.connect(InetSocketAddress(host, ProtocolConstants.DEFAULT_PORT), timeoutMs)
-            true
+        val (tlsServer, isPlainError) = probeTls(host, timeoutMs, sslContext)
+        if (tlsServer != null) return tlsServer
+        if (isPlainError) {
+            return probePlain(host, timeoutMs, assumePlain = true)
         }
-    } catch (_: Exception) {
-        false
-    }
-
-    private fun probePlain(host: String, timeoutMs: Int): ServerInfo? = try {
-        Socket().use { socket ->
-            socket.connect(InetSocketAddress(host, ProtocolConstants.DEFAULT_PORT), timeoutMs)
-            socket.soTimeout = timeoutMs
-            readHello(host, DataInputStream(socket.inputStream))
-        }
-    } catch (_: Exception) {
-        null
+        return probePlain(host, timeoutMs, assumePlain = false)
     }
 
     private fun probeTls(
         host: String,
         timeoutMs: Int,
         sslContext: SSLContext,
-    ): ServerInfo? = try {
-        val sslSocket = (sslContext.socketFactory.createSocket() as SSLSocket).apply {
-            connect(InetSocketAddress(host, ProtocolConstants.DEFAULT_PORT), timeoutMs)
-            soTimeout = timeoutMs
-            startHandshake()
+    ): Pair<ServerInfo?, Boolean> {
+        var sslSocket: SSLSocket? = null
+        return try {
+            sslSocket = (sslContext.socketFactory.createSocket() as SSLSocket).apply {
+                connect(InetSocketAddress(host, ProtocolConstants.DEFAULT_PORT), timeoutMs)
+                soTimeout = timeoutMs
+                startHandshake()
+            }
+            val hello = readHello(host, DataInputStream(sslSocket.inputStream))
+            val server = hello ?: ServerInfo(ip = host, name = "Deskflow (TLS)")
+            Log.d("ServerScanner", "TLS probe succeeded for $host: ${server.name}")
+            Pair(server, false)
+        } catch (e: Exception) {
+            when {
+                InputLeapConnection.isPlainServerTlsError(e) -> {
+                    Pair(null, true)
+                }
+                InputLeapConnection.isClientCertificateRequired(e) || isTlsHandshakeException(e) -> {
+                    Log.d("ServerScanner", "TLS server detected at $host via handshake response: ${e.message}")
+                    Pair(ServerInfo(ip = host, name = "Deskflow (TLS)"), false)
+                }
+                else -> {
+                    Pair(null, false)
+                }
+            }
+        } finally {
+            try {
+                sslSocket?.close()
+            } catch (_: Exception) {
+            }
         }
-        val result = sslSocket.use { readHello(host, DataInputStream(it.inputStream)) }
-        if (result != null) Log.d("ServerScanner", "TLS probe succeeded for $host")
-        result
+    }
+
+    private fun isTlsHandshakeException(error: Exception): Boolean =
+        generateSequence<Throwable>(error) { it.cause }.any { it is javax.net.ssl.SSLException }
+
+    private fun probePlain(
+        host: String,
+        timeoutMs: Int,
+        assumePlain: Boolean,
+    ): ServerInfo? = try {
+        Socket().use { socket ->
+            socket.connect(InetSocketAddress(host, ProtocolConstants.DEFAULT_PORT), timeoutMs)
+            socket.soTimeout = timeoutMs
+            socket.tcpNoDelay = true
+            val hello = readHello(host, DataInputStream(socket.inputStream))
+            hello ?: if (assumePlain) ServerInfo(ip = host, name = "Deskflow (Plain)") else null
+        }
     } catch (_: Exception) {
         null
     }
@@ -114,11 +143,16 @@ class ServerScanner {
      * Deskflow HELLO: 4-byte length prefix + seven-byte Barrier/Synergy magic +
      * major (2B) + minor (2B).
      */
-    private fun readHello(host: String, din: DataInputStream): ServerInfo? {
+    private fun readHello(host: String, din: DataInputStream): ServerInfo? = try {
         val len = din.readInt()
-        if (len < 11 || len > 256) return null
-        val body = ByteArray(minOf(len, 11))
-        din.readFully(body)
-        return parseHello(host, body)
+        if (len < 11 || len > 256) {
+            null
+        } else {
+            val body = ByteArray(minOf(len, 11))
+            din.readFully(body)
+            parseHello(host, body)
+        }
+    } catch (_: Exception) {
+        null
     }
 }
