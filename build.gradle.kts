@@ -17,6 +17,26 @@ kover {
     }
 
     reports {
+        filters {
+            excludes {
+                packages(
+                    "com.inputleaf.android.ui",
+                    "com.inputleaf.android.ui.components",
+                    "com.inputleaf.android.ui.theme",
+                    "com.inputleaf.android.service",
+                    "com.inputleaf.android.shizuku",
+                )
+                classes(
+                    "com.inputleaf.android.InputLeafApplication*",
+                    "com.inputleaf.android.inject.AccessibilityInputService*",
+                    "com.inputleaf.android.inject.InputLeafIME*",
+                    "com.inputleaf.android.inject.AccessibilityInputInjector*",
+                    "com.inputleaf.android.inject.KeysymInjection*",
+                    "com.inputleaf.android.storage.ClientCertificateStore*",
+                    "com.inputleaf.android.storage.AppPreferences*",
+                )
+            }
+        }
         variant("debugJvm") {
             xml {
                 xmlFile = layout.buildDirectory.file("reports/kover/coverage-debug-jvm.xml").get().asFile

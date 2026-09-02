@@ -56,20 +56,21 @@ object DeviceIdentity {
     }
 
     private fun formatFallbackName(): String {
-        val manufacturer = Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
-        val model = Build.MODEL
+        val manufacturer = (Build.MANUFACTURER ?: "Android").replaceFirstChar { it.uppercase() }
+        val model = Build.MODEL ?: "Phone"
         return if (model.startsWith(manufacturer, ignoreCase = true)) model
         else "$manufacturer $model"
     }
 
-    fun getManufacturerName(): String = Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
+    fun getManufacturerName(manufacturer: String? = Build.MANUFACTURER): String =
+        (manufacturer ?: "Android").replaceFirstChar { it.uppercase() }
 
-    fun getInternalModelCode(): String = Build.MODEL
+    fun getInternalModelCode(model: String? = Build.MODEL): String = model ?: "Unknown"
 
-    fun getAndroidVersion(): String = "Android ${Build.VERSION.RELEASE}"
+    fun getAndroidVersion(release: String? = Build.VERSION.RELEASE): String = "Android ${release ?: "14"}"
 
-    fun getBrandLogoRes(): Int {
-        return when (Build.MANUFACTURER.lowercase()) {
+    fun getBrandLogoRes(manufacturer: String? = Build.MANUFACTURER): Int {
+        return when ((manufacturer ?: "android").lowercase()) {
             "google" -> R.drawable.ic_brand_google
             "samsung" -> R.drawable.ic_brand_samsung
             "oneplus" -> R.drawable.ic_brand_oneplus
@@ -94,8 +95,8 @@ object DeviceIdentity {
         }
     }
 
-    fun getBrandColor(): Color {
-        return when (Build.MANUFACTURER.lowercase()) {
+    fun getBrandColor(manufacturer: String? = Build.MANUFACTURER): Color {
+        return when ((manufacturer ?: "android").lowercase()) {
             "google" -> Color(0xFF4285F4)
             "samsung" -> Color(0xFF1428A0)
             "oneplus" -> Color(0xFFEB0029)

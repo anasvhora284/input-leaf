@@ -36,8 +36,8 @@ class AppPreferences(private val context: Context) {
          * Get a sanitized device name suitable for use as screen name.
          * Removes trailing spaces and special characters that might cause issues.
          */
-        fun getDefaultScreenName(): String {
-            val deviceName = Build.MODEL.trim()
+        fun getDefaultScreenName(model: String? = Build.MODEL): String {
+            val deviceName = (model ?: "android-phone").trim()
             // Replace spaces with hyphens and remove any characters that aren't alphanumeric or hyphen
             return deviceName
                 .replace(Regex("\\s+"), "-")

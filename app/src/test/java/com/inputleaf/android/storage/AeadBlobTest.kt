@@ -40,4 +40,26 @@ class AeadBlobTest {
         }
         encrypted.fill(0)
     }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `decrypt rejects truncated blob`() {
+        AeadBlob.decrypt(byteArrayOf(1, 2, 3), key)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `decrypt rejects invalid version`() {
+        val encrypted = AeadBlob.encrypt("secret".toByteArray(), key)
+        encrypted[0] = 99
+        AeadBlob.decrypt(encrypted, key)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `decode rejects invalid version`() {
+        ClientCertificatePayloadCodec.decode(byteArrayOf(99, 0, 0, 0, 1, 1, 0, 0, 0, 0))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `decode rejects invalid length`() {
+        ClientCertificatePayloadCodec.decode(byteArrayOf(1, 0, 0, 0, 0, 0, 0, 0, 0))
+    }
 }

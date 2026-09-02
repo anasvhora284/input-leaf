@@ -104,11 +104,14 @@ object NetworkUtils {
         }
     }
     
-    private fun isPrivateIP(ip: String): Boolean {
+    internal fun isPrivateIP(ip: String): Boolean {
         val parts = ip.split('.')
         if (parts.size != 4) return false
         val first = parts[0].toIntOrNull() ?: return false
         val second = parts[1].toIntOrNull() ?: return false
+        val third = parts[2].toIntOrNull() ?: return false
+        val fourth = parts[3].toIntOrNull() ?: return false
+        if (first !in 0..255 || second !in 0..255 || third !in 0..255 || fourth !in 0..255) return false
         return when {
             first == 10 -> true  // 10.0.0.0/8
             first == 172 && second in 16..31 -> true  // 172.16.0.0/12
