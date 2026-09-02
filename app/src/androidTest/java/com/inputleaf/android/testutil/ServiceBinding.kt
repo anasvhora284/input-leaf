@@ -27,7 +27,11 @@ class ServiceBinding(
         private set
 
     init {
-        context.bindService(Intent(context, serviceClass), this, Context.BIND_AUTO_CREATE)
+        // Fail fast instead of masking a rejected bind behind awaitBinder()'s connect
+        // timeout; bound stays false so close() never unbinds an unregistered connection.
+        val boundSuccessfully =
+            context.bindService(Intent(context, serviceClass), this, Context.BIND_AUTO_CREATE)
+        check(boundSuccessfully) { "Failed to bind ${serviceClass.name}" }
         bound = true
     }
 

@@ -37,7 +37,7 @@ class ConnectionServiceTest {
 
             service.disconnect()
 
-            assertThat(service.state.value).isInstanceOf(ConnectionState.Disconnected::class.java)
+            assertThat(service.state.value).isEqualTo(ConnectionState.Disconnected)
         }
     }
 }
