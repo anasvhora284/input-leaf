@@ -349,20 +349,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 if (ip != null) {
                     scanner.scan(ip) { server ->
-                        val existingMap = _discoveredServers.value.associateBy { it.ip }.toMutableMap()
-                        existingMap[server.ip] = server
-                        _discoveredServers.value = existingMap.values.toList()
+                        _discoveredServers.update { currentServers ->
+                            val existingMap = currentServers.associateBy { it.ip }.toMutableMap()
+                            existingMap[server.ip] = server
+                            existingMap.values.toList()
+                        }
                     }
                 } else {
                     Log.e("InputLeaf", "Could not determine local IP address")
+                    _discoveredServers.value = emptyList()
                 }
             } finally {
                 _isScanning.value = false
             }
         }
     }
-
-
 
     fun clearError() {
         _errorState.value = null
@@ -420,10 +421,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun addManualServer(ip: String) {
         val trimmed = ip.trim()
-        if (trimmed.isNotBlank()) {
-            val existing = _discoveredServers.value.filter { it.ip != trimmed }
-            _discoveredServers.value = existing + ServerInfo(ip = trimmed)
+        if (isValidServerAddress(trimmed)) {
+            _discoveredServers.update { currentServers ->
+                val existing = currentServers.filter { it.ip != trimmed }
+                existing + ServerInfo(ip = trimmed)
+            }
         }
+    }
+
+    private fun isValidServerAddress(address: String): Boolean {
+        if (address.isBlank()) return false
+        val parts = address.split(".")
+        if (parts.size == 4 && parts.all { it.toIntOrNull()?.let { num -> num in 0..255 } == true }) {
+            return true
+        }
+        return address.matches(Regex("^[a-zA-Z0-9.-]+$"))
     }
 
     override fun onCleared() {

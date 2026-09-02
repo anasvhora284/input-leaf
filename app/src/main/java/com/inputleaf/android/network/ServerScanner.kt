@@ -98,16 +98,19 @@ class ServerScanner {
                 startHandshake()
             }
             val hello = readHello(host, DataInputStream(sslSocket.inputStream))
-            val server = hello ?: ServerInfo(ip = host, name = "Deskflow (TLS)", port = port)
-            Log.d("ServerScanner", "TLS probe succeeded for $host: ${server.name}")
-            Pair(server, false)
+            if (hello != null) {
+                Log.d("ServerScanner", "TLS probe succeeded for $host: ${hello.name}")
+                Pair(hello, false)
+            } else {
+                Pair(null, false)
+            }
         } catch (e: Exception) {
             when {
                 InputLeapConnection.isPlainServerTlsError(e) -> {
                     Pair(null, true)
                 }
-                InputLeapConnection.isClientCertificateRequired(e) || isTlsHandshakeException(e) -> {
-                    Log.d("ServerScanner", "TLS server detected at $host via handshake response: ${e.message}")
+                isClientCertificateRejection(e) -> {
+                    Log.d("ServerScanner", "TLS server detected at $host via client-cert requirement: ${e.message}")
                     Pair(ServerInfo(ip = host, name = "Deskflow (TLS)", port = port), false)
                 }
                 else -> {
@@ -122,8 +125,17 @@ class ServerScanner {
         }
     }
 
-    internal fun isTlsHandshakeException(error: Exception): Boolean =
-        generateSequence<Throwable>(error) { it.cause }.any { it is javax.net.ssl.SSLException }
+    internal fun isClientCertificateRejection(error: Exception): Boolean {
+        if (InputLeapConnection.isClientCertificateRequired(error)) return true
+        val message = generateSequence<Throwable>(error) { it.cause }
+            .joinToString(" ") { it.message.orEmpty() }
+            .lowercase()
+        return "empty client certificate chain" in message ||
+            "bad certificate" in message ||
+            "certificate required" in message ||
+            "bad_certificate" in message ||
+            "certificate_required" in message
+    }
 
     internal fun probePlain(
         host: String,

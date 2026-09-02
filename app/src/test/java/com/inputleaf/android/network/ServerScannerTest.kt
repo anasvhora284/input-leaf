@@ -114,11 +114,12 @@ class ServerScannerTest {
         assertThat(scanner.readHello("127.0.0.1", emptyStream)).isNull()
     }
 
-    @Test fun `isTlsHandshakeException identifies SSLExceptions`() {
+    @Test fun `isClientCertificateRejection identifies client auth errors`() {
         val scanner = ServerScanner()
-        assertThat(scanner.isTlsHandshakeException(javax.net.ssl.SSLException("Handshake failed"))).isTrue()
-        assertThat(scanner.isTlsHandshakeException(java.lang.RuntimeException(javax.net.ssl.SSLProtocolException("Alert")))).isTrue()
-        assertThat(scanner.isTlsHandshakeException(java.net.ConnectException("Connection refused"))).isFalse()
+        assertThat(scanner.isClientCertificateRejection(javax.net.ssl.SSLHandshakeException("empty client certificate chain"))).isTrue()
+        assertThat(scanner.isClientCertificateRejection(javax.net.ssl.SSLProtocolException("bad_certificate received"))).isTrue()
+        assertThat(scanner.isClientCertificateRejection(javax.net.ssl.SSLException("certificate required"))).isTrue()
+        assertThat(scanner.isClientCertificateRejection(java.net.ConnectException("Connection refused"))).isFalse()
     }
 
     @Test fun `discoverySslContext initializes properly`() {
