@@ -8,7 +8,8 @@ import com.inputleaf.android.network.ConnectionTransportPolicy
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-private val Context.dataStore by preferencesDataStore("inputleaf_prefs")
+// internal so instrumented tests can reset app state through the app's own singleton
+internal val Context.dataStore by preferencesDataStore("inputleaf_prefs")
 
 class AppPreferences(private val context: Context) {
 
