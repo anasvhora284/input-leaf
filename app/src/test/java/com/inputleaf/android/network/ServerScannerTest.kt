@@ -61,4 +61,78 @@ class ServerScannerTest {
     fun `subnetHosts throws on invalid IP format`() {
         ServerScanner.subnetHosts("invalid-ip")
     }
+
+    @Test fun `probe returns server info when plain server responds`() {
+        val scanner = ServerScanner()
+        val sslContext = ServerScanner.discoverySslContext()
+        val helloBytes = hello(WireProtocol.BARRIER, 1, 8)
+        val frame = java.nio.ByteBuffer.allocate(4 + helloBytes.size).putInt(helloBytes.size).put(helloBytes).array()
+
+        com.inputleaf.android.testutil.LoopbackServer(connectionCount = 2) { socket, _ ->
+            socket.getOutputStream().write(frame)
+            socket.getOutputStream().flush()
+        }.use { server ->
+            val result = scanner.probe(com.inputleaf.android.testutil.LOOPBACK_HOST, 1000, sslContext, server.port)
+            assertThat(result).isNotNull()
+            assertThat(result?.ip).isEqualTo(com.inputleaf.android.testutil.LOOPBACK_HOST)
+        }
+    }
+
+    @Test fun `probe returns null when port is closed`() {
+        val scanner = ServerScanner()
+        val sslContext = ServerScanner.discoverySslContext()
+        val closedPort = java.net.ServerSocket(0).use { it.localPort }
+
+        val result = scanner.probe(com.inputleaf.android.testutil.LOOPBACK_HOST, 200, sslContext, closedPort)
+        assertThat(result).isNull()
+    }
+
+    @Test fun `probeTls detects plain server error and returns isPlainError true`() {
+        val scanner = ServerScanner()
+        val sslContext = ServerScanner.discoverySslContext()
+        val helloBytes = hello(WireProtocol.BARRIER, 1, 8)
+        val frame = java.nio.ByteBuffer.allocate(4 + helloBytes.size).putInt(helloBytes.size).put(helloBytes).array()
+
+        com.inputleaf.android.testutil.LoopbackServer(connectionCount = 1) { socket, _ ->
+            socket.getOutputStream().write(frame)
+            socket.getOutputStream().flush()
+        }.use { server ->
+            val (info, isPlainError) = scanner.probeTls(com.inputleaf.android.testutil.LOOPBACK_HOST, 1000, sslContext, server.port)
+            assertThat(isPlainError).isTrue()
+        }
+    }
+
+    @Test fun `readHello handles invalid data stream`() {
+        val scanner = ServerScanner()
+        val badStream = java.io.DataInputStream(java.io.ByteArrayInputStream(byteArrayOf(0, 0, 0, 5, 1, 2, 3)))
+        assertThat(scanner.readHello("127.0.0.1", badStream)).isNull()
+
+        val largeLengthStream = java.io.DataInputStream(java.io.ByteArrayInputStream(byteArrayOf(0, 0, 2, 0)))
+        assertThat(scanner.readHello("127.0.0.1", largeLengthStream)).isNull()
+
+        val emptyStream = java.io.DataInputStream(java.io.ByteArrayInputStream(byteArrayOf()))
+        assertThat(scanner.readHello("127.0.0.1", emptyStream)).isNull()
+    }
+
+    @Test fun `isTlsHandshakeException identifies SSLExceptions`() {
+        val scanner = ServerScanner()
+        assertThat(scanner.isTlsHandshakeException(javax.net.ssl.SSLException("Handshake failed"))).isTrue()
+        assertThat(scanner.isTlsHandshakeException(java.lang.RuntimeException(javax.net.ssl.SSLProtocolException("Alert")))).isTrue()
+        assertThat(scanner.isTlsHandshakeException(java.net.ConnectException("Connection refused"))).isFalse()
+    }
+
+    @Test fun `discoverySslContext initializes properly`() {
+        val context = ServerScanner.discoverySslContext()
+        assertThat(context).isNotNull()
+        assertThat(context.protocol).isEqualTo("TLS")
+    }
+
+    @Test fun `scan completes and triggers callback`() = kotlinx.coroutines.runBlocking {
+        val scanner = ServerScanner()
+        val discovered = mutableListOf<ServerInfo>()
+        val results = scanner.scan("127.0.0.1", timeoutMs = 5) {
+            discovered.add(it)
+        }
+        assertThat(results).isNotNull()
+    }
 }

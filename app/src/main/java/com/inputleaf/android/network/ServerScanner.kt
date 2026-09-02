@@ -41,7 +41,7 @@ class ServerScanner {
             override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
         }
 
-        private fun discoverySslContext(): SSLContext =
+        internal fun discoverySslContext(): SSLContext =
             SSLContext.getInstance("TLS").also { context ->
                 context.init(null, arrayOf(trustAllManager), null)
             }
@@ -70,33 +70,35 @@ class ServerScanner {
             }.awaitAll().filterNotNull()
         }
 
-    private fun probe(
+    internal fun probe(
         host: String,
         timeoutMs: Int,
         sslContext: SSLContext,
+        port: Int = ProtocolConstants.DEFAULT_PORT,
     ): ServerInfo? {
-        val (tlsServer, isPlainError) = probeTls(host, timeoutMs, sslContext)
+        val (tlsServer, isPlainError) = probeTls(host, timeoutMs, sslContext, port)
         if (tlsServer != null) return tlsServer
         if (isPlainError) {
-            return probePlain(host, timeoutMs, assumePlain = true)
+            return probePlain(host, timeoutMs, assumePlain = true, port = port)
         }
-        return probePlain(host, timeoutMs, assumePlain = false)
+        return probePlain(host, timeoutMs, assumePlain = false, port = port)
     }
 
-    private fun probeTls(
+    internal fun probeTls(
         host: String,
         timeoutMs: Int,
         sslContext: SSLContext,
+        port: Int = ProtocolConstants.DEFAULT_PORT,
     ): Pair<ServerInfo?, Boolean> {
         var sslSocket: SSLSocket? = null
         return try {
             sslSocket = (sslContext.socketFactory.createSocket() as SSLSocket).apply {
-                connect(InetSocketAddress(host, ProtocolConstants.DEFAULT_PORT), timeoutMs)
+                connect(InetSocketAddress(host, port), timeoutMs)
                 soTimeout = timeoutMs
                 startHandshake()
             }
             val hello = readHello(host, DataInputStream(sslSocket.inputStream))
-            val server = hello ?: ServerInfo(ip = host, name = "Deskflow (TLS)")
+            val server = hello ?: ServerInfo(ip = host, name = "Deskflow (TLS)", port = port)
             Log.d("ServerScanner", "TLS probe succeeded for $host: ${server.name}")
             Pair(server, false)
         } catch (e: Exception) {
@@ -106,7 +108,7 @@ class ServerScanner {
                 }
                 InputLeapConnection.isClientCertificateRequired(e) || isTlsHandshakeException(e) -> {
                     Log.d("ServerScanner", "TLS server detected at $host via handshake response: ${e.message}")
-                    Pair(ServerInfo(ip = host, name = "Deskflow (TLS)"), false)
+                    Pair(ServerInfo(ip = host, name = "Deskflow (TLS)", port = port), false)
                 }
                 else -> {
                     Pair(null, false)
@@ -120,20 +122,21 @@ class ServerScanner {
         }
     }
 
-    private fun isTlsHandshakeException(error: Exception): Boolean =
+    internal fun isTlsHandshakeException(error: Exception): Boolean =
         generateSequence<Throwable>(error) { it.cause }.any { it is javax.net.ssl.SSLException }
 
-    private fun probePlain(
+    internal fun probePlain(
         host: String,
         timeoutMs: Int,
         assumePlain: Boolean,
+        port: Int = ProtocolConstants.DEFAULT_PORT,
     ): ServerInfo? = try {
         Socket().use { socket ->
-            socket.connect(InetSocketAddress(host, ProtocolConstants.DEFAULT_PORT), timeoutMs)
+            socket.connect(InetSocketAddress(host, port), timeoutMs)
             socket.soTimeout = timeoutMs
             socket.tcpNoDelay = true
             val hello = readHello(host, DataInputStream(socket.inputStream))
-            hello ?: if (assumePlain) ServerInfo(ip = host, name = "Deskflow (Plain)") else null
+            hello ?: if (assumePlain) ServerInfo(ip = host, name = "Deskflow (Plain)", port = port) else null
         }
     } catch (_: Exception) {
         null
@@ -143,7 +146,7 @@ class ServerScanner {
      * Deskflow HELLO: 4-byte length prefix + seven-byte Barrier/Synergy magic +
      * major (2B) + minor (2B).
      */
-    private fun readHello(host: String, din: DataInputStream): ServerInfo? = try {
+    internal fun readHello(host: String, din: DataInputStream): ServerInfo? = try {
         val len = din.readInt()
         if (len < 11 || len > 256) {
             null
