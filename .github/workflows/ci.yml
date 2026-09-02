@@ -101,13 +101,24 @@ jobs:
       - name: Build debug APK and test APK
         run: ./gradlew --no-daemon --stacktrace :app:assembleDebug :app:assembleDebugAndroidTest
 
+      # The runner image exposes /dev/kvm but the user is not in the kvm group;
+      # without this udev rule the emulator falls back to -accel off (software
+      # emulation) and the connected tests hang until the job timeout.
+      - name: Enable KVM access for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
       - name: Run connected smoke tests and generate Android coverage
         uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
           api-level: 34
           target: google_apis
           arch: x86_64
-          script: ./gradlew --no-daemon --stacktrace :app:createDebugCoverageReport
+          disable-linux-hw-accel: false
+          # Guard so a stuck device fails the step instead of hanging to the job timeout.
+          script: timeout 1200 ./gradlew --no-daemon --stacktrace :app:createDebugCoverageReport
 
       - name: Upload Android coverage to Codecov
         uses: codecov/codecov-action@v7
