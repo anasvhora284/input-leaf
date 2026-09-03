@@ -56,7 +56,7 @@ Place emulator smoke tests under:
 app/src/androidTest/java/com/inputleaf/android/<feature>/
 ```
 
-Mirror the production package, name classes after the subject, and keep the suite small: these tests run on an emulator in CI on every pull request. They are smoke tests that launch real activities and bind real services to catch integration breakage the JVM suite cannot see — navigation rendering, service binding, lifecycle startup — not full behavioral coverage. Shared fixtures go in `app/src/androidTest/java/com/inputleaf/android/testutil/`.
+Mirror the production package, name classes after the subject, and keep the suite small: these tests run on an emulator in CI on every pull request. They are smoke tests that launch real activities and bind real services to catch integration breakage the JVM suite cannot see — navigation rendering, service binding, lifecycle startup. Beyond those launch checks, `ConnectionServiceConnectionTest` drives the real connection lifecycle against a loopback Input Leap server (handshake, input routing, retry after an abrupt disconnect, TLS certificate rejection, keepalive timeout) because `ConnectionService` is excluded from JVM coverage and only the emulator can exercise its framework effects. Shared fixtures go in `app/src/androidTest/java/com/inputleaf/android/testutil/` — including `LoopbackServer`/`InputLeapTestServer`, which bind the fixed Input Leap port (24800) the service always dials.
 
 ## Test design principles
 
@@ -93,6 +93,6 @@ The initial baseline was verified with JDK 17 and Android SDK 34 when the fast C
 
 - `:app:testDebugUnitTest` passes and runs the app's Kotlin behavior tests.
 
-The `android-coverage` CI job verifies on the API 36 emulator that `:app:createDebugCoverageReport` passes and runs the service and onboarding smoke tests added with that job.
+The `android-coverage` CI job verifies on the API 36 emulator that `:app:createDebugCoverageReport` passes and runs the service and onboarding smoke tests plus the connected `ConnectionServiceConnectionTest` lifecycle suite, which produces the JaCoCo report Codecov uses for the `android` flag.
 
 Before making changes, run the complete fast suite and treat failures as real regressions or document them explicitly. Do not skip, mute, or retry failing tests merely to produce a green build. GitHub Actions retains available test reports when either CI job fails.
