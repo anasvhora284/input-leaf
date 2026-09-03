@@ -23,7 +23,6 @@ kover {
                     "com.inputleaf.android.ui",
                     "com.inputleaf.android.ui.components",
                     "com.inputleaf.android.ui.theme",
-                    "com.inputleaf.android.service",
                     "com.inputleaf.android.shizuku",
                 )
                 classes(
@@ -33,7 +32,15 @@ kover {
                     "com.inputleaf.android.inject.AccessibilityInputInjector*",
                     "com.inputleaf.android.inject.KeysymInjection*",
                     "com.inputleaf.android.storage.ClientCertificateStore*",
-                    "com.inputleaf.android.storage.AppPreferences*",
+                    // ConnectionService, CursorOverlayService and NotificationHelper remain
+                    // excluded: they are Android framework adapters whose Service/Settings/IME/
+                    // overlay/notification effects the JVM cannot exercise. The connected
+                    // android-coverage job reports ConnectionService from the emulator instead.
+                    // ConnectionCoordinator and AppPreferences are plain JVM logic with dedicated
+                    // unit tests and must report.
+                    "com.inputleaf.android.service.ConnectionService*",
+                    "com.inputleaf.android.service.CursorOverlayService*",
+                    "com.inputleaf.android.service.NotificationHelper*",
                 )
             }
         }

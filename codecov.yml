@@ -4,6 +4,13 @@ codecov:
     # both before publishing the combined project/patch status and the PR comment.
     after_n_builds: 2
 
+parsers:
+  jacoco:
+    # Kotlin inline/lambda code maps several branches onto one source line; JaCoCo marks
+    # such lines partial even when their executable paths ran. Count them as hits so the
+    # 100% patch target measures genuinely unexecuted lines instead of mapping artifacts.
+    partials_as_hits: true
+
 coverage:
   status:
     project:
