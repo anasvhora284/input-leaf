@@ -25,7 +25,7 @@ internal const val INPUT_LEAP_TEST_PORT = 24800
 
 internal fun boundLoopbackSocket(port: Int = INPUT_LEAP_TEST_PORT): ServerSocket =
     ServerSocket().apply {
-        reuseAddr = true
+        reuseAddress = true
         bind(InetSocketAddress(InetAddress.getByName(LOOPBACK_HOST), port), 50)
     }
 
