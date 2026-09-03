@@ -1,3 +1,9 @@
+codecov:
+  notify:
+    # Two CI jobs upload coverage (fast-jvm and android-coverage). Codecov waits for
+    # both before publishing the combined project/patch status and the PR comment.
+    after_n_builds: 2
+
 coverage:
   status:
     project:
@@ -6,20 +12,8 @@ coverage:
         threshold: 1%
     patch:
       default:
-        target: auto
-        threshold: 1%
-
-ignore:
-  - "app/src/main/java/com/inputleaf/android/ui/**"
-  - "app/src/main/java/com/inputleaf/android/service/**"
-  - "app/src/main/java/com/inputleaf/android/shizuku/**"
-  - "app/src/main/java/com/inputleaf/android/inject/AccessibilityInputService.kt"
-  - "app/src/main/java/com/inputleaf/android/inject/InputLeafIME.kt"
-  - "app/src/main/java/com/inputleaf/android/inject/AccessibilityInputInjector.kt"
-  - "app/src/main/java/com/inputleaf/android/inject/KeysymInjection.kt"
-  - "app/src/main/java/com/inputleaf/android/storage/ClientCertificateStore.kt"
-  - "app/src/main/java/com/inputleaf/android/storage/AppPreferences.kt"
-  - "app/src/main/java/com/inputleaf/android/InputLeafApplication.kt"
+        target: 100%
+        threshold: 0%
 
 comment:
   layout: "header, diff, files"

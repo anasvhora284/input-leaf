@@ -23,6 +23,8 @@ android {
         targetSdk = 34
         versionCode = 7
         versionName = "1.4.1"
+        // JUnit4 runner so the androidTest classes are discovered on the emulator
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     
     signingConfigs {
@@ -39,6 +41,8 @@ android {
             // Use project keystore so debug APKs can always update over each other
             // regardless of which machine built them
             signingConfig = signingConfigs.getByName("release")
+            // JaCoCo-instrument debug APKs so connected Android tests feed the Codecov report
+            enableAndroidTestCoverage = true
         }
         release {
             isMinifyEnabled = false
@@ -124,4 +128,12 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
     testImplementation("com.google.truth:truth:1.4.5")
+
+    androidTestImplementation(composeBom)
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.test:core:1.6.1")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("com.google.truth:truth:1.4.5")
 }
