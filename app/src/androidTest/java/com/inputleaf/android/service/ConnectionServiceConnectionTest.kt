@@ -226,19 +226,18 @@ class ConnectionServiceConnectionTest {
             binding.use {
                 service.connect(serverIp = "127.0.0.1", screenName = "smoke", force = true)
                 awaitState(service, 20_000) { it is ConnectionState.Idle }
-                // The server stays silent; the keepalive monitor must give up after four
-                // missed polls (~20s) and close the connection client-side. The close race
-                // may also schedule a retry that reconnects (Idle again) — either outcome
-                // proves the client itself ended the idle connection, so require an event
-                // well after the initial Idle instead of matching the state we already have.
+                // The server stays silent: after four missed keepalive polls (~20s) the
+                // monitor must close the connection client-side, which always passes
+                // through Disconnected. Require that real transition — the state is Idle
+                // right now, so matching Idle would exit without any keepalive activity.
+                // A close race may schedule a retry that reconnects; a later cycle then
+                // disconnects again, still within the extended deadline.
                 val idleAt = System.currentTimeMillis()
-                val deadline = idleAt + 40_000
+                val deadline = idleAt + 60_000
                 var keepaliveClosed = false
                 while (System.currentTimeMillis() < deadline) {
-                    val current = service.state.value
-                    val sinceIdle = System.currentTimeMillis() - idleAt
-                    if (sinceIdle > 10_000 &&
-                        (current is ConnectionState.Disconnected || current is ConnectionState.Idle)
+                    if (service.state.value is ConnectionState.Disconnected &&
+                        System.currentTimeMillis() - idleAt > 10_000
                     ) {
                         keepaliveClosed = true
                         break
