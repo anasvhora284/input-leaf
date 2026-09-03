@@ -226,11 +226,27 @@ class ConnectionServiceConnectionTest {
             binding.use {
                 service.connect(serverIp = "127.0.0.1", screenName = "smoke", force = true)
                 awaitState(service, 20_000) { it is ConnectionState.Idle }
-                // The server never closes early, so any Disconnected/Idle re-entry here
-                // proves the client itself gave up on the silent server (keepalive
-                // timeout, possibly followed by a scheduled retry that reconnects).
-                awaitState(service, 30_000) {
-                    it is ConnectionState.Disconnected || it is ConnectionState.Idle
+                // The server stays silent; the keepalive monitor must give up after four
+                // missed polls (~20s) and close the connection client-side. The close race
+                // may also schedule a retry that reconnects (Idle again) — either outcome
+                // proves the client itself ended the idle connection, so require an event
+                // well after the initial Idle instead of matching the state we already have.
+                val idleAt = System.currentTimeMillis()
+                val deadline = idleAt + 40_000
+                var keepaliveClosed = false
+                while (System.currentTimeMillis() < deadline) {
+                    val current = service.state.value
+                    val sinceIdle = System.currentTimeMillis() - idleAt
+                    if (sinceIdle > 10_000 &&
+                        (current is ConnectionState.Disconnected || current is ConnectionState.Idle)
+                    ) {
+                        keepaliveClosed = true
+                        break
+                    }
+                    Thread.sleep(50)
+                }
+                check(keepaliveClosed) {
+                    "Keepalive timeout did not end the idle connection; state=${service.state.value}"
                 }
                 // A retry may have been scheduled by the close race; a user disconnect
                 // must still end everything quietly.
