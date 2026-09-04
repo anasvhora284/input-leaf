@@ -2,15 +2,20 @@
 // version. Placing a newer KGP on the buildscript classpath upgrades the built-in
 // compiler to that version; this is the documented override mechanism:
 // https://developer.android.com/build/releases/agp-9-0-0-release-notes#runtime-dependency-on-kotlin-gradle-plugin
-// Keep in sync with `kotlin` in gradle/libs.versions.toml (catalog accessors cannot be
-// used inside the buildscript block).
+// Catalog accessors cannot be used inside the buildscript block, so the version is
+// read straight from gradle/libs.versions.toml — the catalog stays the single source
+// of truth, and a renamed or missing entry fails the build right here.
 buildscript {
     repositories {
         google()
         mavenCentral()
     }
     dependencies {
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.10")
+        val kotlinVersion = Regex("(?m)^kotlin\\s*=\\s*\"([^\"]+)\"")
+            .find(rootDir.resolve("gradle/libs.versions.toml").readText())
+            ?.groupValues?.get(1)
+            ?: error("kotlin version entry not found in gradle/libs.versions.toml")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
     }
 }
 
