@@ -36,7 +36,7 @@ import org.junit.runner.RunWith
  * reporting, TLS certificate rejection, and keepalive timeout.
  */
 @RunWith(AndroidJUnit4::class)
-class ConnectionServiceConnectionTest {
+class ConnectionServiceLifecycleTest {
 
     // The service reads preferences when bound, so the reset must complete before binding.
     // Clearing through the app's own DataStore singleton also covers reused local emulators.
