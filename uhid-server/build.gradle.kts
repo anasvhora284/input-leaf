@@ -20,10 +20,10 @@ java {
 }
 dependencies {
     // Android stub for android.net.LocalServerSocket / LocalSocket (compile-time only)
-    compileOnly("com.google.android:android:4.1.1.4")
+    compileOnly(libs.android.stub)
 
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("com.google.truth:truth:1.4.5")
+    testImplementation(libs.junit)
+    testImplementation(libs.truth)
 }
 // Step 1: fat JAR
 tasks.register<Jar>("fatJar") {
