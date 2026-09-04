@@ -95,21 +95,26 @@ android {
 // BaseVariantOutputImpl) that used to rename outputs in place, and the public
 // VariantOutput API does not expose outputFileName. Reproduce the historical
 // input-leaf_<version>_<abi>.apk scheme with the public variant API instead: a Copy
-// task that stages each variant's APKs under build/dist/<variant>/.
+// task per variant stages the APKs under build/dist/<variant>/, and each
+// assemble<Variant> task depends on it so every assemble run also produces the
+// renamed copies. The ABI group includes hyphens because split-APK file names
+// contain ABIs like armeabi-v7a and arm64-v8a.
 androidComponents {
     onVariants { variant ->
+        val capitalizedName = variant.name.replaceFirstChar { it.uppercase() }
         val versionName = android.defaultConfig.versionName
             ?: error("versionName is required for the APK naming scheme")
-        tasks.register<Copy>(
-            "copy${variant.name.replaceFirstChar { it.uppercase() }}ApksToDist"
-        ) {
+        val copyDist = tasks.register<Copy>("copy${capitalizedName}ApksToDist") {
             from(variant.artifacts.get(SingleArtifact.APK))
             into(layout.buildDirectory.dir("dist/${variant.name}"))
             rename { fileName ->
-                Regex("app-([A-Za-z0-9_]+)-(debug|release)\\.apk").find(fileName)
+                Regex("app-([A-Za-z0-9_-]+)-(debug|release)\\.apk").find(fileName)
                     ?.let { "input-leaf_${versionName}_${it.groupValues[1]}.apk" }
                     ?: fileName
             }
+        }
+        tasks.matching { it.name == "assemble$capitalizedName" }.configureEach {
+            dependsOn(copyDist)
         }
     }
 }
