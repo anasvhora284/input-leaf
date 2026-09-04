@@ -1,9 +1,29 @@
+// AGP 9 compiles Kotlin itself (built-in Kotlin) with a bundled Kotlin Gradle plugin
+// version. Placing a newer KGP on the buildscript classpath upgrades the built-in
+// compiler to that version; this is the documented override mechanism:
+// https://developer.android.com/build/releases/agp-9-0-0-release-notes#runtime-dependency-on-kotlin-gradle-plugin
+// Catalog accessors cannot be used inside the buildscript block, so the version is
+// read straight from gradle/libs.versions.toml — the catalog stays the single source
+// of truth, and a renamed or missing entry fails the build right here.
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        val kotlinVersion = Regex("(?m)^kotlin\\s*=\\s*\"([^\"]+)\"")
+            .find(rootDir.resolve("gradle/libs.versions.toml").readText())
+            ?.groupValues?.get(1)
+            ?: error("kotlin version entry not found in gradle/libs.versions.toml")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
+    }
+}
+
 plugins {
-    id("com.android.application") version "8.7.0" apply false
-    id("com.android.library") version "8.7.0" apply false
-    id("org.jetbrains.kotlin.android") version "2.0.0" apply false
-    id("org.jetbrains.kotlin.plugin.compose") version "2.0.0" apply false
-    id("org.jetbrains.kotlinx.kover") version "0.9.9"
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.android.library) apply false
+    alias(libs.plugins.compose.compiler) apply false
+    alias(libs.plugins.kover)
 }
 
 dependencies {
@@ -17,26 +37,10 @@ kover {
     }
 
     reports {
-        filters {
-            excludes {
-                packages(
-                    "com.inputleaf.android.ui",
-                    "com.inputleaf.android.ui.components",
-                    "com.inputleaf.android.ui.theme",
-                    "com.inputleaf.android.service",
-                    "com.inputleaf.android.shizuku",
-                )
-                classes(
-                    "com.inputleaf.android.InputLeafApplication*",
-                    "com.inputleaf.android.inject.AccessibilityInputService*",
-                    "com.inputleaf.android.inject.InputLeafIME*",
-                    "com.inputleaf.android.inject.AccessibilityInputInjector*",
-                    "com.inputleaf.android.inject.KeysymInjection*",
-                    "com.inputleaf.android.storage.ClientCertificateStore*",
-                    "com.inputleaf.android.storage.AppPreferences*",
-                )
-            }
-        }
+        // No coverage exclusions: every class reports truthfully. The jvm session (this
+        // report) covers plain JVM logic; the android-coverage emulator session covers the
+        // framework adapters; Codecov merges both line-by-line, so the enforced 100% patch
+        // gate needs no package/class allow-lists and untested code stays visible.
         variant("debugJvm") {
             xml {
                 xmlFile = layout.buildDirectory.file("reports/kover/coverage-debug-jvm.xml").get().asFile

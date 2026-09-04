@@ -35,7 +35,7 @@ jobs:
         uses: android-actions/setup-android@v4.0.1
 
       - name: Install Android SDK packages
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+        run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6.3.0
@@ -88,7 +88,7 @@ jobs:
         uses: android-actions/setup-android@v4.0.1
 
       - name: Install Android SDK packages
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+        run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6.3.0
@@ -100,6 +100,14 @@ jobs:
 
       - name: Build debug APK and test APK
         run: ./gradlew --no-daemon --stacktrace :app:assembleDebug :app:assembleDebugAndroidTest
+
+      # assembleDebug now depends on copyDebugApksToDist; fail fast if the rename
+      # regex ever stops matching a split-APK name (e.g. a new hyphenated ABI).
+      - name: Assert renamed APK staging
+        run: |
+          cd app/build/dist/debug
+          if ls app-*.apk >/dev/null 2>&1; then echo "::error::unrenamed APKs in dist staging"; exit 1; fi
+          ls input-leaf_*_armeabi-v7a.apk input-leaf_*_arm64-v8a.apk input-leaf_*_x86.apk input-leaf_*_x86_64.apk input-leaf_*_universal.apk >/dev/null
 
       # The runner image exposes /dev/kvm but the user is not in the kvm group;
       # without this udev rule the emulator falls back to -accel off (software
@@ -113,7 +121,7 @@ jobs:
       - name: Run connected smoke tests and generate Android coverage
         uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
-          api-level: 34
+          api-level: 36
           target: google_apis
           arch: x86_64
           # The smoke tests assume fresh-install app state; a brand-new AVD every run

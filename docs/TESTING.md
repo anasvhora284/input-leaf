@@ -5,9 +5,9 @@ Input Leaf uses a small, fast JVM test suite and Kover coverage reporting as the
 ## Requirements
 
 - JDK 17
-- Android SDK platform 34 and build tools 34.0.0
+- Android SDK platform 37.0 and build tools 36.0.0
 - The checked-in Gradle Wrapper (`./gradlew`)
-- An API 34 Android emulator, only for the instrumented smoke suite
+- An API 36 Android emulator, only for the instrumented smoke suite
 
 ## Run the fast suite
 
@@ -21,7 +21,7 @@ The Kover task runs the app's local Android `debug` JVM tests and writes `build/
 
 ## Run the instrumented smoke tests
 
-Start an API 34 emulator (or Android Studio's Device Manager), then run:
+Start an API 36 emulator (or Android Studio's Device Manager), then run:
 
 ```sh
 ./gradlew :app:createDebugCoverageReport
@@ -80,7 +80,7 @@ To generate the asset directly, run:
 ./gradlew :uhid-server:buildDex
 ```
 
-This task requires Android platform 34 and build tools 34.0.0. It compiles against the platform API, targets the app's minimum API 26, and writes `uhid-server/build/generated/assets/uhid/classes.dex`. JVM tests do not generate the DEX because they do not package app assets.
+This task requires Android platform 37.0 and build tools 36.0.0. It compiles against the platform API, targets the app's minimum API 26, and writes `uhid-server/build/generated/assets/uhid/classes.dex`. JVM tests do not generate the DEX because they do not package app assets.
 
 ## Test design principles
 
@@ -102,7 +102,7 @@ The required `fast-jvm` JVM suite must not depend on:
 - Shizuku, accessibility, IME, or `/dev/uhid` access;
 - APK signing or release secrets.
 
-The parallel `android-coverage` job runs a small instrumented smoke suite that intentionally exercises the opposite: real activities, real service binding, and real APK installation on an API 34 emulator. It must stay smoke-sized — it runs on every pull request, and emulator startup dominates its wall-clock time. Lint and formatting are not part of the required test commands because the repository does not currently configure dedicated formatting or static-analysis tooling.
+The parallel `android-coverage` job runs a small instrumented smoke suite that intentionally exercises the opposite: real activities, real service binding, and real APK installation on an API 36 emulator. It must stay smoke-sized — it runs on every pull request, and emulator startup dominates its wall-clock time. Lint and formatting are not part of the required test commands because the repository does not currently configure dedicated formatting or static-analysis tooling.
 
 ## Coverage guardrails
 
@@ -113,11 +113,11 @@ Codecov requires 100% patch coverage: every changed executable line must be exer
 
 ## Current baseline
 
-The initial baseline was verified with JDK 17 and Android SDK 34 when the fast CI workflow was introduced:
+The initial baseline was verified with JDK 17 and Android SDK 34 when the fast CI workflow was introduced; the current baseline is verified with JDK 17 and Android SDK 37.0:
 
 - `:app:testDebugUnitTest` passes and runs the app's Kotlin behavior tests.
 - `:uhid-server:test` passes and runs the UHID module's Java behavior tests.
 
-The `android-coverage` CI job verifies on the API 34 emulator that `:app:createDebugCoverageReport` passes and runs the service and onboarding smoke tests added with that job.
+The `android-coverage` CI job verifies on the API 36 emulator that `:app:createDebugCoverageReport` passes and runs the service and onboarding smoke tests added with that job.
 
 Before making changes, run the complete fast suite and treat failures as real regressions or document them explicitly. Do not skip, mute, or retry failing tests merely to produce a green build. GitHub Actions retains available test reports when either CI job fails.
