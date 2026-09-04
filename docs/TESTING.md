@@ -5,7 +5,7 @@ Input Leaf uses a small, fast JVM test suite and Kover coverage reporting as the
 ## Requirements
 
 - JDK 17
-- Android SDK platform 37 and build tools 36.0.0
+- Android SDK platform 37.0 and build tools 36.0.0
 - The checked-in Gradle Wrapper (`./gradlew`)
 - An API 36 Android emulator, only for the instrumented smoke suite
 
@@ -80,7 +80,7 @@ To generate the asset directly, run:
 ./gradlew :uhid-server:buildDex
 ```
 
-This task requires Android platform 37 and build tools 36.0.0. It compiles against the platform API, targets the app's minimum API 26, and writes `uhid-server/build/generated/assets/uhid/classes.dex`. JVM tests do not generate the DEX because they do not package app assets.
+This task requires Android platform 37.0 and build tools 36.0.0. It compiles against the platform API, targets the app's minimum API 26, and writes `uhid-server/build/generated/assets/uhid/classes.dex`. JVM tests do not generate the DEX because they do not package app assets.
 
 ## Test design principles
 
@@ -113,7 +113,7 @@ Codecov requires 100% patch coverage: every changed executable line must be exer
 
 ## Current baseline
 
-The initial baseline was verified with JDK 17 and Android SDK 34 when the fast CI workflow was introduced; the current baseline is verified with JDK 17 and Android SDK 37:
+The initial baseline was verified with JDK 17 and Android SDK 34 when the fast CI workflow was introduced; the current baseline is verified with JDK 17 and Android SDK 37.0:
 
 - `:app:testDebugUnitTest` passes and runs the app's Kotlin behavior tests.
 - `:uhid-server:test` passes and runs the UHID module's Java behavior tests.
