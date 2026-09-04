@@ -16,7 +16,7 @@ kover {
 
 android {
     namespace = "com.inputleaf.android"
-    compileSdk = 36
+    compileSdk = 37
     
     defaultConfig {
         applicationId = "com.inputleaf.android"
