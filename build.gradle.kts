@@ -1,7 +1,22 @@
+// AGP 9 compiles Kotlin itself (built-in Kotlin) with a bundled Kotlin Gradle plugin
+// version. Placing a newer KGP on the buildscript classpath upgrades the built-in
+// compiler to that version; this is the documented override mechanism:
+// https://developer.android.com/build/releases/agp-9-0-0-release-notes#runtime-dependency-on-kotlin-gradle-plugin
+// Keep in sync with `kotlin` in gradle/libs.versions.toml (catalog accessors cannot be
+// used inside the buildscript block).
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.10")
+    }
+}
+
 plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.android.library) apply false
-    alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.compose.compiler) apply false
     alias(libs.plugins.kover)
 }

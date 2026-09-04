@@ -1,6 +1,7 @@
+import com.android.build.api.artifact.SingleArtifact
+
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kover)
 }
@@ -15,11 +16,13 @@ kover {
 
 android {
     namespace = "com.inputleaf.android"
-    compileSdk = 34
+    compileSdk = 36
     
     defaultConfig {
         applicationId = "com.inputleaf.android"
         minSdk = 26
+        // targetSdk deliberately stays on 34: 35+ enforces edge-to-edge, which is a
+        // product decision, not a dependency bump.
         targetSdk = 34
         versionCode = 7
         versionName = "1.4.1"
@@ -42,7 +45,7 @@ android {
             // regardless of which machine built them
             signingConfig = signingConfigs.getByName("release")
             // JaCoCo-instrument debug APKs so connected Android tests feed the Codecov report
-            enableAndroidTestCoverage = true
+            isTestCoverageEnabled = true
         }
         release {
             isMinifyEnabled = false
@@ -55,9 +58,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     
-    kotlinOptions { 
-        jvmTarget = "17" 
-    }
+    // With built-in Kotlin there is no kotlinOptions block; the Kotlin jvmTarget
+    // defaults to compileOptions.targetCompatibility above.
     
     buildFeatures { 
         compose = true
@@ -65,8 +67,11 @@ android {
     }
 
     sourceSets {
+        // AGP 9 disallows providers here (android.sourceset.disallowProvider), so pass
+        // the resolved directory; ordering against :uhid-server:buildDex is enforced by
+        // the merge-assets dependsOn below.
         getByName("main").assets.srcDir(
-            project(":uhid-server").layout.buildDirectory.dir("generated/assets/uhid")
+            project(":uhid-server").layout.buildDirectory.dir("generated/assets/uhid").get().asFile
         )
     }
     
@@ -84,15 +89,27 @@ android {
             isUniversalApk = true
         }
     }
-    
-    // Custom APK naming
-    applicationVariants.all {
-        val variant = this
-        variant.outputs.all {
-            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-            val abiName = output.getFilter(com.android.build.OutputFile.ABI) ?: "universal"
-            val versionName = variant.versionName
-            output.outputFileName = "input-leaf_${versionName}_${abiName}.apk"
+}
+
+// Custom APK naming: AGP 9 removed the legacy variant API (applicationVariants /
+// BaseVariantOutputImpl) that used to rename outputs in place, and the public
+// VariantOutput API does not expose outputFileName. Reproduce the historical
+// input-leaf_<version>_<abi>.apk scheme with the public variant API instead: a Copy
+// task that stages each variant's APKs under build/dist/<variant>/.
+androidComponents {
+    onVariants { variant ->
+        val versionName = android.defaultConfig.versionName
+            ?: error("versionName is required for the APK naming scheme")
+        tasks.register<Copy>(
+            "copy${variant.name.replaceFirstChar { it.uppercase() }}ApksToDist"
+        ) {
+            from(variant.artifacts.get(SingleArtifact.APK))
+            into(layout.buildDirectory.dir("dist/${variant.name}"))
+            rename { fileName ->
+                Regex("app-([A-Za-z0-9_]+)-(debug|release)\\.apk").find(fileName)
+                    ?.let { "input-leaf_${versionName}_${it.groupValues[1]}.apk" }
+                    ?: fileName
+            }
         }
     }
 }
@@ -125,6 +142,7 @@ dependencies {
     implementation(libs.shizuku.provider)
     
     testImplementation(libs.junit)
+    testImplementation(libs.mockito.core)
     testImplementation(libs.coroutines.test)
     testImplementation(libs.truth)
 

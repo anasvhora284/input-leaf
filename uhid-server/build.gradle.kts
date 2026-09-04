@@ -53,16 +53,16 @@ tasks.register<Exec>("buildDex") {
     }
 
     val sdkRoot = resolveSdkDir()
-    val d8Path = if (sdkRoot.isNotBlank()) "$sdkRoot/build-tools/34.0.0/d8" else ""
-    val androidJar = if (sdkRoot.isNotBlank()) "$sdkRoot/platforms/android-34/android.jar" else ""
+    val d8Path = if (sdkRoot.isNotBlank()) "$sdkRoot/build-tools/36.0.0/d8" else ""
+    val androidJar = if (sdkRoot.isNotBlank()) "$sdkRoot/platforms/android-36/android.jar" else ""
 
     inputs.file(jarPath)
     outputs.file(dexFile)
 
     doFirst {
         require(sdkRoot.isNotBlank()) { "ANDROID_SDK_ROOT, ANDROID_HOME, or sdk.dir in local.properties is required to build the UHID DEX" }
-        require(File(d8Path).exists()) { "Android build tools 34.0.0 are required to build the UHID DEX (checked $d8Path)" }
-        require(File(androidJar).exists()) { "Android platform 34 is required to build the UHID DEX (checked $androidJar)" }
+        require(File(d8Path).exists()) { "Android build tools 36.0.0 are required to build the UHID DEX (checked $d8Path)" }
+        require(File(androidJar).exists()) { "Android platform 36 is required to build the UHID DEX (checked $androidJar)" }
         project.delete(dexOut)
         dexOut.mkdirs()
     }
