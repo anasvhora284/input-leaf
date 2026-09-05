@@ -33,7 +33,7 @@ It is designed for people searching for an **Input Leap Android client**, **Desk
 
 **[Download the latest Input Leaf APK](https://github.com/anasvhora284/input-leaf/releases/latest)**
 
-Universal and device-architecture APKs are published with releases. Choose `universal.apk` if you are unsure which architecture your Android device uses.
+Universal and device-architecture APKs are published with releases. Choose `input-leaf_<version>_universal.apk` if you are unsure which architecture your Android device uses.
 
 ## Requirements
 
