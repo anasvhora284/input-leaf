@@ -73,11 +73,15 @@ Input Leaf supports two input-injection modes:
 │ PC / Laptop         │                         │ Android             │
 │                     │                         │                     │
 │ Input Leap /        │ ──────────────────────> │ Input Leaf          │
-│ Deskflow server     │   mouse + keyboard      │ Android client       │
+│ Deskflow server     │   mouse + keyboard      │ Android client      │
 └─────────────────────┘                         └─────────────────────┘
 ```
 
-For detailed setup instructions, see the **[Input Leaf website](https://inputleaf.anasvhora.tech/)**.
+For detailed setup instructions, see:
+
+- **[Input Leap on Android: setup guide](docs/input-leap-android.md)**
+- **[Deskflow on Android: setup guide](docs/deskflow-android.md)**
+- **[Input Leaf website](https://inputleaf.anasvhora.tech/)**
 
 ## Features
 
