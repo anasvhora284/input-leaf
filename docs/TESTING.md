@@ -68,7 +68,7 @@ Place emulator smoke tests under:
 app/src/androidTest/java/com/inputleaf/android/<feature>/
 ```
 
-Mirror the production package, name classes after the subject, and keep the suite small: these tests run on an emulator in CI on every pull request. They are smoke tests that launch real activities and bind real services to catch integration breakage the JVM suite cannot see — navigation rendering, service binding, lifecycle startup — not full behavioral coverage. Shared fixtures go in `app/src/androidTest/java/com/inputleaf/android/testutil/`.
+Mirror the production package, name classes after the subject, and keep the suite small: these tests run on an emulator in CI on every pull request. They are smoke tests that launch real activities and bind real services to catch integration breakage the JVM suite cannot see — navigation rendering, service binding, lifecycle startup. Beyond those launch checks, `ConnectionServiceLifecycleTest` drives the real connection lifecycle against a loopback Input Leap server (handshake, input routing, retry after an abrupt disconnect, TLS certificate rejection, keepalive timeout) because the service's framework effects are only exercisable on an emulator. Shared fixtures go in `app/src/androidTest/java/com/inputleaf/android/testutil/` — including `LoopbackServer`/`InputLeapTestServer`, which bind the fixed Input Leap port (24800) the service always dials.
 
 ### Generated UHID DEX asset
 
@@ -106,7 +106,7 @@ The parallel `android-coverage` job runs a small instrumented smoke suite that i
 
 ## Coverage guardrails
 
-Kover collects coverage from the local Android `debug` JVM tests. JaCoCo collects coverage from the Java-only UHID module because Kover's Gradle plugin does not create coverage variants for a pure Java project. The `android-coverage` job collects a JaCoCo report from the connected smoke tests against the instrumented debug APK. Codecov uploads all three as XML (`jvm` and `android` flags), waits for both jobs (`after_n_builds: 2` in `codecov.yml`), merges them for reporting, and comments on pull requests with project and changed-line coverage.
+Kover collects coverage from the local Android `debug` JVM tests with no class exclusions — every class reports truthfully, and the jvm session's low headline number simply reflects how much logic only the emulator can reach. JaCoCo collects coverage from the Java-only UHID module because Kover's Gradle plugin does not create coverage variants for a pure Java project. The `android-coverage` job collects a JaCoCo report from the connected smoke tests against the instrumented debug APK. Codecov uploads all three as XML (`jvm` and `android` flags), waits for both jobs (`after_n_builds: 2` in `codecov.yml`), merges them line-by-line for reporting, and comments on pull requests with project and changed-line coverage. Because a line counts as covered when either session hits it, a class the JVM cannot execute (a framework `Service`, IME, or accessibility adapter) is still fully represented by the emulator session — no package or class allow-lists are needed anywhere, and the enforced 100% patch gate applies to every changed line regardless of which session covers it.
 
 Codecov requires 100% patch coverage: every changed executable line must be exercised by one of the suites. This is a regression guardrail, not proof that a feature is behaviorally complete; tests must still assert the relevant observable behavior and edge cases.
 
@@ -118,6 +118,6 @@ The initial baseline was verified with JDK 17 and Android SDK 34 when the fast C
 - `:app:testDebugUnitTest` passes and runs the app's Kotlin behavior tests.
 - `:uhid-server:test` passes and runs the UHID module's Java behavior tests.
 
-The `android-coverage` CI job verifies on the API 34 emulator that `:app:createDebugCoverageReport` passes and runs the service and onboarding smoke tests added with that job.
+The `android-coverage` CI job verifies on the API 34 emulator that `:app:createDebugCoverageReport` passes and runs the service and onboarding smoke tests plus the connected `ConnectionServiceLifecycleTest` suite, which produces the JaCoCo report Codecov uses for the `android` flag.
 
 Before making changes, run the complete fast suite and treat failures as real regressions or document them explicitly. Do not skip, mute, or retry failing tests merely to produce a green build. GitHub Actions retains available test reports when either CI job fails.
