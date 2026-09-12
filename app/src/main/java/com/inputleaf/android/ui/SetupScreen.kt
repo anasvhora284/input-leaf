@@ -91,15 +91,36 @@ fun SetupScreen(
                 )
             }
 
-            item {
-                PermissionCard(
-                    icon = Icons.Default.Warning,
-                    title = "Virtual Keyboard",
-                    description = "Required for hardware shortcuts like Ctrl+C without Shizuku",
-                    buttonLabel = "Select Keyboard",
-                    isGranted = imeEnabledAndSelected,
-                    onRequestPermission = onRequestImeSetup
-                )
+            // Shizuku injects key events at the system level, so the custom IME is only
+            // needed on the Accessibility path. Asking for it under Shizuku would replace
+            // the user's own keyboard and take its emoji and GIF pickers with it.
+            if (shizukuStatus != ShizukuStatus.READY) {
+                item {
+                    PermissionCard(
+                        icon = Icons.Default.Warning,
+                        title = "Virtual Keyboard",
+                        description = "Required for hardware shortcuts like Ctrl+C without Shizuku",
+                        buttonLabel = "Select Keyboard",
+                        isGranted = imeEnabledAndSelected,
+                        onRequestPermission = onRequestImeSetup
+                    )
+                }
+            }
+
+            // An earlier setup may have left our IME selected. Under Shizuku that buys
+            // nothing and costs the user their keyboard's emoji and GIF pickers, so
+            // offer the way back rather than silently leaving them on a blank keyboard.
+            if (shizukuStatus == ShizukuStatus.READY && imeEnabledAndSelected) {
+                item {
+                    PermissionCard(
+                        icon = Icons.Default.Warning,
+                        title = "Restore Your Keyboard",
+                        description = "Input Leaf Keyboard is active, which hides your usual keyboard's emoji and GIF pickers. Shizuku doesn't need it.",
+                        buttonLabel = "Switch Keyboard",
+                        isGranted = false,
+                        onRequestPermission = onRequestImeSetup
+                    )
+                }
             }
 
             item {

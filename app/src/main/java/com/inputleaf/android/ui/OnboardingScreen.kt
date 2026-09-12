@@ -47,7 +47,20 @@ fun OnboardingScreen(
     onComplete: () -> Unit
 ) {
     var currentPage by remember { mutableIntStateOf(0) }
-    val totalPages = 6
+    // Shizuku injects key events at the system level, so the custom IME is only needed on
+    // the Accessibility path. Asking for it under Shizuku would replace the user's own
+    // keyboard and take its emoji and GIF pickers with it.
+    val steps = buildList {
+        add(OnboardingStep.Welcome)
+        add(OnboardingStep.Shizuku)
+        add(OnboardingStep.Accessibility)
+        if (shizukuStatus != ShizukuStatus.READY) add(OnboardingStep.VirtualKeyboard)
+        add(OnboardingStep.Overlay)
+        add(OnboardingStep.Battery)
+    }
+    val totalPages = steps.size
+    // Granting Shizuku mid-flow drops a step, so the current index can outrun the list.
+    val pageIndex = currentPage.coerceIn(0, steps.lastIndex)
     val context = LocalContext.current
 
     Scaffold { padding ->
@@ -68,10 +81,10 @@ fun OnboardingScreen(
                     Box(
                         modifier = Modifier
                             .padding(horizontal = 4.dp)
-                            .size(if (index == currentPage) 24.dp else 8.dp, 8.dp)
+                            .size(if (index == pageIndex) 24.dp else 8.dp, 8.dp)
                             .clip(RoundedCornerShape(4.dp))
                             .background(
-                                if (index <= currentPage) MaterialTheme.colorScheme.primary
+                                if (index <= pageIndex) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.outlineVariant
                             )
                     )
@@ -85,9 +98,9 @@ fun OnboardingScreen(
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
             ) {
-                when (currentPage) {
-                    0 -> WelcomePage()
-                    1 -> PermissionPage(
+                when (steps[pageIndex]) {
+                    OnboardingStep.Welcome -> WelcomePage()
+                    OnboardingStep.Shizuku -> PermissionPage(
                         icon = Icons.Rounded.Security,
                         title = "Shizuku Setup (Optional)",
                         description = "Shizuku lets Input Leaf inject mouse & keyboard events at the system level — the most powerful input method. Skip if you prefer Accessibility Service instead.",
@@ -121,7 +134,7 @@ fun OnboardingScreen(
                             else -> ({})
                         }
                     )
-                    2 -> PermissionPage(
+                    OnboardingStep.Accessibility -> PermissionPage(
                         icon = Icons.Rounded.Accessibility,
                         title = "Accessibility Service",
                         description = "Enable Input Leaf's Accessibility Service — a no-root, no-Shizuku way to inject touch events. Works on any Android device.",
@@ -141,7 +154,7 @@ fun OnboardingScreen(
                             context.startActivity(intent)
                         }
                     )
-                    3 -> PermissionPage(
+                    OnboardingStep.VirtualKeyboard -> PermissionPage(
                         icon = Icons.Default.Warning,
                         title = "Virtual Keyboard",
                         description = "Required to inject hardware keyboard shortcuts like Ctrl+C and Alt+Tab.",
@@ -151,7 +164,7 @@ fun OnboardingScreen(
                         actionLabel = if (!imeEnabledAndSelected) "Select Keyboard" else null,
                         onAction = onRequestImeSetup
                     )
-                    4 -> PermissionPage(
+                    OnboardingStep.Overlay -> PermissionPage(
                         icon = Icons.Rounded.Visibility,
                         title = "Overlay Permission",
                         description = "Allows Input Leaf to display a cursor on your screen when your computer's mouse moves to this device.",
@@ -161,7 +174,7 @@ fun OnboardingScreen(
                         actionLabel = if (!canDrawOverlays) "Grant Permission" else null,
                         onAction = onRequestOverlayPermission
                     )
-                    5 -> PermissionPage(
+                    OnboardingStep.Battery -> PermissionPage(
                         icon = Icons.Rounded.BatteryChargingFull,
                         title = "Battery Optimization",
                         description = "Prevents Android from killing the connection when your phone goes to sleep.\n\nGo to: Battery usage → Allow background activity",
@@ -181,8 +194,8 @@ fun OnboardingScreen(
                     .padding(top = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                if (currentPage > 0) {
-                    OutlinedButton(onClick = { currentPage-- }) {
+                if (pageIndex > 0) {
+                    OutlinedButton(onClick = { currentPage = pageIndex - 1 }) {
                         Text("Back")
                     }
                 } else {
@@ -191,8 +204,8 @@ fun OnboardingScreen(
                     }
                 }
 
-                if (currentPage < totalPages - 1) {
-                    Button(onClick = { currentPage++ }) {
+                if (pageIndex < totalPages - 1) {
+                    Button(onClick = { currentPage = pageIndex + 1 }) {
                         Text("Next")
                     }
                 } else {
@@ -203,6 +216,20 @@ fun OnboardingScreen(
             }
         }
     }
+}
+
+/**
+ * Steps of the onboarding flow. Named rather than indexed because the list is built
+ * per-device — [VirtualKeyboard] is dropped when Shizuku is ready — so a positional
+ * `when` would silently show the wrong page.
+ */
+private enum class OnboardingStep {
+    Welcome,
+    Shizuku,
+    Accessibility,
+    VirtualKeyboard,
+    Overlay,
+    Battery,
 }
 
 @Composable
