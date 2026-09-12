@@ -25,23 +25,54 @@ import rikka.shizuku.Shizuku
 private const val TAG = "ShizukuInputInjector"
 
 /**
+ * Shizuku caches the user-service process by version. Bump this whenever
+ * [InputInjectorService] changes, or the old process is reused and the new AIDL methods
+ * are missing at runtime.
+ */
+private const val SERVICE_VERSION = 12
+
+/**
  * Wrapper for Shizuku-based input injection.
  * Handles binding to the privileged InputInjectorService and translating
  * InputLeap events to Android input events.
  */
 class ShizukuInputInjector(
-    private val screenWidth: Int,
-    private val screenHeight: Int
+    private var screenWidth: Int,
+    private var screenHeight: Int
 ) : InputInjector {
-    override val name: String = "Shizuku (ADB-level injection)"
-    
+
+    /**
+     * Updates the display bounds on rotation. Exists so a single injector can be reused
+     * across connects: constructing a new one per connect made two instances share one
+     * Shizuku user service, and tearing down the old one closed the HID devices the new
+     * one was already using.
+     */
+    fun updateScreenBounds(width: Int, height: Int) {
+        screenWidth = width
+        screenHeight = height
+    }
+    override val name: String
+        get() = if (usesSystemPointer) {
+            "Shizuku (system pointer + ADB keys)"
+        } else {
+            "Shizuku (ADB-level injection)"
+        }
+
+    /**
+     * True once a real HID pointer is registered, so Android draws its own cursor —
+     * which, unlike an app overlay, renders above the notification shade and Quick
+     * Settings. When false everything falls back to `injectInputEvent` exactly as before.
+     */
+    var usesSystemPointer: Boolean = false
+        private set
+
     var onServiceDisconnectedCallback: (() -> Unit)? = null
 
     private var service: IInputInjector? = null
     private var isBound = false
     private var connectDeferred: CompletableDeferred<Boolean>? = null
-    
-    // Track absolute mouse position (InputLeap sends absolute coords, 
+
+    // Track absolute mouse position (InputLeap sends absolute coords,
     // but we may need to synthesize relative movements)
     private var mouseX = 0f
     private var mouseY = 0f
@@ -58,7 +89,8 @@ class ShizukuInputInjector(
             "com.inputleaf.android",
             InputInjectorService::class.java.name
         )
-    ).daemon(false).processNameSuffix("input_injector")
+        // Bumped when the user-service code changes, or Shizuku reuses the stale process.
+    ).daemon(false).processNameSuffix("input_injector").version(SERVICE_VERSION)
     
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -79,6 +111,8 @@ class ShizukuInputInjector(
         val wasActive = isBound || service != null
         service = null
         isBound = false
+        // The HID device dies with the service process; recovery re-opens it.
+        usesSystemPointer = false
         if (wasActive) {
             onServiceDisconnectedCallback?.invoke()
         }
@@ -106,13 +140,18 @@ class ShizukuInputInjector(
             return false
         }
         if (isBound && service != null) {
+            // A live binding still needs the HID pointer checked: a previous session may
+            // have closed it, or the user service may have been restarted underneath us.
+            // Returning early without this left usesSystemPointer stale-true while no
+            // device existed, which suppressed the drawn overlay and showed no cursor.
+            openSystemPointer()
             return true
         }
         
         val deferred = CompletableDeferred<Boolean>()
         connectDeferred = deferred
         
-        return try {
+        val bound = try {
             Shizuku.bindUserService(serviceArgs, serviceConnection)
             withTimeout(5000) {
                 deferred.await()
@@ -125,6 +164,27 @@ class ShizukuInputInjector(
             false
         } finally {
             connectDeferred = null
+        }
+
+        if (bound) openSystemPointer()
+        return bound
+    }
+
+    /**
+     * Registers the HID pointer, degrading silently to `injectInputEvent` if `/dev/uhid`
+     * is unavailable — an SELinux denial on a hardened ROM, say. Binding still counts as
+     * success in that case, so a failure here never makes a device worse than before.
+     */
+    private fun openSystemPointer() {
+        val svc = service ?: return
+        usesSystemPointer = try {
+            svc.openVirtualPointer()
+        } catch (e: Exception) {
+            Log.w(TAG, "HID pointer unavailable; using injected motion events", e)
+            false
+        }
+        if (usesSystemPointer) {
+            Log.i(TAG, "HID pointer active — Android draws the cursor")
         }
     }
     
@@ -141,8 +201,24 @@ class ShizukuInputInjector(
             }
             service = null
             isBound = false
+            usesSystemPointer = false
         }
     }
+
+    /**
+     * Shows or hides the on-screen keyboard while the HID keyboard is attached, so the
+     * user can reach their IME's emoji and GIF pickers mid-session.
+     * @return the new visibility state, or false if the service is gone
+     */
+    fun toggleSoftKeyboard(): Boolean = try {
+        service?.toggleSoftKeyboard() ?: false
+    } catch (e: Exception) {
+        Log.w(TAG, "Failed to toggle soft keyboard", e)
+        false
+    }
+
+    private fun motionAction(): Int =
+        if (buttonState != 0) MotionEvent.ACTION_MOVE else MotionEvent.ACTION_HOVER_MOVE
     
     /**
      * Send an InputLeap event to be injected.
@@ -152,48 +228,80 @@ class ShizukuInputInjector(
         
         try {
             when (event) {
+                // The server handing control over or taking it away is the only safe
+                // moment to re-establish where the pointer is. Resyncing on distance
+                // travelled instead is what made the old prototype jump to a corner.
+                is InputLeapEvent.Enter -> {
+                    // Seed the absolute base from the border crossing, otherwise relative
+                    // moves accumulate from the previous session's position and the
+                    // cursor appears mid-screen instead of at the edge.
+                    mouseX = event.x.toFloat().coerceIn(0f, screenWidth.toFloat())
+                    mouseY = event.y.toFloat().coerceIn(0f, screenHeight.toFloat())
+                    if (usesSystemPointer) {
+                        svc.resyncPointer()
+                        svc.movePointerAbsolute(
+                            mouseX.toInt(), mouseY.toInt(), screenWidth, screenHeight,
+                        )
+                    }
+                }
+
+                is InputLeapEvent.Leave -> {
+                    if (usesSystemPointer) svc.resyncPointer()
+                }
+
                 is InputLeapEvent.MouseMoveAbs -> {
                     mouseX = event.x.toFloat().coerceIn(0f, screenWidth.toFloat())
                     mouseY = event.y.toFloat().coerceIn(0f, screenHeight.toFloat())
-                    
-                    // Determine action based on button state
-                    val action = if (buttonState != 0) {
-                        MotionEvent.ACTION_MOVE
+                    if (usesSystemPointer) {
+                        svc.movePointerAbsolute(
+                            mouseX.toInt(), mouseY.toInt(), screenWidth, screenHeight,
+                        )
                     } else {
-                        MotionEvent.ACTION_HOVER_MOVE
+                        svc.injectMotionEvent(motionAction(), mouseX, mouseY, buttonState)
                     }
-                    svc.injectMotionEvent(action, mouseX, mouseY, buttonState)
                 }
-                
+
                 is InputLeapEvent.MouseMoveRel -> {
                     mouseX = (mouseX + event.dx).coerceIn(0f, screenWidth.toFloat())
                     mouseY = (mouseY + event.dy).coerceIn(0f, screenHeight.toFloat())
-                    
-                    val action = if (buttonState != 0) {
-                        MotionEvent.ACTION_MOVE
+                    if (usesSystemPointer) {
+                        // Accumulated into an absolute position, then sent absolutely —
+                        // the HID device never sees a delta, so nothing can drift.
+                        svc.movePointerAbsolute(
+                            mouseX.toInt(), mouseY.toInt(), screenWidth, screenHeight,
+                        )
                     } else {
-                        MotionEvent.ACTION_HOVER_MOVE
+                        svc.injectMotionEvent(motionAction(), mouseX, mouseY, buttonState)
                     }
-                    svc.injectMotionEvent(action, mouseX, mouseY, buttonState)
                 }
-                
+
                 is InputLeapEvent.MouseDown -> {
-                    val button = inputLeapButtonToAndroid(event.buttonId)
-                    buttonState = buttonState or button
-                    svc.injectMotionEvent(MotionEvent.ACTION_DOWN, mouseX, mouseY, buttonState)
+                    buttonState = buttonState or inputLeapButtonToAndroid(event.buttonId)
+                    if (usesSystemPointer) {
+                        svc.pointerButton(event.buttonId, true)
+                    } else {
+                        svc.injectMotionEvent(MotionEvent.ACTION_DOWN, mouseX, mouseY, buttonState)
+                    }
                 }
-                
+
                 is InputLeapEvent.MouseUp -> {
-                    val button = inputLeapButtonToAndroid(event.buttonId)
-                    buttonState = buttonState and button.inv()
-                    svc.injectMotionEvent(MotionEvent.ACTION_UP, mouseX, mouseY, buttonState)
+                    buttonState = buttonState and inputLeapButtonToAndroid(event.buttonId).inv()
+                    if (usesSystemPointer) {
+                        svc.pointerButton(event.buttonId, false)
+                    } else {
+                        svc.injectMotionEvent(MotionEvent.ACTION_UP, mouseX, mouseY, buttonState)
+                    }
                 }
-                
+
                 is InputLeapEvent.MouseWheel -> {
-                    // InputLeap sends 120 units per notch, Android expects -1 to 1
-                    val vScroll = event.yDelta / 120f
-                    val hScroll = event.xDelta / 120f
-                    svc.injectScrollEvent(mouseX, mouseY, hScroll, vScroll)
+                    if (usesSystemPointer) {
+                        svc.pointerWheel(event.xDelta, event.yDelta)
+                    } else {
+                        // InputLeap sends 120 units per notch, Android expects -1 to 1
+                        val vScroll = event.yDelta / 120f
+                        val hScroll = event.xDelta / 120f
+                        svc.injectScrollEvent(mouseX, mouseY, hScroll, vScroll)
+                    }
                 }
                 
                 is InputLeapEvent.KeyDown -> {
@@ -243,6 +351,15 @@ class ShizukuInputInjector(
         isDown: Boolean,
     ) {
         val scancode = scanCodeDecoder.toEvdev(button, keysym)
+
+        // Prefer the real HID keyboard: Android then treats the key as hardware input,
+        // which keeps the user's own IME selected and its emoji/GIF pickers reachable.
+        // Returns false for anything unmapped (Cyrillic, Gujarati, ...), which falls
+        // through to the keysym path below and its Unicode text injection.
+        if (scancode != 0 && svc.injectHidKey(scancode, isDown)) {
+            return
+        }
+
         val shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState) ||
             KeyMapUtils.protocolMaskHasShortcuts(mask)
         val injectionMeta = metaState or KeyMapUtils.androidMetaFromProtocolMask(mask)

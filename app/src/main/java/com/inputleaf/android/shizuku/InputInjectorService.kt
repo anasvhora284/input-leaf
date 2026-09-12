@@ -4,6 +4,12 @@ import android.os.SystemClock
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
+import com.inputleaf.android.shizuku.uhid.AccelerationCurve
+import com.inputleaf.android.shizuku.uhid.HidKeyboard
+import com.inputleaf.android.shizuku.uhid.RelativePointer
+import com.inputleaf.android.shizuku.uhid.SoftKeyboardToggle
+import com.inputleaf.android.shizuku.uhid.UhidChannel
+import com.inputleaf.android.shizuku.uhid.UhidDiagnostics
 
 /**
  * Shizuku UserService that runs with shell (ADB) privileges.
@@ -23,6 +29,10 @@ class InputInjectorService : IInputInjector.Stub() {
         }
     
     companion object {
+        private const val POINTER_DEVICE_NAME = "Input Leaf Pointer"
+        private const val KEYBOARD_DEVICE_NAME = "Input Leaf Keyboard HID"
+        private const val TICK_MS = 8L
+
         // Injection mode: async (don't wait for injection to complete)
         private const val INJECT_INPUT_EVENT_MODE_ASYNC = 0
         // Wait until the system reports whether text injection was accepted.
@@ -185,7 +195,151 @@ class InputInjectorService : IInputInjector.Stub() {
         }
     }
     
+    // --- HID pointer -------------------------------------------------------------
+    // Guarded because Shizuku can bind more than one injector instance: an earlier build
+    // opened /dev/uhid twice from two threads (see logcat.log, PIDs 11476/11477).
+    private val uhidLock = Any()
+    // Binder dispatches AIDL calls on a thread pool. Without this, moves arriving during
+    // the ~150ms entry-correction loop ran concurrently with it, and the loop dragged the
+    // cursor back to the entry point while the user was already moving away.
+    private val pointerLock = Any()
+    private var uhidChannel: UhidChannel? = null
+    private var pointer: RelativePointer? = null
+    private var uhidKeyboardChannel: UhidChannel? = null
+    private var keyboard: HidKeyboard? = null
+    private val softKeyboardToggle = SoftKeyboardToggle()
+    // Emits queued pointer motion. Movement is rate-limited to keep Android's gain
+    // constant, so a large move needs several reports rather than one.
+    private var pacer: Thread? = null
+
+    override fun openVirtualPointer(): Boolean = synchronized(uhidLock) {
+        UhidDiagnostics.log("openVirtualPointer() called; alreadyOpen=${uhidChannel != null}")
+        if (uhidChannel != null) return true
+        val channel = UhidChannel.open(POINTER_DEVICE_NAME, RelativePointer.DESCRIPTOR)
+            ?: run {
+                UhidDiagnostics.log("openVirtualPointer() -> false (pointer channel null)")
+                return false
+            }
+        uhidChannel = channel
+        val instance = RelativePointer(channel, diag = { UhidDiagnostics.log(it) })
+        pointer = instance
+        startPacer(instance)
+        UhidDiagnostics.log(
+            "HID pointer ready; gain from AccelerationCurve " +
+                "(resting ${AccelerationCurve.RESTING_GAIN}), pointer_speed=${readPointerSpeed()}"
+        )
+        android.util.Log.i("InputInjectorService", "HID pointer ready on /dev/uhid")
+
+        // The keyboard is a separate device and strictly optional: if it fails, keys keep
+        // flowing through injectKeyEvent and only the pointer benefits.
+        val keyboardChannel = UhidChannel.open(KEYBOARD_DEVICE_NAME, HidKeyboard.DESCRIPTOR)
+        if (keyboardChannel != null) {
+            uhidKeyboardChannel = keyboardChannel
+            keyboard = HidKeyboard(keyboardChannel)
+            softKeyboardToggle.remember()
+            android.util.Log.i("InputInjectorService", "HID keyboard ready on /dev/uhid")
+        } else {
+            android.util.Log.w("InputInjectorService", "HID keyboard unavailable; keys use injectKeyEvent")
+        }
+        return true
+    }
+
+    override fun closeVirtualPointer() = synchronized(uhidLock) {
+        runCatching { pacer?.interrupt() }
+        pacer = null
+        runCatching { keyboard?.releaseAll() }
+        runCatching { softKeyboardToggle.restore() }
+        runCatching { uhidKeyboardChannel?.close() }
+        runCatching { uhidChannel?.close() }
+        uhidChannel = null
+        uhidKeyboardChannel = null
+        pointer = null
+        keyboard = null
+    }
+
+    override fun injectHidKey(evdevCode: Int, isDown: Boolean): Boolean =
+        synchronized(uhidLock) { keyboard }?.key(evdevCode, isDown) ?: false
+
+    override fun releaseHidKeys() {
+        synchronized(uhidLock) { keyboard }?.releaseAll()
+    }
+
+    override fun toggleSoftKeyboard(): Boolean = softKeyboardToggle.toggle()
+
+    override fun isSoftKeyboardShown(): Boolean = softKeyboardToggle.isShown()
+
+    override fun isVirtualPointerOpen(): Boolean = synchronized(uhidLock) { uhidChannel != null }
+
+    override fun movePointerAbsolute(x: Int, y: Int, screenWidth: Int, screenHeight: Int) {
+        synchronized(pointerLock) { movePointerAbsoluteLocked(x, y, screenWidth, screenHeight) }
+    }
+
+    private fun movePointerAbsoluteLocked(x: Int, y: Int, screenWidth: Int, screenHeight: Int) {
+        if (logNextMove) {
+            logNextMove = false
+            val xPercent = if (screenWidth > 0) x * 100 / screenWidth else -1
+            val yPercent = if (screenHeight > 0) y * 100 / screenHeight else -1
+            UhidDiagnostics.log(
+                "entry point from server: ($x, $y) on ${screenWidth}x$screenHeight " +
+                    "= ${xPercent}% across, ${yPercent}% down"
+            )
+        }
+        synchronized(uhidLock) { pointer }?.moveTo(x, y, screenWidth, screenHeight)
+    }
+
+    /** Set on resync so the first move after a border crossing is logged. */
+    @Volatile
+    private var logNextMove = false
+
+    /** Current `pointer_speed`, only for the diagnostics line. */
+    private fun readPointerSpeed(): String = try {
+        val process = ProcessBuilder("settings", "get", "system", "pointer_speed")
+            .redirectErrorStream(true).start()
+        val value = process.inputStream.bufferedReader().use { it.readText() }.trim()
+        process.waitFor()
+        value
+    } catch (e: Exception) {
+        "unknown"
+    }
+
+    /**
+     * Drives [RelativePointer.drain] at ~125 Hz. Motion is rate-limited so the gain stays
+     * in Android's constant segment, which means a long move is delivered over several
+     * reports instead of one oversized one.
+     */
+    private fun startPacer(instance: RelativePointer) {
+        pacer?.interrupt()
+        pacer = Thread({
+            while (!Thread.currentThread().isInterrupted) {
+                try {
+                    Thread.sleep(TICK_MS)
+                } catch (e: InterruptedException) {
+                    return@Thread
+                }
+                runCatching { synchronized(pointerLock) { instance.drain() } }
+            }
+        }, "pointer-pacer").apply {
+            isDaemon = true
+            start()
+        }
+    }
+
+    override fun resyncPointer() {
+        synchronized(pointerLock) { synchronized(uhidLock) { pointer }?.resync() }
+        // The move straight after a resync is the border crossing, so record where the
+        // server actually placed us versus the screen it thinks we have.
+        logNextMove = true
+    }
+
+    override fun pointerButton(buttonId: Int, pressed: Boolean) {
+        synchronized(pointerLock) { synchronized(uhidLock) { pointer }?.button(buttonId, pressed) }
+    }
+
+    override fun pointerWheel(horizontal: Int, vertical: Int) {
+        synchronized(pointerLock) { synchronized(uhidLock) { pointer }?.wheel(horizontal, vertical) }
+    }
+
     override fun destroy() {
-        // Nothing to clean up
+        closeVirtualPointer()
     }
 }
