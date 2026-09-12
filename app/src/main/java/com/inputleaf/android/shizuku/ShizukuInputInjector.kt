@@ -352,14 +352,6 @@ class ShizukuInputInjector(
     ) {
         val scancode = scanCodeDecoder.toEvdev(button, keysym)
 
-        // Prefer the real HID keyboard: Android then treats the key as hardware input,
-        // which keeps the user's own IME selected and its emoji/GIF pickers reachable.
-        // Returns false for anything unmapped (Cyrillic, Gujarati, ...), which falls
-        // through to the keysym path below and its Unicode text injection.
-        if (scancode != 0 && svc.injectHidKey(scancode, isDown)) {
-            return
-        }
-
         val shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState) ||
             KeyMapUtils.protocolMaskHasShortcuts(mask)
         val injectionMeta = metaState or KeyMapUtils.androidMetaFromProtocolMask(mask)
@@ -370,6 +362,18 @@ class ShizukuInputInjector(
             shortcutModifiers = shortcutModifiers,
         )) {
             is KeysymAction.KeyEventAction -> {
+                // A HID keyboard transmits key POSITIONS, and Android applies its own
+                // layout to them. That is right for keys whose meaning is positional --
+                // letters on a matching layout, modifiers, arrows, shortcuts -- and it
+                // keeps the user's own IME selected, which is the point of using HID.
+                //
+                // It is wrong for anything whose character does not follow from the key
+                // position. Sending the scancode unconditionally meant Cyrillic and
+                // Gujarati arrived as Latin: the physical key still has a scancode, so
+                // the HID path always claimed it and the text path below never ran.
+                if (scancode != 0 && svc.injectHidKey(scancode, isDown)) {
+                    return
+                }
                 Log.d(TAG, "Mapped to Android keyCode: ${resolved.keyCode} evdev=$scancode")
                 KeysymInjection.applyKeyEventAction(
                     action = resolved,
