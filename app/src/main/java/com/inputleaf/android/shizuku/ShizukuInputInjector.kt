@@ -352,6 +352,23 @@ class ShizukuInputInjector(
     ) {
         val scancode = scanCodeDecoder.toEvdev(button, keysym)
 
+        // Prefer the real HID keyboard: Android then treats the key as hardware input,
+        // which keeps the user's own IME selected and its emoji/GIF pickers reachable.
+        //
+        // A HID keyboard sends key POSITIONS, not characters, and Android resolves them
+        // through the physical-keyboard layout the user picked for this device. That is
+        // the whole point rather than a limitation: Gboard supplies physical layouts for
+        // its enabled languages, so Ctrl+Space on the phone switches script (the circular
+        // EN / ka badge) and these same scancodes then arrive as Gujarati. Injecting
+        // Unicode here instead would bypass the layout and defeat that.
+        //
+        // `scancode != 0` is the discriminator. A key with no physical position -- a
+        // compose result, a character the server synthesised -- has no scancode, falls
+        // through to KeysymResolver below, and is delivered as text.
+        if (scancode != 0 && svc.injectHidKey(scancode, isDown)) {
+            return
+        }
+
         val shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState) ||
             KeyMapUtils.protocolMaskHasShortcuts(mask)
         val injectionMeta = metaState or KeyMapUtils.androidMetaFromProtocolMask(mask)
@@ -362,18 +379,6 @@ class ShizukuInputInjector(
             shortcutModifiers = shortcutModifiers,
         )) {
             is KeysymAction.KeyEventAction -> {
-                // A HID keyboard transmits key POSITIONS, and Android applies its own
-                // layout to them. That is right for keys whose meaning is positional --
-                // letters on a matching layout, modifiers, arrows, shortcuts -- and it
-                // keeps the user's own IME selected, which is the point of using HID.
-                //
-                // It is wrong for anything whose character does not follow from the key
-                // position. Sending the scancode unconditionally meant Cyrillic and
-                // Gujarati arrived as Latin: the physical key still has a scancode, so
-                // the HID path always claimed it and the text path below never ran.
-                if (scancode != 0 && svc.injectHidKey(scancode, isDown)) {
-                    return
-                }
                 Log.d(TAG, "Mapped to Android keyCode: ${resolved.keyCode} evdev=$scancode")
                 KeysymInjection.applyKeyEventAction(
                     action = resolved,
