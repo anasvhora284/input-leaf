@@ -472,11 +472,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _errorState.value = null
     }
 
+    /** Single Shizuku injector for the app's lifetime; see [resolveInjector]. */
+    private var cachedShizukuInjector: com.inputleaf.android.shizuku.ShizukuInputInjector? = null
+
     private suspend fun resolveInjector(preferredMethod: String? = null): com.inputleaf.android.inject.InputInjector? {
         val method = preferredMethod ?: prefs.inputMethod.first()
         val wm = getApplication<Application>().getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
         val bounds = wm.currentWindowMetrics.bounds
-        val shizukuInjector = com.inputleaf.android.shizuku.ShizukuInputInjector(bounds.width(), bounds.height())
+        // Reused rather than rebuilt each connect. Two instances would bind to the same
+        // Shizuku user service, and disconnecting the older one destroyed the HID devices
+        // the newer one had just opened — leaving no cursor at all.
+        val shizukuInjector = cachedShizukuInjector
+            ?: com.inputleaf.android.shizuku.ShizukuInputInjector(bounds.width(), bounds.height())
+                .also { cachedShizukuInjector = it }
+        shizukuInjector.updateScreenBounds(bounds.width(), bounds.height())
         val accessibilityInjector = com.inputleaf.android.inject.AccessibilityInputInjector(getApplication(), bounds.width(), bounds.height())
 
         val resolved = com.inputleaf.android.inject.InputMethodResolver.resolve(

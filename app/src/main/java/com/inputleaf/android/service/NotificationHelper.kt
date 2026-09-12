@@ -10,6 +10,7 @@ import com.inputleaf.android.ui.MainActivity
 const val CHANNEL_ID = "inputleaf_status"
 const val NOTIF_ID = 1001
 const val ACTION_DISCONNECT = "com.inputleaf.android.DISCONNECT"
+const val ACTION_TOGGLE_KEYBOARD = "com.inputleaf.android.TOGGLE_KEYBOARD"
 
 object NotificationHelper {
     fun createChannel(context: Context) {
@@ -19,7 +20,11 @@ object NotificationHelper {
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
-    fun build(context: Context, state: ConnectionState): Notification {
+    fun build(
+        context: Context,
+        state: ConnectionState,
+        showKeyboardAction: Boolean = false,
+    ): Notification {
         val text = when (state) {
             is ConnectionState.Active -> "ACTIVE · ${state.serverName}"
             is ConnectionState.Idle   -> "IDLE · ${state.serverName}"
@@ -35,6 +40,11 @@ object NotificationHelper {
             Intent(context, ConnectionService::class.java).setAction(ACTION_DISCONNECT),
             PendingIntent.FLAG_IMMUTABLE
         )
+        val keyboardIntent = PendingIntent.getService(
+            context, 1,
+            Intent(context, ConnectionService::class.java).setAction(ACTION_TOGGLE_KEYBOARD),
+            PendingIntent.FLAG_IMMUTABLE
+        )
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_share)
             .setContentTitle("Input-Leaf")
@@ -42,6 +52,17 @@ object NotificationHelper {
             .setContentIntent(tapIntent)
             .setOngoing(true)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Disconnect", disconnectIntent)
+            .apply {
+                // With a HID keyboard attached Android hides the soft keyboard, which
+                // also hides the user's emoji and GIF pickers. This summons it back.
+                if (showKeyboardAction) {
+                    addAction(
+                        android.R.drawable.ic_menu_edit,
+                        "Keyboard",
+                        keyboardIntent,
+                    )
+                }
+            }
             .build()
     }
 }

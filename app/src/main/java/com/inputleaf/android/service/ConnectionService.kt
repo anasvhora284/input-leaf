@@ -126,7 +126,9 @@ class ConnectionService : Service() {
 
     private fun observeState() = scope.launch {
         stateMachine.state.collect { state ->
-            val notif = NotificationHelper.build(this@ConnectionService, state)
+            val notif = NotificationHelper.build(
+                this@ConnectionService, state, showKeyboardAction = usesSystemPointer(),
+            )
             getSystemService(android.app.NotificationManager::class.java)
                 .notify(NOTIF_ID, notif)
         }
@@ -300,10 +302,18 @@ class ConnectionService : Service() {
                     is InputLeapEvent.Enter -> {
                         stateMachine.onActive()
                         stateMachine.onKeepAlive()
+                        // Enter carries the border position the pointer crossed at. It has
+                        // to seed the tracked position, or movement resumes from wherever
+                        // the previous session left off instead of the screen edge.
+                        currentMouseX = event.x.toFloat().coerceIn(0f, screenWidth.toFloat())
+                        currentMouseY = event.y.toFloat().coerceIn(0f, screenHeight.toFloat())
+                        updateCursorPosition(currentMouseX, currentMouseY)
+                        dispatchInput(event)
                         if (mouseEnabled) showCursorOverlay()
                     }
                     is InputLeapEvent.Leave -> {
                         stateMachine.onLeave()
+                        dispatchInput(event)
                         hideCursorOverlay()
                     }
                     is InputLeapEvent.KeepAlive -> {
@@ -361,8 +371,34 @@ class ConnectionService : Service() {
         }
     }
 
+    /**
+     * True when a real HID pointer is registered, so Android draws the cursor itself.
+     * The drawn overlay must stand down in that case or the user sees two cursors —
+     * and the system one is the better of the two, since it renders over the shade.
+     */
+    /**
+     * Shows or hides the on-screen keyboard during a session. With a HID keyboard
+     * attached Android hides it by default, taking the user's emoji and GIF pickers with
+     * it; this is how they get it back without changing a system setting by hand.
+     */
+    private fun toggleSoftKeyboard() {
+        val shizuku = injector as? ShizukuInputInjector ?: return
+        scope.launch {
+            val shown = shizuku.toggleSoftKeyboard()
+            Log.i(TAG, "Soft keyboard toggled -> $shown")
+        }
+    }
+
+    private fun usesSystemPointer(): Boolean =
+        (injector as? ShizukuInputInjector)?.usesSystemPointer == true
+
     private fun showCursorOverlay() {
         if (!cursorOverlayEnabled) return
+        if (usesSystemPointer()) {
+            Log.i(TAG, "System pointer active - suppressing drawn cursor overlay")
+            CursorOverlayService.hide()
+            return
+        }
         if (!Settings.canDrawOverlays(this)) {
             Log.w(TAG, "Cannot draw overlays - permission not granted")
             return
@@ -376,6 +412,7 @@ class ConnectionService : Service() {
 
     private fun updateCursorPosition(x: Float, y: Float) {
         if (!cursorOverlayEnabled) return
+        if (usesSystemPointer()) return
         CursorOverlayService.updatePosition(x, y)
     }
 
@@ -467,7 +504,10 @@ class ConnectionService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_DISCONNECT) disconnect()
+        when (intent?.action) {
+            ACTION_DISCONNECT -> disconnect()
+            ACTION_TOGGLE_KEYBOARD -> toggleSoftKeyboard()
+        }
         return START_STICKY
     }
 
@@ -572,7 +612,12 @@ class ConnectionService : Service() {
 
             Log.i(TAG, "Attempting auto-recovery of Shizuku session to $ip")
             val bounds = getScreenBounds()
-            val newInjector = ShizukuInputInjector(bounds.width(), bounds.height())
+            // Reuse the existing injector where possible. A second instance binds to the
+            // same user service, and tearing the first one down closes the HID devices
+            // the new one just opened.
+            val newInjector = (injector as? ShizukuInputInjector)
+                ?.apply { updateScreenBounds(bounds.width(), bounds.height()) }
+                ?: ShizukuInputInjector(bounds.width(), bounds.height())
 
             if (newInjector.isAvailable() && newInjector.connect()) {
                 Log.i(TAG, "Shizuku injector recovered successfully; reconnecting session to $ip")
