@@ -7,4 +7,4 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
 rootProject.name = "input-leaf-android"
-include(":app", ":uhid-server")
+include(":app")

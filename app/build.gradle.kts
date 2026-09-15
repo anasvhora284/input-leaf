@@ -64,12 +64,6 @@ android {
         aidl = true  // Enable AIDL for Shizuku IPC
     }
 
-    sourceSets {
-        getByName("main").assets.srcDir(
-            project(":uhid-server").layout.buildDirectory.dir("generated/assets/uhid")
-        )
-    }
-    
     packaging {
         jniLibs {
             useLegacyPackaging = true
@@ -97,14 +91,6 @@ android {
     }
 }
 
-tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach {
-    dependsOn(":uhid-server:buildDex")
-}
-
-tasks.matching { it.name.contains("lintVital", ignoreCase = true) }.configureEach {
-    dependsOn(":uhid-server:buildDex")
-}
-
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
     implementation(composeBom)
@@ -117,7 +103,6 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.datastore:datastore-preferences:1.0.0")
-    implementation("com.jaredrummler:android-device-names:2.1.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     
     // Shizuku for privileged input injection without root

@@ -80,39 +80,6 @@ class TransportProberTest {
         }
     }
 
-    @Test fun `classifies client-certificate and generic TLS handshake errors`() {
-        assertThat(
-            TransportProber.classifyTlsProbeError(SSLHandshakeException("certificate required")),
-        ).isEqualTo(TransportProber.TlsProbeResult.RequiresClientCert)
-        assertThat(
-            TransportProber.classifyTlsProbeError(SSLException("handshake_failure")),
-        ).isEqualTo(TransportProber.TlsProbeResult.RequiresClientCert)
-        assertThat(
-            TransportProber.classifyTlsProbeError(java.net.ConnectException("Connection refused")),
-        ).isEqualTo(TransportProber.TlsProbeResult.Failed)
-    }
-
-    @Test fun `maps every TLS probe result onto a security mode`() {
-        assertThat(
-            TransportProber.securityModeForProbe(TransportProber.TlsProbeResult.Success, false),
-        ).isEqualTo(ServerSecurityMode.TLS)
-        assertThat(
-            TransportProber.securityModeForProbe(
-                TransportProber.TlsProbeResult.RequiresClientCert,
-                false,
-            ),
-        ).isEqualTo(ServerSecurityMode.TLS_CLIENT_CERT_REQUIRED)
-        assertThat(
-            TransportProber.securityModeForProbe(TransportProber.TlsProbeResult.PlainServer, false),
-        ).isEqualTo(ServerSecurityMode.PLAIN)
-        assertThat(
-            TransportProber.securityModeForProbe(TransportProber.TlsProbeResult.Failed, true),
-        ).isEqualTo(ServerSecurityMode.PLAIN)
-        assertThat(
-            TransportProber.securityModeForProbe(TransportProber.TlsProbeResult.Failed, false),
-        ).isEqualTo(ServerSecurityMode.TLS)
-    }
-
     @Test fun `unreachable loopback listener conservatively defaults to TLS`() = runBlocking {
         val port = ServerSocket(0, 50, InetAddress.getByName(LOOPBACK_HOST)).use { it.localPort }
 

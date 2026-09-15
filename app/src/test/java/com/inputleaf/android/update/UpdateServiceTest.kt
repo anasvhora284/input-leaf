@@ -422,20 +422,20 @@ class UpdateServiceTest {
 
     @Test
     fun changelogProvider_returnsValidHighlights() {
-        val changelog = ChangelogProvider.getChangelog("1.4.1")
+        val changelog = UpdateService.getChangelog("1.4.1")
         assertThat(changelog.versionName).isEqualTo("1.4.1")
         assertThat(changelog.highlights).isNotEmpty()
     }
 
     @Test
     fun changelogProvider_fallsBackToLatestKnownRelease() {
-        val changelog = ChangelogProvider.getChangelog("9.9.9")
-        assertThat(changelog.versionName).isEqualTo(ChangelogProvider.RELEASES.first().versionName)
+        val changelog = UpdateService.getChangelog("9.9.9")
+        assertThat(changelog.versionName).isEqualTo("1.4.1")
     }
 
     @Test
     fun changelogProvider_stripsVersionPrefix() {
-        val changelog = ChangelogProvider.getChangelog("v1.4.0")
+        val changelog = UpdateService.getChangelog("v1.4.0")
         assertThat(changelog.versionName).isEqualTo("1.4.0")
     }
 

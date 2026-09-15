@@ -101,8 +101,7 @@ class InputLeapConnection(
                     ) {
                         listOf(ServerTransport.TLS)
                     } else {
-                        TransportPolicy.order(
-                            policy = transportPolicy,
+                        transportPolicy.order(
                             preferredTransport = preferredTransport,
                             detectedMode = detectedMode,
                         )

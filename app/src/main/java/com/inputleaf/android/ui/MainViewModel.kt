@@ -24,7 +24,6 @@ import com.inputleaf.android.network.ServerScanner
 import com.inputleaf.android.service.ConnectionService
 import com.inputleaf.android.storage.AppPreferences
 import com.inputleaf.android.storage.ClientCertificateStore
-import com.inputleaf.android.update.ChangelogProvider
 import com.inputleaf.android.update.UpdateCheckResult
 import com.inputleaf.android.update.UpdateService
 import com.inputleaf.android.update.VersionChangelog
@@ -416,7 +415,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val currentVersion = UpdateService.getCurrentVersion(app)
 
             if (lastSeenCode != null && lastSeenCode < currentCode) {
-                _whatsNewChangelog.value = ChangelogProvider.getChangelog(currentVersion)
+                _whatsNewChangelog.value = UpdateService.getChangelog(currentVersion)
             }
             prefs.saveLastSeenVersionCode(currentCode)
 

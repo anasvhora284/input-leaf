@@ -17,22 +17,32 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.inputleaf.android.network.ConnectionTransportPolicy
-import com.inputleaf.android.ui.components.AnimatedBottomNavigation
-import com.inputleaf.android.ui.components.NavItem
 import com.inputleaf.android.ui.components.UpdateAvailableDialog
 import com.inputleaf.android.ui.components.WhatsNewDialog
 import com.inputleaf.android.update.UpdateCheckResult
 import com.inputleaf.android.util.BatteryOptimizationHelper
+
+private data class NavItem(
+    val label: String,
+    val icon: ImageVector,
+    val route: String,
+)
 
 private sealed class LeafRoute(val key: String) {
     data object Home : LeafRoute("main")
@@ -234,11 +244,20 @@ fun LeafNavigation(viewModel: MainViewModel) {
 
     Scaffold(
         bottomBar = {
-            AnimatedBottomNavigation(
-                items = navItems,
-                selectedIndex = selectedIndex,
-                onItemSelected = { index -> screen = navItems[index].route },
-            )
+            NavigationBar(
+                modifier = Modifier.fillMaxWidth(),
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                tonalElevation = 0.dp,
+            ) {
+                navItems.forEachIndexed { index, item ->
+                    NavigationBarItem(
+                        icon = { Icon(item.icon, contentDescription = item.label) },
+                        label = { Text(item.label) },
+                        selected = selectedIndex == index,
+                        onClick = { screen = item.route },
+                    )
+                }
+            }
         },
     ) { innerPadding ->
         Box(Modifier.fillMaxSize().padding(innerPadding)) {

@@ -34,6 +34,7 @@ import kotlinx.coroutines.launch
 
 private const val TAG = "ConnectionService"
 private const val KEEPALIVE_POLL_MS = 5_000L
+private val RETRY_DELAYS_MS = longArrayOf(1_000L, 2_000L, 5_000L, 10_000L, 30_000L)
 
 class ConnectionService : Service() {
 
@@ -422,7 +423,8 @@ class ConnectionService : Service() {
     private fun scheduleRetry(ip: String, screenName: String, generation: Int) {
         if (userInitiatedDisconnect || generation != connectGeneration) return
         retryJob?.cancel()
-        val delayMs = RetryDelayCalculator.getDelay(retryAttempt++)
+        val delayMs = RETRY_DELAYS_MS[retryAttempt.coerceIn(0, RETRY_DELAYS_MS.lastIndex)]
+        retryAttempt++
         retryJob = scope.launch {
             delay(delayMs)
             if (userInitiatedDisconnect || generation != connectGeneration) return@launch
@@ -604,3 +606,15 @@ class ConnectionService : Service() {
         super.onDestroy()
     }
 }
+
+internal enum class ConnectAttemptOutcome {
+    Success,
+    Retrying,
+    Rejected,
+    TerminalFailure,
+}
+
+internal fun shouldClearActiveSession(outcome: ConnectAttemptOutcome): Boolean =
+    outcome == ConnectAttemptOutcome.Rejected ||
+        outcome == ConnectAttemptOutcome.TerminalFailure
+

@@ -31,8 +31,6 @@ ignore:
   - "app/src/main/java/com/inputleaf/android/inject/KeysymInjection.kt"
   - "app/src/main/java/com/inputleaf/android/storage/AppPreferences.kt"
   - "app/src/main/java/com/inputleaf/android/storage/ClientCertificateStore.kt"
-  - "uhid-server/src/main/java/com/inputleaf/uhid/Main.java"
-  - "uhid-server/src/main/java/com/inputleaf/uhid/UhidLocalSockets.java"
   - "app/src/test/**"
   - "app/src/androidTest/**"
   - "app/src/main/res/**"

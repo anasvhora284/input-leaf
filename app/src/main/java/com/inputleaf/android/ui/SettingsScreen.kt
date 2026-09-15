@@ -27,7 +27,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.inputleaf.android.ui.components.CircularAvatar
 import com.inputleaf.android.ui.components.GradientCard
-import com.inputleaf.android.ui.components.MaterialToggleSwitch
 import com.inputleaf.android.ui.components.SectionHeader
 import com.inputleaf.android.ui.components.SettingsRow
 import com.inputleaf.android.ui.components.ThemeModeOption
@@ -151,9 +150,9 @@ fun SettingsScreen(
                         icon = Icons.Rounded.Build,
                         title = "Auto-connect on launch",
                         trailingContent = {
-                            MaterialToggleSwitch(
+                            Switch(
                                 checked = autoConnect,
-                                onCheckedChange = onAutoConnectChange
+                                onCheckedChange = onAutoConnectChange,
                             )
                         }
                     )
@@ -247,10 +246,10 @@ fun SettingsScreen(
                         title = "Show cursor overlay",
                         subtitle = if (canDrawOverlays) "Display cursor when active" else "Grant permission first",
                         trailingContent = {
-                            MaterialToggleSwitch(
+                            Switch(
                                 checked = showCursor,
                                 onCheckedChange = onShowCursorChange,
-                                enabled = canDrawOverlays
+                                enabled = canDrawOverlays,
                             )
                         }
                     )

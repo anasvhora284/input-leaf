@@ -106,7 +106,7 @@ class MainActivity : ComponentActivity() {
                 shapes = com.inputleaf.android.ui.theme.InputLeafShapes
             ) {
                 Surface(Modifier.fillMaxSize()) {
-                    AppNavigation(viewModel)
+                    LeafNavigation(viewModel)
                 }
             }
         }
