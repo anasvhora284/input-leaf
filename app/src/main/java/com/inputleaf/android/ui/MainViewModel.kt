@@ -478,16 +478,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val shizukuInjector = com.inputleaf.android.shizuku.ShizukuInputInjector(bounds.width(), bounds.height())
         val accessibilityInjector = com.inputleaf.android.inject.AccessibilityInputInjector(getApplication(), bounds.width(), bounds.height())
 
-        val resolved = com.inputleaf.android.inject.InputMethodResolver.resolve(
-            preferredMethod = method,
-            isShizukuAvailable = shizukuInjector.isAvailable(),
-            isAccessibilityAvailable = accessibilityInjector.isAvailable()
-        )
-
-        return when (resolved) {
-            com.inputleaf.android.inject.ResolvedMethod.SHIZUKU -> shizukuInjector
-            com.inputleaf.android.inject.ResolvedMethod.ACCESSIBILITY -> accessibilityInjector
-            com.inputleaf.android.inject.ResolvedMethod.NONE -> null
+        return when {
+            method == "shizuku" && shizukuInjector.isAvailable() -> shizukuInjector
+            method == "accessibility" && accessibilityInjector.isAvailable() -> accessibilityInjector
+            method == "auto" && shizukuInjector.isAvailable() -> shizukuInjector
+            method == "auto" && accessibilityInjector.isAvailable() -> accessibilityInjector
+            else -> null
         }
     }
 

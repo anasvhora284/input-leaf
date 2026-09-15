@@ -32,6 +32,10 @@ private const val TLS_CLIENT_AUTH_HANDSHAKE_TIMEOUT_MS = 90_000
 private const val PLAIN_CONNECT_TIMEOUT_CACHED_MS = 800
 private const val PLAIN_CONNECT_TIMEOUT_MS = 2_000
 
+private fun logD(message: String) { runCatching { Log.d(TAG, message) } }
+private fun logW(message: String) { runCatching { Log.w(TAG, message) } }
+private fun logE(message: String) { runCatching { Log.e(TAG, message) } }
+
 class InputLeapConnection(
     private val ip: String,
     private val port: Int = 24800,
@@ -39,7 +43,6 @@ class InputLeapConnection(
     private val pinnedFingerprint: String? = null,
     private val transportPolicy: ConnectionTransportPolicy = ConnectionTransportPolicy.AUTO,
     private val clientCertificate: ClientCertificateMaterial? = null,
-    private val logger: Logger = AndroidLogger,
     private val onCertificate: suspend (X509Certificate) -> Boolean,
 ) {
     private val _events = MutableSharedFlow<InputLeapEvent>(replay = 0, extraBufferCapacity = 64)
@@ -55,27 +58,6 @@ class InputLeapConnection(
 
     /** Version advertised by the server before client-side minor-version negotiation. */
     data class ServerBanner(val major: Int, val minor: Int)
-
-    /** Minimal logging seam for tests and advanced integrations. */
-    interface Logger {
-        fun debug(message: String)
-        fun warn(message: String)
-        fun error(message: String)
-    }
-
-    private object AndroidLogger : Logger {
-        override fun debug(message: String) {
-            Log.d(TAG, message)
-        }
-
-        override fun warn(message: String) {
-            Log.w(TAG, message)
-        }
-
-        override fun error(message: String) {
-            Log.e(TAG, message)
-        }
-    }
 
     /**
      * Opens and handshakes a connection. Attempts are serialized, and calling this while the
@@ -141,7 +123,7 @@ class InputLeapConnection(
                     }
                 }
                 val failure = lastFailure ?: ConnectResult.Failed(ConnectResult.FailureReason.NETWORK)
-                logger.error("All transports failed for $ip: ${failure.reason} ${failure.detail}")
+                logE("All transports failed for $ip: ${failure.reason} ${failure.detail}")
                 failure
             }
         }
@@ -158,7 +140,7 @@ class InputLeapConnection(
             ServerTransport.PLAIN -> try {
                 SocketOpenResult.Ok(openPlainSocket(), ServerTransport.PLAIN)
             } catch (e: Exception) {
-                logger.warn("Plain open failed for $ip: ${e.message}")
+                logW("Plain open failed for $ip: ${e.message}")
                 SocketOpenResult.Failed(
                     ConnectResult.Failed(ConnectResult.FailureReason.NETWORK, e.message),
                 )
@@ -213,7 +195,7 @@ class InputLeapConnection(
         } catch (e: Exception) {
             runCatching { openedSocket?.close() }
             if (clientCertificate == null && isClientCertificateRequired(e)) {
-                logger.warn("Deskflow requires a client certificate")
+                logW("Deskflow requires a client certificate")
                 SocketOpenResult.Failed(
                     ConnectResult.Failed(
                         ConnectResult.FailureReason.CLIENT_CERT_REQUIRED,
@@ -221,7 +203,7 @@ class InputLeapConnection(
                     ),
                 )
             } else if (isCertificateMismatch(e)) {
-                logger.warn("TLS certificate changed for $ip")
+                logW("TLS certificate changed for $ip")
                 SocketOpenResult.Failed(
                     ConnectResult.Failed(
                         ConnectResult.FailureReason.CERTIFICATE_MISMATCH,
@@ -229,7 +211,7 @@ class InputLeapConnection(
                     ),
                 )
             } else if (isPlainServerTlsError(e)) {
-                logger.debug("TLS required, but $ip speaks plain Deskflow")
+                logD("TLS required, but $ip speaks plain Deskflow")
                 SocketOpenResult.Failed(
                     ConnectResult.Failed(
                         ConnectResult.FailureReason.TLS_AGAINST_PLAIN_SERVER,
@@ -237,7 +219,7 @@ class InputLeapConnection(
                     ),
                 )
             } else {
-                logger.warn("TLS open failed for $ip: ${e.message}")
+                logW("TLS open failed for $ip: ${e.message}")
                 SocketOpenResult.Failed(
                     ConnectResult.Failed(ConnectResult.FailureReason.NETWORK, e.message),
                 )
@@ -302,7 +284,7 @@ class InputLeapConnection(
         try {
             repeat(32) {
                 val event = parser.readNext()
-                logger.debug("Handshake recv: $event")
+                logD("Handshake recv: $event")
                 when (event) {
                     is InputLeapEvent.Hello -> {
                         bannerMajor = event.majorVersion
@@ -318,7 +300,7 @@ class InputLeapConnection(
                                 protocol = negotiatedProtocol,
                             )
                             helloSent = true
-                            logger.debug(
+                            logD(
                                 "Handshake sent ${negotiatedProtocol.magic} client hello " +
                                     "as $screenName using 1.$negotiatedMinor",
                             )
@@ -327,7 +309,7 @@ class InputLeapConnection(
                     is InputLeapEvent.QueryInfo -> {
                         writer?.writeDataInfo(screenWidth, screenHeight, 0, 0, 0, 0)
                         dinfSent = true
-                        logger.debug("Handshake sent DINF ${screenWidth}x$screenHeight")
+                        logD("Handshake sent DINF ${screenWidth}x$screenHeight")
                     }
                     is InputLeapEvent.KeepAlive -> {
                         writer?.writeKeepAlive()
@@ -341,7 +323,7 @@ class InputLeapConnection(
                         }
                     }
                     is InputLeapEvent.Incompatible -> {
-                        logger.error("Server rejected handshake: $event")
+                        logE("Server rejected handshake: $event")
                         close()
                         return ConnectResult.Failed(
                             ConnectResult.FailureReason.INCOMPATIBLE,
@@ -349,7 +331,7 @@ class InputLeapConnection(
                         )
                     }
                     is InputLeapEvent.Busy -> {
-                        logger.error("Server rejected handshake: busy")
+                        logE("Server rejected handshake: busy")
                         close()
                         return ConnectResult.Failed(ConnectResult.FailureReason.BUSY)
                     }
@@ -358,12 +340,12 @@ class InputLeapConnection(
                 if (helloSent && dinfSent && sawPostDinf) {
                     rawSocket.soTimeout = 0
                     readJob = readerScope.launch { readLoop(parser) }
-                    logger.debug("Handshake complete via $transport")
+                    logD("Handshake complete via $transport")
                     return ConnectResult.Ok(ServerBanner(bannerMajor, bannerMinor), transport)
                 }
             }
         } catch (e: Exception) {
-            logger.error("Handshake error: ${e.javaClass.simpleName}: ${e.message}")
+            logE("Handshake error: ${e.javaClass.simpleName}: ${e.message}")
             close()
             return ConnectResult.Failed(ConnectResult.FailureReason.HANDSHAKE, e.message)
         }
@@ -372,11 +354,11 @@ class InputLeapConnection(
         if (helloSent && dinfSent) {
             rawSocket.soTimeout = 0
             readJob = readerScope.launch { readLoop(parser) }
-            logger.debug("Handshake complete (lenient) via $transport")
+            logD("Handshake complete (lenient) via $transport")
             return ConnectResult.Ok(ServerBanner(bannerMajor, bannerMinor), transport)
         }
 
-        logger.error("Handshake incomplete hello=$helloSent dinf=$dinfSent post=$sawPostDinf")
+        logE("Handshake incomplete hello=$helloSent dinf=$dinfSent post=$sawPostDinf")
         close()
         return ConnectResult.Failed(
             ConnectResult.FailureReason.HANDSHAKE,
@@ -392,14 +374,14 @@ class InputLeapConnection(
                     event !is InputLeapEvent.MouseMoveRel &&
                     event !is InputLeapEvent.KeepAlive
                 ) {
-                    logger.debug("Read event: $event")
+                    logD("Read event: $event")
                 }
                 _events.emit(event)
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logger.error("Read loop ended: ${e.javaClass.simpleName}: ${e.message}")
+            logE("Read loop ended: ${e.javaClass.simpleName}: ${e.message}")
             _events.emit(InputLeapEvent.Unhandled("__DISCONNECTED__"))
         }
     }

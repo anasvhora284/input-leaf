@@ -811,12 +811,6 @@ class InputLeapConnectionTest {
         assertThat((result as ConnectResult.Failed).reason).isEqualTo(expectedReason)
     }
 
-    private object NoOpLogger : InputLeapConnection.Logger {
-        override fun debug(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String) = Unit
-    }
-
     private fun connection(
         port: Int,
         transportPolicy: ConnectionTransportPolicy,
@@ -832,7 +826,6 @@ class InputLeapConnectionTest {
         transportPolicy = transportPolicy,
         clientCertificate = clientCertificate,
         onCertificate = onCertificate,
-        logger = NoOpLogger,
     )
 
     private suspend fun <T> InputLeapConnection.useConnection(
