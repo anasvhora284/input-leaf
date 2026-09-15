@@ -1,24 +1,9 @@
-// AGP 9 compiles Kotlin itself (built-in Kotlin) with a bundled Kotlin Gradle plugin
-// version. Placing a newer KGP on the buildscript classpath upgrades the built-in
-// compiler to that version; this is the documented override mechanism:
-// https://developer.android.com/build/releases/agp-9-0-0-release-notes#runtime-dependency-on-kotlin-gradle-plugin
-// Catalog accessors cannot be used inside the buildscript block, so the version is
-// read straight from gradle/libs.versions.toml — the catalog stays the single source
-// of truth, and a renamed or missing entry fails the build right here.
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        val kotlinVersion = Regex("(?m)^kotlin\\s*=\\s*\"([^\"]+)\"")
-            .find(rootDir.resolve("gradle/libs.versions.toml").readText())
-            ?.groupValues?.get(1)
-            ?: error("kotlin version entry not found in gradle/libs.versions.toml")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
-    }
-}
-
+// AGP 9 compiles Kotlin itself (built-in Kotlin) with whatever Kotlin Gradle plugin
+// version wins on the plugin classpath. The compose-compiler plugin below — versioned
+// by `kotlin` in gradle/libs.versions.toml — depends on that same KGP version, so the
+// catalog alone pins the built-in compiler; no buildscript classpath override needed.
+// (Without it AGP would fall back to its bundled KGP; mechanism documented at
+// https://developer.android.com/build/releases/agp-9-0-0-release-notes#runtime-dependency-on-kotlin-gradle-plugin)
 plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.android.library) apply false

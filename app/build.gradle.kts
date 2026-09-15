@@ -154,7 +154,6 @@ dependencies {
     // Real org.json for JVM unit tests (Android's JSONObject stub is not mocked)
     testImplementation(libs.json)
     testImplementation(libs.robolectric)
-    testImplementation(libs.mockito.core)
 
     androidTestImplementation(composeBom)
     androidTestImplementation(libs.compose.ui.test.junit4)
