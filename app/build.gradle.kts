@@ -21,8 +21,6 @@ android {
     defaultConfig {
         applicationId = "com.inputleaf.android"
         minSdk = 26
-        // targetSdk deliberately stays on 34: 35+ enforces edge-to-edge, which is a
-        // product decision, not a dependency bump.
         targetSdk = 34
         versionCode = 7
         versionName = "1.4.1"
@@ -44,7 +42,6 @@ android {
             // Use project keystore so debug APKs can always update over each other
             // regardless of which machine built them
             signingConfig = signingConfigs.getByName("release")
-            // JaCoCo-instrument debug APKs so connected Android tests feed the Codecov report
             isTestCoverageEnabled = true
         }
         release {
@@ -58,18 +55,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     
-    // With built-in Kotlin there is no kotlinOptions block; the Kotlin jvmTarget
-    // defaults to compileOptions.targetCompatibility above.
-    
     buildFeatures { 
         compose = true
         aidl = true  // Enable AIDL for Shizuku IPC
     }
 
     sourceSets {
-        // AGP 9 disallows providers here (android.sourceset.disallowProvider), so pass
-        // the resolved directory; ordering against :uhid-server:buildDex is enforced by
-        // the merge-assets dependsOn below.
         getByName("main").assets.srcDir(
             project(":uhid-server").layout.buildDirectory.dir("generated/assets/uhid").get().asFile
         )
@@ -91,14 +82,6 @@ android {
     }
 }
 
-// Custom APK naming: AGP 9 removed the legacy variant API (applicationVariants /
-// BaseVariantOutputImpl) that used to rename outputs in place, and the public
-// VariantOutput API does not expose outputFileName. Reproduce the historical
-// input-leaf_<version>_<abi>.apk scheme with the public variant API instead: a Copy
-// task per variant stages the APKs under build/dist/<variant>/, and each
-// assemble<Variant> task depends on it so every assemble run also produces the
-// renamed copies. The ABI group includes hyphens because split-APK file names
-// contain ABIs like armeabi-v7a and arm64-v8a.
 androidComponents {
     onVariants { variant ->
         val capitalizedName = variant.name.replaceFirstChar { it.uppercase() }
