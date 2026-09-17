@@ -56,6 +56,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
     var screen by remember { mutableStateOf(LeafRoute.Home.key) }
     val context = LocalContext.current
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
+    val pendingConnectIp by viewModel.pendingConnectIp.collectAsStateWithLifecycle()
     val discoveredServers by viewModel.discoveredServers.collectAsStateWithLifecycle()
     val isScanning by viewModel.isScanning.collectAsStateWithLifecycle()
     val screenName by viewModel.screenName.collectAsState(initial = "android-phone")
@@ -281,6 +282,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     onScreenNameChange = { viewModel.saveScreenName(it) },
                     onToggleMouse = { viewModel.toggleMouseEnabled(it) },
                     onToggleKeyboard = { viewModel.toggleKeyboardEnabled(it) },
+                    pendingConnectIp = pendingConnectIp,
                 )
                 LeafRoute.Servers.key -> ServerListScreen(
                     connectionState = connectionState,
@@ -291,6 +293,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     onConnect = { viewModel.connect(it) },
                     onAddManual = { viewModel.addManualServer(it) },
                     onToggleFavorite = { viewModel.toggleFavoriteServer(it) },
+                    pendingConnectIp = pendingConnectIp,
                 )
                 LeafRoute.Setup.key -> SetupScreen(
                     shizukuStatus = shizukuStatus,

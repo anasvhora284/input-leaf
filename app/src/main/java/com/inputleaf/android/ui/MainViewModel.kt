@@ -93,6 +93,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     val connectionState: StateFlow<ConnectionState> = _connectionState
+    private val _pendingConnectIp = MutableStateFlow<String?>(null)
+    val pendingConnectIp: StateFlow<String?> = _pendingConnectIp
 
     private val _discoveredServers = MutableStateFlow<List<ServerInfo>>(emptyList())
     val discoveredServers: StateFlow<List<ServerInfo>> = _discoveredServers
@@ -336,7 +338,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _connectionState.value = localService.state.value
 
             viewModelScope.launch {
-                localService.state.collect { _connectionState.value = it }
+                localService.state.collect {
+                    _connectionState.value = it
+                    if (it !is ConnectionState.Disconnected) {
+                        _pendingConnectIp.value = null
+                    }
+                }
             }
             // Wire TOFU callback: bridge service's suspend callback → UI Channel
             service!!.onFingerprintConfirmationRequired = { ip, newFp, oldFp ->
@@ -492,32 +499,44 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         scanJob?.cancel()
         viewModelScope.launch {
             val state = _connectionState.value
-            if (state is ConnectionState.Connecting || state is ConnectionState.Handshaking) {
+            if (state is ConnectionState.Connecting ||
+                state is ConnectionState.Handshaking ||
+                _pendingConnectIp.value != null
+            ) {
                 Log.d("InputLeaf", "Ignoring connect — already connecting to ${server.ip}")
                 return@launch
             }
+            _pendingConnectIp.value = server.ip
             val name = prefs.screenName.first()
             prefs.saveLastServer(server.ip)
             
             val injector = resolveInjector()
             if (injector == null) {
+                _pendingConnectIp.value = null
                 _errorState.value = "No input method available. Enable Shizuku or Accessibility Service."
                 return@launch
             }
             
             val connected = injector.connect()
             if (!connected) {
+                _pendingConnectIp.value = null
                 _errorState.value = "Failed to connect to input method: ${injector.name}"
                 return@launch
             }
             
             service?.setInjector(injector)
+            if (service == null) {
+                _pendingConnectIp.value = null
+                _errorState.value = "Connection service is not ready"
+                return@launch
+            }
             service?.connect(server.ip, name)
         }
     }
 
     fun disconnect() {
         userRequestedDisconnect = true
+        _pendingConnectIp.value = null
         service?.disconnect()
     }
 

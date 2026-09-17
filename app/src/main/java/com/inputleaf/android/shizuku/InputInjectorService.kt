@@ -4,6 +4,9 @@ import android.os.SystemClock
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
+import com.inputleaf.android.shizuku.uhid.HidKeyboard
+import com.inputleaf.android.shizuku.uhid.HidMouse
+import com.inputleaf.android.shizuku.uhid.UhidChannel
 
 /**
  * Shizuku UserService that runs with shell (ADB) privileges.
@@ -23,6 +26,13 @@ class InputInjectorService : IInputInjector.Stub() {
         }
     
     companion object {
+        private const val KEYBOARD_DEVICE_NAME = "Input Leaf Keyboard HID"
+        private const val MOUSE_DEVICE_NAME = "Input Leaf Mouse HID"
+        private const val VENDOR_ID = 0x1209
+        private const val PRODUCT_KEYBOARD = 0x0001
+        private const val PRODUCT_MOUSE = 0x0002
+        private const val UNIQ_KEYBOARD = "inputleaf-kbd"
+        private const val UNIQ_MOUSE = "inputleaf-mouse"
         // Injection mode: async (don't wait for injection to complete)
         private const val INJECT_INPUT_EVENT_MODE_ASYNC = 0
         // Wait until the system reports whether text injection was accepted.
@@ -184,8 +194,101 @@ class InputInjectorService : IInputInjector.Stub() {
             false
         }
     }
+
+    private val keyboardLock = Any()
+    private val mouseLock = Any()
+    private var uhidKeyboardChannel: UhidChannel? = null
+    private var keyboard: HidKeyboard? = null
+    private var uhidMouseChannel: UhidChannel? = null
+    private var mouse: HidMouse? = null
+
+    override fun openVirtualKeyboard(): Boolean = synchronized(keyboardLock) {
+        if (keyboard != null) return true
+        val channel = UhidChannel.openHandle() ?: return false
+        return try {
+            val startedAt = android.os.SystemClock.uptimeMillis()
+            channel.createDevice(
+                KEYBOARD_DEVICE_NAME,
+                HidKeyboard.DESCRIPTOR,
+                vendor = VENDOR_ID,
+                product = PRODUCT_KEYBOARD,
+                uniq = UNIQ_KEYBOARD,
+            )
+            uhidKeyboardChannel = channel
+            keyboard = HidKeyboard(channel)
+            android.util.Log.i(
+                "InputInjectorService",
+                "HID keyboard connected in ${android.os.SystemClock.uptimeMillis() - startedAt}ms pid=${android.os.Process.myPid()}",
+            )
+            true
+        } catch (e: Exception) {
+            android.util.Log.w("InputInjectorService", "HID keyboard create failed", e)
+            runCatching { channel.close() }
+            false
+        }
+    }
+
+    override fun closeVirtualKeyboard() {
+        synchronized(keyboardLock) {
+            runCatching { keyboard?.releaseAll() }
+            runCatching { uhidKeyboardChannel?.close() }
+            uhidKeyboardChannel = null
+            keyboard = null
+        }
+        android.util.Log.i("InputInjectorService", "HID keyboard disconnected")
+    }
+
+    override fun injectHidKey(evdevCode: Int, isDown: Boolean): Boolean =
+        synchronized(keyboardLock) { keyboard }?.key(evdevCode, isDown) ?: false
+
+    override fun releaseHidKeys() {
+        synchronized(keyboardLock) { keyboard }?.releaseAll()
+    }
+
+    override fun openVirtualMouse(): Boolean = synchronized(mouseLock) {
+        if (mouse != null) {
+            android.util.Log.i("InputInjectorService", "HID mouse already open (idempotent)")
+            return true
+        }
+        val channel = UhidChannel.openHandle() ?: return false
+        return try {
+            val startedAt = android.os.SystemClock.uptimeMillis()
+            channel.createDevice(
+                MOUSE_DEVICE_NAME,
+                HidMouse.DESCRIPTOR,
+                vendor = VENDOR_ID,
+                product = PRODUCT_MOUSE,
+                uniq = UNIQ_MOUSE,
+            )
+            uhidMouseChannel = channel
+            mouse = HidMouse(channel)
+            android.util.Log.i(
+                "InputInjectorService",
+                "HID mouse connected in ${android.os.SystemClock.uptimeMillis() - startedAt}ms pid=${android.os.Process.myPid()}",
+            )
+            true
+        } catch (e: Exception) {
+            android.util.Log.w("InputInjectorService", "HID mouse create failed", e)
+            runCatching { channel.close() }
+            false
+        }
+    }
+
+    override fun closeVirtualMouse() {
+        synchronized(mouseLock) {
+            runCatching { mouse?.releaseAll() }
+            runCatching { uhidMouseChannel?.close() }
+            uhidMouseChannel = null
+            mouse = null
+        }
+        android.util.Log.i("InputInjectorService", "HID mouse disconnected")
+    }
+
+    override fun injectHidMouse(dx: Int, dy: Int, buttons: Int, wheel: Int): Boolean =
+        synchronized(mouseLock) { mouse }?.move(dx, dy, buttons, wheel) ?: false
     
     override fun destroy() {
-        // Nothing to clean up
+        closeVirtualKeyboard()
+        closeVirtualMouse()
     }
 }

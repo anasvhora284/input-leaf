@@ -109,6 +109,18 @@ class ProtocolWriterTest {
         assertThat(ProtocolConstants.negotiateMinor(serverMinor = 4)).isEqualTo(4)
     }
 
+    @Test fun `writes mid-session screen info update with mouse position`() {
+        val (writer, output) = writerWith()
+
+        writer.writeDataInfo(2414, 1080, 0, 0, 500, 300)
+
+        val decoded = decodeSingleFrame(output.toByteArray())
+        assertThat(decoded.declaredLength).isEqualTo(18)
+        assertThat(decoded.tag).isEqualTo("DINF")
+        assertThat(decodeShorts(decoded.payload))
+            .containsExactly(0, 0, 2414, 1080, 0, 500, 300).inOrder()
+    }
+
     @Test fun `writes complete data information frame in protocol order`() {
         val (writer, output) = writerWith()
 

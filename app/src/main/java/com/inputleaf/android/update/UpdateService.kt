@@ -46,6 +46,14 @@ object UpdateService {
 
     private val RELEASES = listOf(
         VersionChangelog(
+            versionName = "1.4.2",
+            versionCode = 8,
+            highlights = listOf(
+                "Show the mouse cursor when using Accessibility Service without draw-over-apps permission.",
+                "Use a real HID keyboard (Shizuku) in Shizuku and Accessibility modes, attached only while the cursor is on this device.",
+            ),
+        ),
+        VersionChangelog(
             versionName = "1.4.1",
             versionCode = 7,
             highlights = listOf(
@@ -227,10 +235,10 @@ internal fun resolveInstallSource(installerPackage: String?): InstallSource {
 }
 
 internal fun versionNameFrom(packageInfo: PackageInfo?): String =
-    packageInfo?.versionName ?: "1.4.1"
+    packageInfo?.versionName ?: "1.4.2"
 
 internal fun versionCodeFrom(packageInfo: PackageInfo?, sdkInt: Int = Build.VERSION.SDK_INT): Long {
-    if (packageInfo == null) return 7L
+    if (packageInfo == null) return 8L
     return if (sdkInt >= Build.VERSION_CODES.P) {
         packageInfo.longVersionCode
     } else {

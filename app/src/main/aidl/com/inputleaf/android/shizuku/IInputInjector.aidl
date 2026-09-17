@@ -42,6 +42,45 @@ interface IInputInjector {
      * @return true if injection succeeded
      */
     boolean injectText(String text);
+
+    /**
+     * Register a real HID keyboard on /dev/uhid so Android treats keys as hardware input.
+     * Idempotent while already open.
+     */
+    boolean openVirtualKeyboard();
+
+    /**
+     * Destroy the HID keyboard. Android then sees the physical keyboard disconnect.
+     */
+    void closeVirtualKeyboard();
+
+    /**
+     * Send a key through the HID keyboard.
+     * @return false when unmapped or the keyboard is not open, so the caller can fall back
+     */
+    boolean injectHidKey(int evdevCode, boolean isDown);
+
+    /**
+     * Release every held HID key so a leave/disconnect cannot stick a key down.
+     */
+    void releaseHidKeys();
+
+    /**
+     * Register a real HID mouse on /dev/uhid so Android treats motion as hardware input.
+     * Idempotent while already open.
+     */
+    boolean openVirtualMouse();
+
+    /**
+     * Destroy the HID mouse. Android then sees the physical mouse disconnect.
+     */
+    void closeVirtualMouse();
+
+    /**
+     * Send a relative motion report through the HID mouse.
+     * @return false when the mouse is not open, so the caller can fall back
+     */
+    boolean injectHidMouse(int dx, int dy, int buttons, int wheel);
     
     /**
      * Destroy the service and release resources.

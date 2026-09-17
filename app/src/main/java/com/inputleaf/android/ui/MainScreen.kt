@@ -49,6 +49,7 @@ fun MainScreen(
     onScreenNameChange: (String) -> Unit,
     onToggleMouse: (Boolean) -> Unit,
     onToggleKeyboard: (Boolean) -> Unit,
+    pendingConnectIp: String? = null,
 ) {
     var showEditNameDialog by remember { mutableStateOf(false) }
     var tempName by remember(screenName) { mutableStateOf(screenName) }
@@ -157,12 +158,19 @@ fun MainScreen(
                     )
                 }
                 items(favorites) { server ->
+                    val connectingIp = connectingServerIp(connectionState, pendingConnectIp)
                     val isConnected = when (connectionState) {
                         is ConnectionState.Idle -> connectionState.serverIp == server.ip
                         is ConnectionState.Active -> connectionState.serverIp == server.ip
                         else -> false
                     }
-                    ServerListItem(server, isConnected, onConnect)
+                    ServerListItem(
+                        server = server,
+                        isConnected = isConnected,
+                        onServerClick = onConnect,
+                        isConnecting = connectingIp == server.ip,
+                        enabled = connectingIp == null,
+                    )
                 }
             }
 

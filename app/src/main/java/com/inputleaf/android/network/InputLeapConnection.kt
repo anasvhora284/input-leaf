@@ -376,7 +376,12 @@ class InputLeapConnection(
                 ) {
                     logD("Read event: $event")
                 }
-                _events.emit(event)
+                val mapped = when {
+                    event is InputLeapEvent.Unhandled && event.tag == "CIAK" ->
+                        InputLeapEvent.InfoAck()
+                    else -> event
+                }
+                _events.emit(mapped)
             }
         } catch (e: CancellationException) {
             throw e
@@ -390,7 +395,8 @@ class InputLeapConnection(
         runCatching { socket?.soTimeout = 0 }
     }
 
-    fun sendDataInfo(w: Int, h: Int) = writer?.writeDataInfo(w, h, 0, 0, 0, 0)
+    fun sendDataInfo(w: Int, h: Int, mx: Int, my: Int) =
+        writer?.writeDataInfo(w, h, 0, 0, mx, my)
     fun sendKeepAlive() = writer?.writeKeepAlive()
     fun sendInfoAck() = writer?.writeInfoAck()
 
