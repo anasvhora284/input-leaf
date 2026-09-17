@@ -6,7 +6,9 @@ codecov:
 
 parsers:
   jacoco:
-    # Kotlin inline/lambda line maps often show as partials even when the branch ran.
+    # Kotlin inline/lambda code maps several branches onto one source line; JaCoCo marks
+    # such lines partial even when their executable paths ran. Count them as hits so the
+    # 100% patch target measures genuinely unexecuted lines instead of mapping artifacts.
     partials_as_hits: true
 
 coverage:
@@ -19,27 +21,6 @@ coverage:
       default:
         target: 100%
         threshold: 0%
-
-ignore:
-  - "app/src/main/java/com/inputleaf/android/ui/**"
-  - "app/src/main/java/com/inputleaf/android/service/**"
-  - "app/src/main/java/com/inputleaf/android/shizuku/**"
-  - "app/src/main/java/com/inputleaf/android/InputLeafApplication.kt"
-  - "app/src/main/java/com/inputleaf/android/inject/AccessibilityInputService.kt"
-  - "app/src/main/java/com/inputleaf/android/inject/AccessibilityInputInjector.kt"
-  - "app/src/main/java/com/inputleaf/android/inject/InputLeafIME.kt"
-  - "app/src/main/java/com/inputleaf/android/inject/KeysymInjection.kt"
-  - "app/src/main/java/com/inputleaf/android/storage/AppPreferences.kt"
-  - "app/src/main/java/com/inputleaf/android/storage/ClientCertificateStore.kt"
-  - "uhid-server/src/main/java/com/inputleaf/uhid/Main.java"
-  - "uhid-server/src/main/java/com/inputleaf/uhid/UhidLocalSockets.java"
-  - "app/src/test/**"
-  - "app/src/androidTest/**"
-  - "app/src/main/res/**"
-  - "app/build.gradle.kts"
-  - "codecov.yml"
-  - ".gitignore"
-  - "**/*.patch"
 
 comment:
   layout: "header, diff, files"
