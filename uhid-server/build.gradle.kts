@@ -20,10 +20,10 @@ java {
 }
 dependencies {
     // Android stub for android.net.LocalServerSocket / LocalSocket (compile-time only)
-    compileOnly("com.google.android:android:4.1.1.4")
+    compileOnly(libs.android.stub)
 
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("com.google.truth:truth:1.4.5")
+    testImplementation(libs.junit)
+    testImplementation(libs.truth)
 }
 // Step 1: fat JAR
 tasks.register<Jar>("fatJar") {
@@ -53,16 +53,16 @@ tasks.register<Exec>("buildDex") {
     }
 
     val sdkRoot = resolveSdkDir()
-    val d8Path = if (sdkRoot.isNotBlank()) "$sdkRoot/build-tools/34.0.0/d8" else ""
-    val androidJar = if (sdkRoot.isNotBlank()) "$sdkRoot/platforms/android-34/android.jar" else ""
+    val d8Path = if (sdkRoot.isNotBlank()) "$sdkRoot/build-tools/36.0.0/d8" else ""
+    val androidJar = if (sdkRoot.isNotBlank()) "$sdkRoot/platforms/android-37.0/android.jar" else ""
 
     inputs.file(jarPath)
     outputs.file(dexFile)
 
     doFirst {
         require(sdkRoot.isNotBlank()) { "ANDROID_SDK_ROOT, ANDROID_HOME, or sdk.dir in local.properties is required to build the UHID DEX" }
-        require(File(d8Path).exists()) { "Android build tools 34.0.0 are required to build the UHID DEX (checked $d8Path)" }
-        require(File(androidJar).exists()) { "Android platform 34 is required to build the UHID DEX (checked $androidJar)" }
+        require(File(d8Path).exists()) { "Android build tools 36.0.0 are required to build the UHID DEX (checked $d8Path)" }
+        require(File(androidJar).exists()) { "Android platform 37.0 is required to build the UHID DEX (checked $androidJar)" }
         project.delete(dexOut)
         dexOut.mkdirs()
     }
