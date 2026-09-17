@@ -27,7 +27,7 @@ Start an API 36 emulator (or Android Studio's Device Manager), then run:
 ./gradlew :app:createDebugCoverageReport
 ```
 
-This installs the debug and test APKs, runs every instrumented test under `app/src/androidTest`, and writes the JaCoCo XML report to `app/build/reports/coverage/androidTest/debug/connected/report.xml`. The same task runs in the `android-coverage` GitHub Actions job. Debug builds are JaCoCo-instrumented (`isTestCoverageEnabled = true`), so no extra setup is needed for coverage.
+This installs the debug and test APKs, runs every instrumented test under `app/src/androidTest`, and writes the JaCoCo XML report to `app/build/reports/coverage/androidTest/debug/connected/report.xml`. The same task runs in the `android-coverage` GitHub Actions job. Debug builds are JaCoCo-instrumented (`enableAndroidTestCoverage = true`), so no extra setup is needed for coverage.
 
 Note that debug builds sign with the project keystore `app/input-leaf.jks`, which is gitignored. CI generates a throwaway keystore with the credentials hardcoded in `app/build.gradle.kts`; on a machine without the project keystore, create one the same way:
 

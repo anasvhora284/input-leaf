@@ -42,7 +42,7 @@ android {
             // Use project keystore so debug APKs can always update over each other
             // regardless of which machine built them
             signingConfig = signingConfigs.getByName("release")
-            isTestCoverageEnabled = true
+            enableAndroidTestCoverage = true
         }
         release {
             isMinifyEnabled = false
