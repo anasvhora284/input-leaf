@@ -103,22 +103,22 @@ class InputLeapConnection(
                                 return@withContext result
                             }
                             if (result is ConnectResult.Failed) {
+                                lastFailure = selectFailureToReport(lastFailure, result)
                                 if (pinnedFingerprint != null ||
                                     !transportPolicy.shouldFallbackWithinAttempt(result.reason)
                                 ) {
-                                    return@withContext result
+                                    break
                                 }
-                                lastFailure = selectFailureToReport(lastFailure, result)
                             }
                         }
                         is SocketOpenResult.Rejected -> return@withContext ConnectResult.RejectedByUser
                         is SocketOpenResult.Failed -> {
+                            lastFailure = selectFailureToReport(lastFailure, opened.failure)
                             if (pinnedFingerprint != null ||
                                 !transportPolicy.shouldFallbackWithinAttempt(opened.failure.reason)
                             ) {
-                                return@withContext opened.failure
+                                break
                             }
-                            lastFailure = selectFailureToReport(lastFailure, opened.failure)
                         }
                     }
                 }

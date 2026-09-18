@@ -27,6 +27,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLException
 import javax.net.ssl.SSLServerSocket
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.TrustManager
@@ -821,6 +822,98 @@ class InputLeapConnectionTest {
             unconnected.sendDataInfo(1920, 1080, 0, 0)
             unconnected.sendKeepAlive()
             unconnected.sendInfoAck()
+        }
+    }
+
+    @Test fun `pinned fingerprint mismatch logs warning and fails`(): Unit = runBlocking {
+        val identity = TestTlsIdentity.create()
+        TlsLoopbackServer(identity.context) { socket, _ ->
+            runCatching {
+                socket.startHandshake()
+                performServerHandshake(socket)
+            }
+        }.use { server ->
+            connection(
+                server.port,
+                transportPolicy = ConnectionTransportPolicy.TLS_ONLY,
+                pinnedFingerprint = "0".repeat(64),
+                onCertificate = { throw SSLException("Certificate fingerprint mismatch") },
+            ).useConnection { connection ->
+                val result = connection.connect("android", 1920, 1080)
+                assertThat(result).isInstanceOf(ConnectResult.Failed::class.java)
+                assertThat((result as ConnectResult.Failed).reason)
+                    .isEqualTo(ConnectResult.FailureReason.CERTIFICATE_MISMATCH)
+            }
+        }
+    }
+
+    @Test fun `server requiring client certificate logs warning and fails`(): Unit = runBlocking {
+        LoopbackServer { socket, _ ->
+            runCatching {
+                val input = DataInputStream(socket.inputStream)
+                val firstByte = input.readUnsignedByte()
+                if (firstByte == 0x16) {
+                    val restHeader = ByteArray(4)
+                    input.readFully(restHeader)
+                    val len = ((restHeader[2].toInt() and 0xFF) shl 8) or (restHeader[3].toInt() and 0xFF)
+                    val body = ByteArray(len)
+                    input.readFully(body)
+                    val alert = byteArrayOf(0x15, 0x03, 0x03, 0x00, 0x02, 0x02, 0x74)
+                    socket.outputStream.write(alert)
+                    socket.outputStream.flush()
+                }
+            }
+        }.use { server ->
+            connection(
+                server.port,
+                transportPolicy = ConnectionTransportPolicy.TLS_ONLY,
+            ).useConnection { connection ->
+                val result = connection.connect("android", 1920, 1080)
+                assertThat(result).isInstanceOf(ConnectResult.Failed::class.java)
+                assertThat((result as ConnectResult.Failed).reason)
+                    .isEqualTo(ConnectResult.FailureReason.CLIENT_CERT_REQUIRED)
+            }
+        }
+    }
+
+    @Test fun `tls against plain server logs warning and fails when all transports fail`(): Unit = runBlocking {
+        LoopbackServer { socket, _ ->
+            writeFrame(DataOutputStream(socket.outputStream), helloBody())
+        }.use { server ->
+            connection(
+                server.port,
+                transportPolicy = ConnectionTransportPolicy.TLS_ONLY,
+                preferredTransport = ServerTransport.TLS,
+            ).useConnection { connection ->
+                val result = connection.connect("android", 1920, 1080)
+                assertThat(result).isInstanceOf(ConnectResult.Failed::class.java)
+                assertThat((result as ConnectResult.Failed).reason)
+                    .isEqualTo(ConnectResult.FailureReason.TLS_AGAINST_PLAIN_SERVER)
+            }
+        }
+    }
+
+    @Test fun `incomplete handshake logs error and returns failure`(): Unit = runBlocking {
+        LoopbackServer { socket, _ ->
+            val out = DataOutputStream(socket.outputStream)
+            repeat(32) {
+                writeFrame(out, "UNKN".toByteArray())
+            }
+            runCatching {
+                while (socket.inputStream.read() != -1) Unit
+            }
+        }.use { server ->
+            connection(
+                server.port,
+                transportPolicy = ConnectionTransportPolicy.PLAIN_ONLY,
+                preferredTransport = ServerTransport.PLAIN,
+            ).useConnection { connection ->
+                val result = connection.connect("android", 1920, 1080)
+                assertThat(result).isInstanceOf(ConnectResult.Failed::class.java)
+                val failed = result as ConnectResult.Failed
+                assertThat(failed.reason).isEqualTo(ConnectResult.FailureReason.HANDSHAKE)
+                assertThat(failed.detail).contains("Incomplete handshake")
+            }
         }
     }
 

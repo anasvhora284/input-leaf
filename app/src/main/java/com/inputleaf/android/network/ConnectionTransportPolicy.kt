@@ -10,9 +10,12 @@ enum class ConnectionTransportPolicy(val storageValue: String) {
             entries.firstOrNull { it.storageValue == value } ?: AUTO
     }
 
+    fun order(preferredTransport: ServerTransport?): List<ServerTransport> =
+        order(preferredTransport, null)
+
     fun order(
         preferredTransport: ServerTransport?,
-        detectedMode: ServerSecurityMode? = null,
+        detectedMode: ServerSecurityMode?,
     ): List<ServerTransport> = when (this) {
         TLS_ONLY -> listOf(ServerTransport.TLS)
         PLAIN_ONLY -> listOf(ServerTransport.PLAIN)
