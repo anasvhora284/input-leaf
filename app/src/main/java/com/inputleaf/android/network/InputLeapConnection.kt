@@ -106,9 +106,7 @@ class InputLeapConnection(
                                 lastFailure = selectFailureToReport(lastFailure, result)
                                 if (pinnedFingerprint != null ||
                                     !transportPolicy.shouldFallbackWithinAttempt(result.reason)
-                                ) {
-                                    break
-                                }
+                                ) break
                             }
                         }
                         is SocketOpenResult.Rejected -> return@withContext ConnectResult.RejectedByUser
@@ -116,9 +114,7 @@ class InputLeapConnection(
                             lastFailure = selectFailureToReport(lastFailure, opened.failure)
                             if (pinnedFingerprint != null ||
                                 !transportPolicy.shouldFallbackWithinAttempt(opened.failure.reason)
-                            ) {
-                                break
-                            }
+                            ) break
                         }
                     }
                 }

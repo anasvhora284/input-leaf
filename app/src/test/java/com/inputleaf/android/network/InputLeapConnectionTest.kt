@@ -809,6 +809,7 @@ class InputLeapConnectionTest {
                 connection.sendDataInfo(1920, 1080, 50, 60)
                 connection.sendInfoAck()
                 connection.sendKeepAlive()
+                connection.clearHandshakeTimeout()
 
                 assertThat(withTimeout(TEST_TIMEOUT_MS) { mappedAck.await() })
                     .isEqualTo(InputLeapEvent.InfoAck())
@@ -822,6 +823,7 @@ class InputLeapConnectionTest {
             unconnected.sendDataInfo(1920, 1080, 0, 0)
             unconnected.sendKeepAlive()
             unconnected.sendInfoAck()
+            unconnected.clearHandshakeTimeout()
         }
     }
 
@@ -897,7 +899,7 @@ class InputLeapConnectionTest {
         LoopbackServer { socket, _ ->
             val out = DataOutputStream(socket.outputStream)
             repeat(32) {
-                writeFrame(out, "UNKN".toByteArray())
+                writeFrame(out, "COUT".toByteArray())
             }
             runCatching {
                 while (socket.inputStream.read() != -1) Unit
