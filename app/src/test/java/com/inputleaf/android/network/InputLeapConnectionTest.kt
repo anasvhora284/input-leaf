@@ -821,7 +821,6 @@ class InputLeapConnectionTest {
             unconnected.sendDataInfo(1920, 1080, 0, 0)
             unconnected.sendKeepAlive()
             unconnected.sendInfoAck()
-            Unit
         }
     }
 

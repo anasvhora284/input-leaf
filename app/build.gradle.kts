@@ -1,8 +1,9 @@
+import com.android.build.api.artifact.SingleArtifact
+
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
-    id("org.jetbrains.kotlinx.kover")
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.kover)
 }
 
 kover {
@@ -15,7 +16,7 @@ kover {
 
 android {
     namespace = "com.inputleaf.android"
-    compileSdk = 34
+    compileSdk = 37
     
     defaultConfig {
         applicationId = "com.inputleaf.android"
@@ -41,7 +42,6 @@ android {
             // Use project keystore so debug APKs can always update over each other
             // regardless of which machine built them
             signingConfig = signingConfigs.getByName("release")
-            // JaCoCo-instrument debug APKs so connected Android tests feed the Codecov report
             enableAndroidTestCoverage = true
         }
         release {
@@ -53,10 +53,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-    
-    kotlinOptions { 
-        jvmTarget = "17" 
     }
     
     buildFeatures { 
@@ -78,52 +74,61 @@ android {
             isUniversalApk = true
         }
     }
-    
-    // Custom APK naming
-    applicationVariants.all {
-        val variant = this
-        variant.outputs.all {
-            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-            val abiName = output.getFilter(com.android.build.OutputFile.ABI) ?: "universal"
-            val versionName = variant.versionName
-            output.outputFileName = "input-leaf_${versionName}_${abiName}.apk"
+}
+
+androidComponents {
+    onVariants { variant ->
+        val capitalizedName = variant.name.replaceFirstChar { it.uppercase() }
+        val versionName = android.defaultConfig.versionName
+            ?: error("versionName is required for the APK naming scheme")
+        val copyDist = tasks.register<Copy>("copy${capitalizedName}ApksToDist") {
+            from(variant.artifacts.get(SingleArtifact.APK))
+            into(layout.buildDirectory.dir("dist/${variant.name}"))
+            rename { fileName ->
+                Regex("app-([A-Za-z0-9_-]+)-(debug|release)\\.apk").find(fileName)
+                    ?.let { "input-leaf_${versionName}_${it.groupValues[1]}.apk" }
+                    ?: fileName
+            }
+        }
+        tasks.matching { it.name == "assemble$capitalizedName" }.configureEach {
+            dependsOn(copyDist)
         }
     }
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
+    val composeBom = platform(libs.compose.bom)
     implementation(composeBom)
-    implementation("androidx.core:core-ktx:1.12.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
-    implementation("androidx.activity:activity-compose:1.8.2")
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.material:material-icons-extended")
-    implementation("androidx.datastore:datastore-preferences:1.0.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation(libs.core.ktx)
+    implementation(libs.lifecycle.runtime.ktx)
+    implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.activity.compose)
+    implementation(libs.compose.ui)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.ui.tooling.preview)
+    implementation(libs.compose.material.icons.extended)
+    implementation(libs.datastore.preferences)
+    implementation(libs.device.names)
+    implementation(libs.coroutines.android)
     
     // Shizuku for privileged input injection without root
-    val shizukuVersion = "13.1.5"
-    implementation("dev.rikka.shizuku:api:$shizukuVersion")
-    implementation("dev.rikka.shizuku:provider:$shizukuVersion")
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
     
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
-    testImplementation("com.google.truth:truth:1.4.5")
+    testImplementation(libs.junit)
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.truth)
+    testImplementation(libs.androidx.test.core)
     // Real org.json for JVM unit tests (Android's JSONObject stub is not mocked)
-    testImplementation("org.json:json:20240303")
-    testImplementation("org.robolectric:robolectric:4.14.1")
-    testImplementation("androidx.test:core:1.6.1")
-    testImplementation("org.mockito:mockito-core:5.14.2")
+    testImplementation(libs.json)
+    testImplementation(libs.robolectric)
 
     androidTestImplementation(composeBom)
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
-    androidTestImplementation("androidx.test:core:1.6.1")
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")
-    androidTestImplementation("androidx.test:runner:1.6.2")
-    androidTestImplementation("androidx.test:rules:1.6.1")
-    androidTestImplementation("com.google.truth:truth:1.4.5")
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(libs.truth)
 }
