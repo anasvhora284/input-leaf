@@ -20,6 +20,19 @@ class TransportPolicyTest {
         ).containsExactly(ServerTransport.PLAIN)
     }
 
+    @Test fun `order covers all policies and parameters`() {
+        for (policy in ConnectionTransportPolicy.entries) {
+            policy.order(null)
+            policy.order(ServerTransport.TLS)
+            policy.order(ServerTransport.PLAIN)
+            for (mode in ServerSecurityMode.entries) {
+                policy.order(null, mode)
+                policy.order(ServerTransport.TLS, mode)
+                policy.order(ServerTransport.PLAIN, mode)
+            }
+        }
+    }
+
     @Test fun `auto tries the learned transport before its fallback`() {
         assertThat(
             ConnectionTransportPolicy.AUTO.order(

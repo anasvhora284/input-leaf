@@ -775,6 +775,56 @@ class InputLeapConnectionTest {
         }
     }
 
+    @Test fun `sendDataInfo and sendInfoAck send valid frames and CIAK maps to InfoAck`(): Unit = runBlocking {
+        val sendEvent = CompletableDeferred<Unit>()
+        val receivedFrames = CompletableDeferred<Unit>()
+        LoopbackServer { socket, _ ->
+            performServerHandshake(socket)
+            sendEvent.awaitBlocking()
+            writeFrame(DataOutputStream(socket.outputStream), "CIAK".toByteArray())
+            val dinf = readFrame(DataInputStream(socket.inputStream))
+            assertThat(String(dinf, 0, 4)).isEqualTo("DINF")
+            val ciak = readFrame(DataInputStream(socket.inputStream))
+            assertThat(String(ciak, 0, 4)).isEqualTo("CIAK")
+            val calv = readFrame(DataInputStream(socket.inputStream))
+            assertThat(String(calv, 0, 4)).isEqualTo("CALV")
+            receivedFrames.complete(Unit)
+            socket.inputStream.read()
+        }.use { server ->
+            connection(
+                server.port,
+                transportPolicy = ConnectionTransportPolicy.PLAIN_ONLY,
+                preferredTransport = ServerTransport.PLAIN,
+            ).useConnection { connection ->
+                assertThat(connection.connect("android", 1920, 1080))
+                    .isInstanceOf(ConnectResult.Ok::class.java)
+
+                val mappedAck = async(start = CoroutineStart.UNDISPATCHED) {
+                    connection.events.first { it is InputLeapEvent.InfoAck }
+                }
+
+                sendEvent.complete(Unit)
+
+                connection.sendDataInfo(1920, 1080, 50, 60)
+                connection.sendInfoAck()
+                connection.sendKeepAlive()
+
+                assertThat(withTimeout(TEST_TIMEOUT_MS) { mappedAck.await() })
+                    .isEqualTo(InputLeapEvent.InfoAck())
+                withTimeout(TEST_TIMEOUT_MS) { receivedFrames.await() }
+            }
+
+            val unconnected = connection(
+                server.port,
+                transportPolicy = ConnectionTransportPolicy.PLAIN_ONLY,
+            )
+            unconnected.sendDataInfo(1920, 1080, 0, 0)
+            unconnected.sendKeepAlive()
+            unconnected.sendInfoAck()
+            Unit
+        }
+    }
+
     private fun isExpectedPlainProbeTermination(failure: Exception): Boolean =
         failure is EOFException ||
             failure is SocketException ||
