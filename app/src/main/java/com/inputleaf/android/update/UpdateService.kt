@@ -30,6 +30,12 @@ sealed interface UpdateCheckResult {
     data class Error(val message: String) : UpdateCheckResult
 }
 
+data class VersionChangelog(
+    val versionName: String,
+    val versionCode: Int,
+    val highlights: List<String>,
+)
+
 object UpdateService {
 
     internal const val GITHUB_API_LATEST_RELEASE =
@@ -37,6 +43,41 @@ object UpdateService {
     internal const val FDROID_MARKET_URI = "market://details?id=com.inputleaf.android"
     internal const val GITHUB_RELEASES_WEB_URL =
         "https://github.com/anasvhora284/input-leaf/releases/latest"
+
+    private val RELEASES = listOf(
+        VersionChangelog(
+            versionName = "1.4.2",
+            versionCode = 8,
+            highlights = listOf(
+                "Show the mouse cursor when using Accessibility Service without draw-over-apps permission.",
+                "Use a real HID keyboard (Shizuku) in Shizuku and Accessibility modes, attached only while the cursor is on this device.",
+            ),
+        ),
+        VersionChangelog(
+            versionName = "1.4.1",
+            versionCode = 7,
+            highlights = listOf(
+                "Added About & Community section with developer portfolio, GitHub, LinkedIn, and contributor credits.",
+                "Added update checker with intelligent F-Droid and GitHub release redirection.",
+                "Added 'What's New' changelog display upon upgrading.",
+                "Enhanced input injection performance and connection stability.",
+            ),
+        ),
+        VersionChangelog(
+            versionName = "1.4.0",
+            versionCode = 6,
+            highlights = listOf(
+                "Added TLS-secured connections with TOFU certificate pinning.",
+                "Added client certificate management and custom fingerprints.",
+                "Modernized Material 3 UI with enhanced connection cards and favorites.",
+            ),
+        ),
+    )
+
+    fun getChangelog(versionName: String): VersionChangelog {
+        val clean = versionName.removePrefix("v").removePrefix("V")
+        return RELEASES.firstOrNull { it.versionName == clean } ?: RELEASES.first()
+    }
 
     fun getInstallSource(context: Context): InstallSource {
         val installer = readInstallerPackageName(context)
@@ -194,10 +235,10 @@ internal fun resolveInstallSource(installerPackage: String?): InstallSource {
 }
 
 internal fun versionNameFrom(packageInfo: PackageInfo?): String =
-    packageInfo?.versionName ?: "1.4.1"
+    packageInfo?.versionName ?: "1.4.2"
 
 internal fun versionCodeFrom(packageInfo: PackageInfo?, sdkInt: Int = Build.VERSION.SDK_INT): Long {
-    if (packageInfo == null) return 7L
+    if (packageInfo == null) return 8L
     return if (sdkInt >= Build.VERSION_CODES.P) {
         packageInfo.longVersionCode
     } else {

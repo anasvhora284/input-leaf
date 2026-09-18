@@ -22,8 +22,8 @@ android {
         applicationId = "com.inputleaf.android"
         minSdk = 26
         targetSdk = 34
-        versionCode = 7
-        versionName = "1.4.1"
+        versionCode = 8
+        versionName = "1.4.2"
         // JUnit4 runner so the androidTest classes are discovered on the emulator
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -60,12 +60,6 @@ android {
         aidl = true  // Enable AIDL for Shizuku IPC
     }
 
-    sourceSets {
-        getByName("main").assets.srcDir(
-            project(":uhid-server").layout.buildDirectory.dir("generated/assets/uhid").get().asFile
-        )
-    }
-    
     packaging {
         jniLibs {
             useLegacyPackaging = true
@@ -100,14 +94,6 @@ androidComponents {
             dependsOn(copyDist)
         }
     }
-}
-
-tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach {
-    dependsOn(":uhid-server:buildDex")
-}
-
-tasks.matching { it.name.contains("lintVital", ignoreCase = true) }.configureEach {
-    dependsOn(":uhid-server:buildDex")
 }
 
 dependencies {

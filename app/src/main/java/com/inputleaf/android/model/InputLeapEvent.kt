@@ -14,6 +14,7 @@ sealed class InputLeapEvent {
         val protocol: WireProtocol = WireProtocol.BARRIER,
     ) : InputLeapEvent()
     data class QueryInfo(val dummy: Unit = Unit) : InputLeapEvent()
+    data class InfoAck(val dummy: Unit = Unit) : InputLeapEvent()
     // Control
     data class Enter(val x: Int, val y: Int, val seqNum: Int, val mask: Int) : InputLeapEvent()
     object Leave : InputLeapEvent()

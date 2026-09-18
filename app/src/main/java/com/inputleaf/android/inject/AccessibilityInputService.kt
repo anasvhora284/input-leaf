@@ -50,6 +50,11 @@ class AccessibilityInputService : AccessibilityService() {
                 updateCursorImage()
             }
         }
+        if (com.inputleaf.android.service.CursorOverlayService.isVisible.value) {
+            showCursorInternal()
+        } else {
+            ensureCursorView(visible = false)
+        }
     }
 
     private fun updateCursorImage() {
@@ -73,7 +78,10 @@ class AccessibilityInputService : AccessibilityService() {
         try {
             scope.cancel()
         } catch (e: Exception) {}
-        hideCursorInternal()
+        cursorView?.let {
+            runCatching { windowManager?.removeView(it) }
+        }
+        cursorView = null
         instance = null
         super.onDestroy()
     }
@@ -106,49 +114,51 @@ class AccessibilityInputService : AccessibilityService() {
     }
 
     fun showCursorInternal() {
-        if (cursorView != null) return
-        val resId = if (currentCursorStyle == "leaf") {
-            com.inputleaf.android.R.drawable.cursor
-        } else {
-            com.inputleaf.android.R.drawable.ic_cursor_aosp
+        ensureCursorView(visible = true)
+    }
+
+    private fun ensureCursorView(visible: Boolean) {
+        if (cursorView == null) {
+            val resId = if (currentCursorStyle == "leaf") {
+                com.inputleaf.android.R.drawable.cursor
+            } else {
+                com.inputleaf.android.R.drawable.ic_cursor_aosp
+            }
+            val scaleXValue = if (currentCursorStyle == "leaf") -1f else 1f
+            val view = android.widget.ImageView(this).apply {
+                setImageResource(resId)
+                scaleX = scaleXValue
+                visibility = android.view.View.INVISIBLE
+            }
+            val CURSOR_SIZE = 80
+            val params = android.view.WindowManager.LayoutParams(
+                CURSOR_SIZE,
+                CURSOR_SIZE,
+                android.view.WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                android.graphics.PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = android.view.Gravity.TOP or android.view.Gravity.START
+                x = com.inputleaf.android.service.CursorOverlayService.cursorX.value.toInt() - CURSOR_SIZE / 2
+                y = com.inputleaf.android.service.CursorOverlayService.cursorY.value.toInt() - CURSOR_SIZE / 2
+            }
+            try {
+                windowManager?.addView(view, params)
+                cursorView = view
+                Log.i(TAG, "Cursor overlay view attached")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to add cursor overlay", e)
+                return
+            }
         }
-        val scaleXValue = if (currentCursorStyle == "leaf") -1f else 1f
-        val view = android.widget.ImageView(this).apply {
-            setImageResource(resId)
-            scaleX = scaleXValue
-        }
-        cursorView = view
-        
-        val CURSOR_SIZE = 80
-        val params = android.view.WindowManager.LayoutParams(
-            CURSOR_SIZE,
-            CURSOR_SIZE,
-            android.view.WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            android.graphics.PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = android.view.Gravity.TOP or android.view.Gravity.START
-            x = com.inputleaf.android.service.CursorOverlayService.cursorX.value.toInt() - CURSOR_SIZE / 2
-            y = com.inputleaf.android.service.CursorOverlayService.cursorY.value.toInt() - CURSOR_SIZE / 2
-        }
-        
-        try {
-            windowManager?.addView(view, params)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to add cursor overlay", e)
-        }
+        cursorView?.visibility = if (visible) android.view.View.VISIBLE else android.view.View.INVISIBLE
     }
 
     fun hideCursorInternal() {
-        cursorView?.let {
-            try {
-                windowManager?.removeView(it)
-            } catch (e: Exception) {}
-        }
-        cursorView = null
+        cursorView?.visibility = android.view.View.INVISIBLE
     }
 
     fun moveCursorInternal(x: Float, y: Float) {

@@ -27,7 +27,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.inputleaf.android.ui.components.CircularAvatar
 import com.inputleaf.android.ui.components.GradientCard
-import com.inputleaf.android.ui.components.MaterialToggleSwitch
 import com.inputleaf.android.ui.components.SectionHeader
 import com.inputleaf.android.ui.components.SettingsRow
 import com.inputleaf.android.ui.components.ThemeModeOption
@@ -72,11 +71,12 @@ fun SettingsScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
+    val cursorAvailable = canDrawOverlays || accessibilityAvailable
     val versionName = remember(context) {
         try {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.4.1"
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.4.2"
         } catch (_: Exception) {
-            "1.4.1"
+            "1.4.2"
         }
     }
     val installSource = remember(context) { UpdateService.getInstallSource(context) }
@@ -151,9 +151,9 @@ fun SettingsScreen(
                         icon = Icons.Rounded.Build,
                         title = "Auto-connect on launch",
                         trailingContent = {
-                            MaterialToggleSwitch(
+                            Switch(
                                 checked = autoConnect,
-                                onCheckedChange = onAutoConnectChange
+                                onCheckedChange = onAutoConnectChange,
                             )
                         }
                     )
@@ -203,7 +203,7 @@ fun SettingsScreen(
                 padding = 0.dp
             ) {
                 Column {
-                    if (!canDrawOverlays) {
+                    if (!cursorAvailable) {
                         // Permission warning
                         Row(
                             modifier = Modifier
@@ -222,13 +222,13 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Overlay permission required",
+                                    text = "Overlay or Accessibility required",
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onErrorContainer,
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                                 Text(
-                                    text = "Required to show cursor on screen",
+                                    text = "Grant overlay permission or enable Accessibility Service to show the cursor",
                                     color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f),
                                     style = MaterialTheme.typography.bodySmall
                                 )
@@ -245,16 +245,19 @@ fun SettingsScreen(
                     SettingsRow(
                         icon = Icons.Rounded.Info,
                         title = "Show cursor overlay",
-                        subtitle = if (canDrawOverlays) "Display cursor when active" else "Grant permission first",
+                        subtitle = when {
+                            canDrawOverlays || accessibilityAvailable -> "Display cursor when active"
+                            else -> "Needs overlay permission or Accessibility"
+                        },
                         trailingContent = {
-                            MaterialToggleSwitch(
+                            Switch(
                                 checked = showCursor,
                                 onCheckedChange = onShowCursorChange,
-                                enabled = canDrawOverlays
+                                enabled = cursorAvailable,
                             )
                         }
                     )
-                    if (showCursor && canDrawOverlays) {
+                    if (showCursor && cursorAvailable) {
                         SettingsRow(
                             icon = Icons.Rounded.Edit,
                             title = "Cursor style",

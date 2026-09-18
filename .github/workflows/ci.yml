@@ -44,7 +44,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v6.3.0
 
       - name: Run fast JVM tests and generate coverage
-        run: ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest :uhid-server:test :koverXmlReportDebugJvm :uhid-server:jacocoTestReport
+        run: ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest :koverXmlReportDebugJvm
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7
@@ -52,7 +52,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           # Fork PRs use Codecov's tokenless upload; trusted runs authenticate with OIDC.
           use_oidc: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-          files: build/reports/kover/coverage-debug-jvm.xml,uhid-server/build/reports/jacoco/test/jacocoTestReport.xml
+          files: build/reports/kover/coverage-debug-jvm.xml
           flags: jvm
           disable_search: true
           # Codecov returns an authentication error until the upstream repository is enabled there.
@@ -67,8 +67,6 @@ jobs:
           path: |
             app/build/reports/tests/
             app/build/test-results/
-            uhid-server/build/reports/tests/
-            uhid-server/build/test-results/
           if-no-files-found: warn
           retention-days: 7
 

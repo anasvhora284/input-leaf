@@ -82,18 +82,13 @@ fun UpdateAvailableDialog(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 200.dp)
+                            .heightIn(max = 220.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                             .padding(12.dp)
                             .verticalScroll(rememberScrollState())
                     ) {
-                        Text(
-                            text = changelog,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            lineHeight = 18.sp
-                        )
+                        MarkdownContent(markdown = changelog)
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                 }

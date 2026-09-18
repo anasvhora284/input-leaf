@@ -6,8 +6,7 @@ import org.junit.Test
 class TransportPolicyTest {
     @Test fun `TLS only never falls back to plain`() {
         assertThat(
-            TransportPolicy.order(
-                policy = ConnectionTransportPolicy.TLS_ONLY,
+            ConnectionTransportPolicy.TLS_ONLY.order(
                 preferredTransport = ServerTransport.PLAIN,
             )
         ).containsExactly(ServerTransport.TLS)
@@ -15,23 +14,33 @@ class TransportPolicyTest {
 
     @Test fun `plain only never probes TLS`() {
         assertThat(
-            TransportPolicy.order(
-                policy = ConnectionTransportPolicy.PLAIN_ONLY,
+            ConnectionTransportPolicy.PLAIN_ONLY.order(
                 preferredTransport = ServerTransport.TLS,
             )
         ).containsExactly(ServerTransport.PLAIN)
     }
 
+    @Test fun `order covers all policies and parameters`() {
+        for (policy in ConnectionTransportPolicy.entries) {
+            policy.order(null)
+            policy.order(ServerTransport.TLS)
+            policy.order(ServerTransport.PLAIN)
+            for (mode in ServerSecurityMode.entries) {
+                policy.order(null, mode)
+                policy.order(ServerTransport.TLS, mode)
+                policy.order(ServerTransport.PLAIN, mode)
+            }
+        }
+    }
+
     @Test fun `auto tries the learned transport before its fallback`() {
         assertThat(
-            TransportPolicy.order(
-                policy = ConnectionTransportPolicy.AUTO,
+            ConnectionTransportPolicy.AUTO.order(
                 preferredTransport = ServerTransport.TLS,
             )
         ).containsExactly(ServerTransport.TLS, ServerTransport.PLAIN).inOrder()
         assertThat(
-            TransportPolicy.order(
-                policy = ConnectionTransportPolicy.AUTO,
+            ConnectionTransportPolicy.AUTO.order(
                 preferredTransport = ServerTransport.PLAIN,
             )
         ).containsExactly(ServerTransport.PLAIN, ServerTransport.TLS).inOrder()
@@ -39,8 +48,7 @@ class TransportPolicyTest {
 
     @Test fun `auto uses TLS first even without a stored fingerprint`() {
         assertThat(
-            TransportPolicy.order(
-                policy = ConnectionTransportPolicy.AUTO,
+            ConnectionTransportPolicy.AUTO.order(
                 preferredTransport = null,
             )
         ).containsExactly(ServerTransport.TLS, ServerTransport.PLAIN).inOrder()
@@ -48,22 +56,19 @@ class TransportPolicyTest {
 
     @Test fun `auto uses the probed server mode instead of a stale learned transport`() {
         assertThat(
-            TransportPolicy.order(
-                policy = ConnectionTransportPolicy.AUTO,
+            ConnectionTransportPolicy.AUTO.order(
                 preferredTransport = ServerTransport.PLAIN,
                 detectedMode = ServerSecurityMode.TLS,
             )
         ).containsExactly(ServerTransport.TLS)
         assertThat(
-            TransportPolicy.order(
-                policy = ConnectionTransportPolicy.AUTO,
+            ConnectionTransportPolicy.AUTO.order(
                 preferredTransport = ServerTransport.TLS,
                 detectedMode = ServerSecurityMode.PLAIN,
             )
         ).containsExactly(ServerTransport.PLAIN)
         assertThat(
-            TransportPolicy.order(
-                policy = ConnectionTransportPolicy.AUTO,
+            ConnectionTransportPolicy.AUTO.order(
                 preferredTransport = null,
                 detectedMode = ServerSecurityMode.TLS_CLIENT_CERT_REQUIRED,
             )

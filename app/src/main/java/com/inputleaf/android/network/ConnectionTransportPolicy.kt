@@ -10,6 +10,35 @@ enum class ConnectionTransportPolicy(val storageValue: String) {
             entries.firstOrNull { it.storageValue == value } ?: AUTO
     }
 
+    fun order(preferredTransport: ServerTransport?): List<ServerTransport> =
+        order(preferredTransport, null)
+
+    fun order(
+        preferredTransport: ServerTransport?,
+        detectedMode: ServerSecurityMode?,
+    ): List<ServerTransport> = when (this) {
+        TLS_ONLY -> listOf(ServerTransport.TLS)
+        PLAIN_ONLY -> listOf(ServerTransport.PLAIN)
+        AUTO -> when (detectedMode) {
+            ServerSecurityMode.PLAIN -> listOf(ServerTransport.PLAIN)
+            ServerSecurityMode.TLS,
+            ServerSecurityMode.TLS_CLIENT_CERT_REQUIRED -> listOf(ServerTransport.TLS)
+            null -> {
+                if (preferredTransport != null) {
+                    val fallback = when (preferredTransport) {
+                        ServerTransport.TLS -> ServerTransport.PLAIN
+                        ServerTransport.PLAIN -> ServerTransport.TLS
+                    }
+                    listOf(preferredTransport, fallback)
+                } else {
+                    // Deskflow is TLS by default. Probing TLS first fails fast on plain servers;
+                    // probing plain first stalls for the handshake timeout on TLS servers.
+                    listOf(ServerTransport.TLS, ServerTransport.PLAIN)
+                }
+            }
+        }
+    }
+
     fun shouldRetry(reason: ConnectResult.FailureReason): Boolean =
         this == AUTO && when (reason) {
             ConnectResult.FailureReason.NETWORK,
