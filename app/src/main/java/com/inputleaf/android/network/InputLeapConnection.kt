@@ -104,17 +104,17 @@ class InputLeapConnection(
                             }
                             if (result is ConnectResult.Failed) {
                                 lastFailure = selectFailureToReport(lastFailure, result)
-                                if (pinnedFingerprint != null ||
+                                val shouldStop = pinnedFingerprint != null ||
                                     !transportPolicy.shouldFallbackWithinAttempt(result.reason)
-                                ) break
+                                if (shouldStop) break
                             }
                         }
                         is SocketOpenResult.Rejected -> return@withContext ConnectResult.RejectedByUser
                         is SocketOpenResult.Failed -> {
                             lastFailure = selectFailureToReport(lastFailure, opened.failure)
-                            if (pinnedFingerprint != null ||
+                            val shouldStop = pinnedFingerprint != null ||
                                 !transportPolicy.shouldFallbackWithinAttempt(opened.failure.reason)
-                            ) break
+                            if (shouldStop) break
                         }
                     }
                 }
