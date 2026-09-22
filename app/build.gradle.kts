@@ -126,6 +126,8 @@ dependencies {
 
     androidTestImplementation(composeBom)
     androidTestImplementation(libs.compose.ui.test.junit4)
+    // Forces the Android 14+ compatible Espresso over the 3.5.0 the Compose BOM drags in.
+    androidTestImplementation(libs.espresso.core)
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
