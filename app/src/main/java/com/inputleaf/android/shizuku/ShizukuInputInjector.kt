@@ -21,6 +21,7 @@ import com.inputleaf.android.inject.ProtocolScanCodeDecoder
 import com.inputleaf.android.model.InputLeapEvent
 import com.inputleaf.android.shizuku.uhid.HidMouseState
 import com.inputleaf.android.shizuku.uhid.MouseEdgeAnchor
+import com.inputleaf.android.shizuku.uhid.WheelNotchAccumulator
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
@@ -49,6 +50,8 @@ class ShizukuInputInjector(
     private var mouseX = 0f
     private var mouseY = 0f
     private var buttonState = 0
+
+    private val wheelNotches = WheelNotchAccumulator()
     @Volatile private var pointerSpeed = 0
     /** True until the first successful attach after [setHidMouseAttached(false)] or disconnect. */
     private var clientClosedMouse = true
@@ -102,6 +105,7 @@ class ShizukuInputInjector(
         service = null
         isBound = false
         hidMouse.resetOnDisconnect()
+        wheelNotches.reset()
         clientClosedMouse = true
         publishNativePointerState(NativePointerState.NONE)
         if (wasActive) {
@@ -178,6 +182,7 @@ class ShizukuInputInjector(
             service = null
             isBound = false
             hidMouse.resetOnDisconnect()
+        wheelNotches.reset()
             clientClosedMouse = true
             publishNativePointerState(NativePointerState.NONE)
         }
@@ -210,6 +215,7 @@ class ShizukuInputInjector(
             try {
                 svc.closeVirtualMouse()
                 hidMouse.detach()
+                wheelNotches.reset()
                 clientClosedMouse = true
                 publishNativePointerState(NativePointerState.NONE)
                 Log.i(TAG, "HID mouse detached")
@@ -367,8 +373,12 @@ class ShizukuInputInjector(
                     hidMouse.setButtons(buttons)
                     svc.injectHidMouse(0, 0, buttons, 0)
                 }
-                is InputLeapEvent.MouseWheel ->
-                    svc.injectHidMouse(0, 0, hidMouse.buttons(), event.yDelta / 120)
+                is InputLeapEvent.MouseWheel -> {
+                    val notches = wheelNotches.accept(event.yDelta)
+                    // Handled either way: a partial notch is banked, not passed to the
+                    // fallback path, which would scroll it a second time.
+                    if (notches == 0) true else svc.injectHidMouse(0, 0, hidMouse.buttons(), notches)
+                }
                 else -> false
             }
         } catch (e: DeadObjectException) {

@@ -43,7 +43,6 @@ import kotlinx.coroutines.launch
 private const val TAG = "ConnectionService"
 private const val KEEPALIVE_POLL_MS = 5_000L
 private const val LEAVE_DEBOUNCE_MS = 300L
-private val RETRY_DELAYS_MS = longArrayOf(1_000L, 2_000L, 5_000L, 10_000L, 30_000L)
 
 class ConnectionService : Service() {
 
@@ -65,8 +64,11 @@ class ConnectionService : Service() {
     private var previousImeId: String? = null
     private var previousImeLabel: String? = null
     private var isUsingAccessibilityIme = false
-    private var screenWidth = 0
-    private var screenHeight = 0
+    // Written on the main thread (rotation / DINF), read from the IO event loop. The
+    // HID path is published through HidMouseState.resizeDisplay, but the fallback touch
+    // path reads these directly and would otherwise clamp against stale bounds.
+    @Volatile private var screenWidth = 0
+    @Volatile private var screenHeight = 0
     private var currentMouseX = 0f
     private var currentMouseY = 0f
     private var activeServerIp: String? = null
@@ -585,7 +587,7 @@ class ConnectionService : Service() {
     private fun scheduleRetry(ip: String, screenName: String, generation: Int) {
         if (userInitiatedDisconnect || generation != connectGeneration) return
         retryJob?.cancel()
-        val delayMs = RETRY_DELAYS_MS[retryAttempt.coerceIn(0, RETRY_DELAYS_MS.lastIndex)]
+        val delayMs = RetryDelayCalculator.getDelay(retryAttempt)
         retryAttempt++
         retryJob = scope.launch {
             delay(delayMs)
