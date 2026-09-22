@@ -181,6 +181,54 @@ class MarkdownParserTest {
     }
 
     @Test
+    fun parseInline_markdownLinkWithNonHttpSchemeIsNotLinkified() {
+        // Release bodies are remote, so a tampered one can name any scheme here.
+        // AndroidUriHandler sends whatever it gets to ACTION_VIEW.
+        val hostile = listOf(
+            "intent://scan/#Intent;scheme=zxing;end",
+            "javascript:alert(1)",
+            "file:///data/data/com.inputleaf.android/databases",
+            "content://com.android.contacts/contacts",
+            "market://details?id=com.evil",
+        )
+        for (url in hostile) {
+            val annotated = MarkdownParser.parseInline("Tap [Update now]($url) to continue")
+            // The property that matters: nothing dispatchable reaches the UriHandler.
+            assertThat(annotated.getLinkAnnotations(0, annotated.length)).isEmpty()
+            assertThat(annotated.text).contains("Update now")
+            assertThat(annotated.text).doesNotContain(url)
+        }
+    }
+
+    @Test
+    fun parseInline_unlinkifiedLabelRendersAsCleanText() {
+        // Separate from the security assertion because INLINE_TOKEN_REGEX stops the URL
+        // at the first ')', so a URL containing parens leaves a stray ')' behind. That
+        // is a pre-existing cosmetic quirk of the regex, not a scheme-check failure.
+        val annotated = MarkdownParser.parseInline("Tap [Update now](intent://evil) to continue")
+        assertThat(annotated.text).isEqualTo("Tap Update now to continue")
+        assertThat(annotated.getLinkAnnotations(0, annotated.length)).isEmpty()
+    }
+
+    @Test
+    fun parseInline_markdownLinkKeepsHttpAndHttpsLinkified() {
+        for (url in listOf("https://inputleaf.com", "http://inputleaf.com")) {
+            val annotated = MarkdownParser.parseInline("Read [notes]($url) here")
+            assertThat(annotated.text).isEqualTo("Read notes here")
+            assertThat(annotated.getLinkAnnotations(0, annotated.length)).isNotEmpty()
+        }
+    }
+
+    @Test
+    fun parseInline_schemeCheckFailsClosedOnOddCasingAndPadding() {
+        // Not required to linkify these; required never to dispatch them.
+        for (url in listOf("HTTPS://inputleaf.com", " https://inputleaf.com", "https:/inputleaf.com")) {
+            val annotated = MarkdownParser.parseInline("Read [notes]($url) here")
+            assertThat(annotated.getLinkAnnotations(0, annotated.length)).isEmpty()
+        }
+    }
+
+    @Test
     fun parseInline_extractsRawUrl() {
         val annotated = MarkdownParser.parseInline("Visit https://github.com/anasvhora284 now")
         assertThat(annotated.text).isEqualTo("Visit https://github.com/anasvhora284 now")

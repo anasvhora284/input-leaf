@@ -144,6 +144,23 @@ object MarkdownParser {
         return blocks
     }
 
+    /**
+     * Whether a URL out of a release body may be handed to [LinkAnnotation.Url].
+     *
+     * Changelog text is fetched from the GitHub release API, so a tampered,
+     * typosquatted or compromised body can name any scheme. The default
+     * `AndroidUriHandler` dispatches whatever it is through `ACTION_VIEW`, which turns
+     * one tap in the update dialog into an arbitrary implicit intent. Restricted to
+     * http(s), and deliberately fails closed: anything not matching exactly, including
+     * odd casing or leading whitespace, renders as plain text instead.
+     *
+     * Both link branches in [parseInline] go through this so they cannot drift apart
+     * again -- the raw-URL branch was already restricted while the Markdown-link
+     * branch was not.
+     */
+    internal fun isDispatchableUrl(url: String): Boolean =
+        url.startsWith("http://") || url.startsWith("https://")
+
     fun parseInline(
         text: String,
         linkColor: Color = Color(0xFF1E88E5),
@@ -164,24 +181,28 @@ object MarkdownParser {
                 token.startsWith("[") && token.contains("](") && token.endsWith(")") -> {
                     val label = token.substringAfter("[").substringBefore("](")
                     val url = token.substringAfter("](").substringBeforeLast(")")
-                    withLink(
-                        LinkAnnotation.Url(
-                            url = url,
-                            styles = TextLinkStyles(
-                                style = SpanStyle(
-                                    color = linkColor,
-                                    textDecoration = TextDecoration.Underline,
-                                    fontWeight = FontWeight.Medium
+                    if (isDispatchableUrl(url)) {
+                        withLink(
+                            LinkAnnotation.Url(
+                                url = url,
+                                styles = TextLinkStyles(
+                                    style = SpanStyle(
+                                        color = linkColor,
+                                        textDecoration = TextDecoration.Underline,
+                                        fontWeight = FontWeight.Medium
+                                    )
                                 )
                             )
-                        )
-                    ) {
+                        ) {
+                            append(label)
+                        }
+                    } else {
                         append(label)
                     }
                 }
 
                 // Raw URL
-                token.startsWith("http://") || token.startsWith("https://") -> {
+                isDispatchableUrl(token) -> {
                     withLink(
                         LinkAnnotation.Url(
                             url = token,
