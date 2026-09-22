@@ -43,6 +43,8 @@ import kotlinx.coroutines.launch
 private const val TAG = "ConnectionService"
 private const val KEEPALIVE_POLL_MS = 5_000L
 private const val LEAVE_DEBOUNCE_MS = 300L
+// How long the cursor must stay away before the HID mouse is actually destroyed.
+private const val HID_MOUSE_IDLE_DETACH_MS = 30_000L
 
 class ConnectionService : Service() {
 
@@ -75,6 +77,7 @@ class ConnectionService : Service() {
     private var activeScreenName: String? = null
     private var shizukuRecoveryJob: Job? = null
     private var leaveDebounceJob: Job? = null
+    private var hidMouseIdleJob: Job? = null
     private val hidKeyboardGate = HidAttachmentController()
     private val hidMouseGate = HidAttachmentController()
     @Volatile private var pointerOnScreen = false
@@ -350,6 +353,9 @@ class ConnectionService : Service() {
                 if (generation != connectGeneration) return@collect
                 when (event) {
                     is InputLeapEvent.Enter -> {
+                        // Also cancels a pending HID-mouse idle detach: the mouse is
+                        // usually still registered from the last visit, so this Enter is
+                        // an ordinary delta from a position we still know.
                         cancelLeaveDebounce()
                         pointerOnScreen = true
                         Log.i(TAG, "Enter ${event.x},${event.y}")
@@ -483,6 +489,8 @@ class ConnectionService : Service() {
     private fun cancelLeaveDebounce() {
         leaveDebounceJob?.cancel()
         leaveDebounceJob = null
+        hidMouseIdleJob?.cancel()
+        hidMouseIdleJob = null
     }
 
     private fun scheduleLeave(generation: Int) {
@@ -494,9 +502,35 @@ class ConnectionService : Service() {
             pointerOnScreen = false
             stateMachine.onLeave()
             applyCursorOverlay()
+            // The keyboard must go: while it is registered Android believes a physical
+            // keyboard is attached and keeps the soft keyboard suppressed.
             setHidKeyboardAttached(false)
-            setHidMouseAttached(false)
+            scheduleHidMouseIdleDetach(generation)
             leaveDebounceJob = null
+        }
+    }
+
+    /**
+     * Keep the HID mouse registered across a Leave.
+     *
+     * Destroying it means the next Enter creates a new device, and AOSP seeds a new
+     * pointer at display centre. Warping away from that seed is a race against AOSP's
+     * own asynchronous initialisation, and one that cannot be won reliably -- there is
+     * no signal for "the seed has landed". Keeping the device sidesteps the race
+     * entirely: the pointer does not move while the cursor is away, so the position
+     * model stays true and Enter becomes an ordinary delta.
+     *
+     * The device is still dropped once the cursor has been away long enough that a
+     * parked pointer is more annoying than paying for a re-create.
+     */
+    private fun scheduleHidMouseIdleDetach(generation: Int) {
+        hidMouseIdleJob?.cancel()
+        hidMouseIdleJob = scope.launch {
+            delay(HID_MOUSE_IDLE_DETACH_MS)
+            if (generation != connectGeneration || pointerOnScreen) return@launch
+            Log.i(TAG, "HID mouse idle ${HID_MOUSE_IDLE_DETACH_MS}ms; detaching")
+            setHidMouseAttached(false)
+            hidMouseIdleJob = null
         }
     }
 
