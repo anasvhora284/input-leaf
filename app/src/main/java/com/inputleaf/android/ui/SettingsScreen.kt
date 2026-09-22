@@ -51,6 +51,8 @@ fun SettingsScreen(
     connectionTransportPolicy: ConnectionTransportPolicy,
     cursorStyle: String,
     shizukuAvailable: Boolean,
+    rootGranted: Boolean,
+    rootUsable: Boolean,
     accessibilityAvailable: Boolean,
     canDrawOverlays: Boolean,
     fingerprints: Map<String, String>,
@@ -183,8 +185,9 @@ fun SettingsScreen(
                         title = "Input method",
                         subtitle = when (inputMethod) {
                             "shizuku" -> "Shizuku (ADB-level injection)"
-                            "accessibility" -> "Accessibility Service (no extra app)"
-                            else -> "Auto (Recommended)"
+                            "root" -> "Root (su HID injection)"
+                            "accessibility" -> "Accessibility Service (overlay fallback)"
+                            else -> "Auto (Shizuku, then root, then Accessibility)"
                         },
                         onClick = { showInputMethodDialog = true }
                     )
@@ -264,7 +267,9 @@ fun SettingsScreen(
                             subtitle = if (cursorStyle == "leaf") "Input Leaf custom" else "Android default",
                             onClick = { showCursorStyleDialog = true }
                         )
-                        if (shizukuAvailable && (inputMethod == "auto" || inputMethod == "shizuku")) {
+                        if ((shizukuAvailable || rootGranted) &&
+                            (inputMethod == "auto" || inputMethod == "shizuku" || inputMethod == "root")
+                        ) {
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -802,7 +807,7 @@ fun SettingsScreen(
                     SettingsChoiceOption(
                         text = "Auto (Recommended)",
                         selected = inputMethod == "auto",
-                        status = "Available",
+                        status = "Shizuku, then root, then Accessibility",
                         statusColor = Color.Gray,
                         onClick = {
                             onInputMethodChange("auto")
@@ -816,6 +821,20 @@ fun SettingsScreen(
                         statusColor = if (shizukuAvailable) Color(0xFF4CAF50) else Color.Red,
                         onClick = {
                             onInputMethodChange("shizuku")
+                            showInputMethodDialog = false
+                        }
+                    )
+                    SettingsChoiceOption(
+                        text = "Root",
+                        selected = inputMethod == "root",
+                        status = when {
+                            rootGranted -> "Granted"
+                            rootUsable -> "su available"
+                            else -> "Not available"
+                        },
+                        statusColor = if (rootUsable) Color(0xFF4CAF50) else Color.Red,
+                        onClick = {
+                            onInputMethodChange("root")
                             showInputMethodDialog = false
                         }
                     )

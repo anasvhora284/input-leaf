@@ -36,6 +36,7 @@ fun MainScreen(
     isScanning: Boolean,
     screenName: String,
     shizukuStatus: ShizukuStatus,
+    rootStatus: RootStatus,
     accessibilityAvailable: Boolean,
     mouseEnabled: Boolean,
     keyboardEnabled: Boolean,
@@ -45,6 +46,7 @@ fun MainScreen(
     onDisconnect: () -> Unit,
     onAddManual: (String) -> Unit,
     onRequestShizukuPermission: () -> Unit,
+    onRequestRootAccess: () -> Unit,
     onRequestAccessibilityService: () -> Unit,
     onScreenNameChange: (String) -> Unit,
     onToggleMouse: (Boolean) -> Unit,
@@ -175,7 +177,11 @@ fun MainScreen(
             }
 
             // Setup options section if neither Shizuku nor Accessibility is enabled/ready
-            val isInputInjectionReady = shizukuStatus == ShizukuStatus.READY || accessibilityAvailable
+            // AVAILABLE only means an su binary exists; nothing can inject until it is
+            // GRANTED, so treating it as ready hides the card the user needs to tap.
+            val rootUsable = rootStatus == RootStatus.GRANTED
+            val isInputInjectionReady =
+                shizukuStatus == ShizukuStatus.READY || rootUsable || accessibilityAvailable
             val isSessionActive = connectionState is ConnectionState.Active
 
             if (!isInputInjectionReady && !isSessionActive) {
@@ -194,7 +200,13 @@ fun MainScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 4.dp)
-                            .clickable { onRequestShizukuPermission() },
+                            .clickable {
+                                if (rootStatus == RootStatus.DENIED || rootStatus == RootStatus.AVAILABLE) {
+                                    onRequestRootAccess()
+                                } else {
+                                    onRequestShizukuPermission()
+                                }
+                            },
                         backgroundColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
                         cornerRadius = 20.dp,
                         padding = 16.dp
@@ -211,13 +223,13 @@ fun MainScreen(
                             )
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Enable Shizuku Mode",
+                                    text = "Enable Shizuku or grant root",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onErrorContainer
                                 )
                                 Text(
-                                    text = "Recommended for precise mouse injection. Requires Shizuku background service.",
+                                    text = "Recommended for the system cursor and HID keyboard. Shizuku or su — you do not need both.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

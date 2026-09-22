@@ -5,6 +5,8 @@ import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
 import com.inputleaf.android.model.InputLeapEvent
+import com.inputleaf.android.privilege.PrivilegeKind
+import com.inputleaf.android.privilege.PrivilegedInjectorFactory
 import com.inputleaf.android.shizuku.ShizukuInputInjector
 import kotlinx.coroutines.delay
 
@@ -13,10 +15,17 @@ private const val TAG = "AccessibilityInputInjector"
 class AccessibilityInputInjector(
     private val context: Context,
     private var screenWidth: Int,
-    private var screenHeight: Int
+    private var screenHeight: Int,
+    private val hidKeyboard: ShizukuInputInjector = PrivilegedInjectorFactory.create(
+        context,
+        screenWidth,
+        screenHeight,
+    ),
 ) : InputInjector {
 
     override val name: String = "Accessibility Service (no extra app)"
+
+    override fun privilegeKind(): PrivilegeKind = hidKeyboard.privilegeKind()
 
     override fun updateScreenSize(width: Int, height: Int) {
         screenWidth = width
@@ -32,7 +41,6 @@ class AccessibilityInputInjector(
     private var mouseY = 0f
     private var metaState = 0
     private val scanCodeDecoder = ProtocolScanCodeDecoder()
-    private val hidKeyboard = ShizukuInputInjector(screenWidth, screenHeight)
 
     override fun isAvailable(): Boolean {
         return try {
@@ -62,7 +70,8 @@ class AccessibilityInputInjector(
         if (connected) {
             Log.d(TAG, "Accessibility service connected successfully")
             if (hidKeyboard.isAvailable()) {
-                hidKeyboard.connect()
+                val hidBound = hidKeyboard.connect()
+                Log.i(TAG, "Privileged HID bind after accessibility: $hidBound kind=${hidKeyboard.privilegeKind()}")
             }
         } else {
             Log.e(TAG, "Accessibility service connection timeout")

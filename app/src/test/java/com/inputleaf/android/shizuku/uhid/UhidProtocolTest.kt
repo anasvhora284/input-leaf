@@ -122,6 +122,41 @@ class UhidProtocolTest {
     }
 
     @Test
+    fun `writeInput2Into reuses a buffer without allocating a new packet`() {
+        val dest = ByteArray(UhidProtocol.INPUT2_PACKET_SIZE)
+        UhidProtocol.writeInput2Into(dest, byteArrayOf(0x11, 0x22))
+        val buffer = ByteBuffer.wrap(dest).order(ByteOrder.LITTLE_ENDIAN)
+        assertThat(buffer.getInt(0)).isEqualTo(UhidProtocol.UHID_INPUT2)
+        assertThat(buffer.getShort(4).toInt()).isEqualTo(2)
+        assertThat(dest[6]).isEqualTo(0x11.toByte())
+        assertThat(dest[7]).isEqualTo(0x22.toByte())
+
+        UhidProtocol.writeInput2Into(dest, byteArrayOf(0x33))
+        assertThat(ByteBuffer.wrap(dest).order(ByteOrder.LITTLE_ENDIAN).getShort(4).toInt())
+            .isEqualTo(1)
+        assertThat(dest[6]).isEqualTo(0x33.toByte())
+    }
+
+    @Test
+    fun `writeInput2Into encodes a six-byte mouse click and an eight-byte key`() {
+        val mouseDest = ByteArray(UhidProtocol.INPUT2_PACKET_SIZE)
+        val click = byteArrayOf(HidMouse.BUTTON_LEFT.toByte(), 0, 0, 0, 0, 0)
+        UhidProtocol.writeInput2Into(mouseDest, click)
+        assertThat(mouseDest[6].toInt() and 0xFF).isEqualTo(HidMouse.BUTTON_LEFT)
+        assertThat(
+            ByteBuffer.wrap(mouseDest).order(ByteOrder.LITTLE_ENDIAN).getShort(4).toInt(),
+        ).isEqualTo(HidMouse.REPORT_SIZE)
+
+        val keyDest = ByteArray(UhidProtocol.INPUT2_PACKET_SIZE)
+        val key = ByteArray(HidKeyboard.REPORT_SIZE).also { it[2] = 0x04 }
+        UhidProtocol.writeInput2Into(keyDest, key)
+        assertThat(keyDest[8]).isEqualTo(0x04.toByte())
+        assertThat(
+            ByteBuffer.wrap(keyDest).order(ByteOrder.LITTLE_ENDIAN).getShort(4).toInt(),
+        ).isEqualTo(HidKeyboard.REPORT_SIZE)
+    }
+
+    @Test
     fun `destroy packet is a full event with DESTROY type`() {
         val packet = UhidProtocol.destroyPacket()
         assertThat(packet.size).isEqualTo(UhidProtocol.EVENT_PACKET_SIZE)

@@ -85,7 +85,7 @@ fun ShizukuStatusCard(
                 ShizukuStatus.NOT_INSTALLED -> {
                     icon = Icons.Default.Warning; color = MaterialTheme.colorScheme.secondary
                     title = "Shizuku Not Installed"
-                    description = "Install Shizuku from Play Store to enable mouse/keyboard input."
+                    description = "Install Shizuku, or grant root on a rooted device, to enable system-level mouse and keyboard."
                     actionLabel = "Install Shizuku"
                     action = {
                         context.startActivity(Intent(Intent.ACTION_VIEW, 
@@ -95,7 +95,7 @@ fun ShizukuStatusCard(
                 ShizukuStatus.NOT_RUNNING -> {
                     icon = Icons.Default.Warning; color = MaterialTheme.colorScheme.secondary
                     title = "Shizuku Not Running"
-                    description = "Open Shizuku app and start it via Wireless Debugging (Android 11+) or ADB."
+                    description = "Open Shizuku and start it via Wireless Debugging (Android 11+) or ADB. Rooted devices can grant su instead."
                     actionLabel = "Open Shizuku"
                     action = {
                         context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")?.let {
@@ -106,7 +106,7 @@ fun ShizukuStatusCard(
                 ShizukuStatus.PERMISSION_REQUIRED -> {
                     icon = Icons.Default.Warning; color = MaterialTheme.colorScheme.secondary
                     title = "Permission Required"
-                    description = "Grant Input Leaf permission to use Shizuku for input injection."
+                    description = "Grant Input Leaf permission to use Shizuku, or grant root, for system-level input."
                     actionLabel = "Grant Permission"; action = onRequestPermission
                 }
                 else -> {

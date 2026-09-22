@@ -24,7 +24,7 @@ Instead of switching hands between your physical keyboard and phone touch screen
 
 ### Why Input Leaf?
 
-- **No root required** — Works out-of-the-box using Shizuku or Android Accessibility APIs.
+- **No root required** — Works out-of-the-box using Shizuku or Android Accessibility APIs. Rooted devices can skip Shizuku and grant `su` for the same native HID path.
 - **Ultra-low latency** — Shizuku engine injects native system-level input events directly for zero perceptible lag.
 - **Full mouse and keyboard sharing** — Smooth cursor control, left/right/middle click, wheel scrolling, and hardware modifier keys (`Ctrl`, `Alt`, `Shift`, `Meta`).
 - **Compatible with Input Leap & Deskflow** — Speaks the standard open-source KVM protocol over TCP.
@@ -68,7 +68,7 @@ Input Leaf acts as the **client** on your Android device. You will need a compat
 │                    │                     │
 │         ┌──────────┴──────────┐          │
 │         ▼                     ▼          │
-│   Shizuku Engine        Accessibility    │
+│   Shizuku or root       Accessibility    │
 │  (System Injection)     (Stock Fallback) │
 │  • Lowest latency     • Zero extra apps  │
 │  • Full shortcuts     • Touch emulation  │
@@ -103,8 +103,9 @@ Download and install either:
 
 ### 4. Choose an Input Injection Engine
 Open Input Leaf and complete the quick onboarding wizard:
-- **Shizuku (Recommended):** Open the [Shizuku app](https://shizuku.rikka.app/), start it via Wireless Debugging, and allow Input Leaf when prompted.
-- **Accessibility Service (Fallback):** Enable the Input Leaf Accessibility Service and Keyboard in Android **Settings -> Accessibility**.
+- **Shizuku (Recommended on unrooted devices):** Open the [Shizuku app](https://shizuku.rikka.app/), start it via Wireless Debugging, and allow Input Leaf when prompted.
+- **Root (rooted devices):** Grant the Magisk/KernelSU `su` prompt. You do not need Shizuku if root is granted.
+- **Accessibility Service (Fallback):** Enable the Input Leaf Accessibility Service and Keyboard in Android **Settings -> Accessibility**. Native HID still needs Shizuku or root.
 
 ### 5. Connect
 1. Input Leaf will automatically discover the server on your local Wi-Fi. You can also tap **+** to enter the PC's IP address manually.

@@ -111,6 +111,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // Re-check Shizuku status when returning to app
         viewModel.checkShizukuStatus()
+        viewModel.checkRootStatus()
         // Re-check overlay permission (user may have granted it in settings)
         viewModel.checkOverlayPermission()
         // Re-check battery optimization

@@ -63,11 +63,12 @@ class MainActivitySmokeTest {
     }
 
     @Test
-    fun nextButtonAdvancesToShizukuPermissionPage() {
+    fun nextButtonAdvancesToPermissionMethodsPage() {
         waitAndAssertText("Welcome to Input Leaf")
 
         composeRule.onNodeWithText("Next").performClick()
 
-        waitAndAssertText("Shizuku Setup (Optional)")
+        waitAndAssertText("Non-root Accessibility")
+        waitAndAssertText("Choose an input method")
     }
 }

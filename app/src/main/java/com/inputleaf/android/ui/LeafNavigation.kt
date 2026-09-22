@@ -66,6 +66,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
     val batteryOptimizationExempt by viewModel.batteryOptimizationExempt.collectAsStateWithLifecycle()
     val fingerprints by viewModel.fingerprints.collectAsState(initial = emptyMap())
     val shizukuStatus by viewModel.shizukuStatus.collectAsStateWithLifecycle()
+    val rootStatus by viewModel.rootStatus.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsState(initial = "SYSTEM")
     val onboardingComplete by viewModel.onboardingComplete.collectAsState(initial = true)
     val mouseEnabled by viewModel.mouseEnabled.collectAsState(initial = true)
@@ -78,7 +79,10 @@ fun LeafNavigation(viewModel: MainViewModel) {
     val clientCertificateSummary by viewModel.clientCertificateSummary.collectAsStateWithLifecycle()
     val cursorStyle by viewModel.cursorStyle.collectAsState(initial = "default")
     val shizukuAvailable by viewModel.shizukuAvailable.collectAsState(initial = false)
+    val rootGranted by viewModel.rootGranted.collectAsState(initial = false)
+    val rootUsable by viewModel.rootUsable.collectAsState(initial = false)
     val accessibilityAvailable by viewModel.accessibilityAvailable.collectAsState(initial = false)
+    val activeMethod by viewModel.activeMethod.collectAsState()
     val imeEnabledAndSelected by viewModel.imeEnabledAndSelected.collectAsStateWithLifecycle(initialValue = false)
     val updateCheckResult by viewModel.updateCheckResult.collectAsStateWithLifecycle()
     val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsStateWithLifecycle()
@@ -215,11 +219,13 @@ fun LeafNavigation(viewModel: MainViewModel) {
     if (!onboardingComplete) {
         OnboardingScreen(
             shizukuStatus = shizukuStatus,
+            rootStatus = rootStatus,
             accessibilityAvailable = accessibilityAvailable,
             canDrawOverlays = canDrawOverlays,
             batteryOptimizationExempt = batteryOptimizationExempt,
             imeEnabledAndSelected = imeEnabledAndSelected,
             onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
+            onRequestRootAccess = { viewModel.requestRootAccess() },
             onRequestOverlayPermission = {
                 context.startActivity(
                     Intent(
@@ -230,6 +236,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
             },
             onRequestBatteryOptimization = { BatteryOptimizationHelper.requestExemption(context) },
             onRequestImeSetup = { openImeSetup(context) },
+            onRequestAccessibilityService = { openAccessibilitySettings(context) },
             onComplete = { viewModel.completeOnboarding() },
         )
         return
@@ -269,6 +276,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     isScanning = isScanning,
                     screenName = screenName,
                     shizukuStatus = shizukuStatus,
+                    rootStatus = rootStatus,
                     accessibilityAvailable = accessibilityAvailable,
                     mouseEnabled = mouseEnabled,
                     keyboardEnabled = keyboardEnabled,
@@ -278,6 +286,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     onDisconnect = { viewModel.disconnect() },
                     onAddManual = { viewModel.addManualServer(it) },
                     onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
+                    onRequestRootAccess = { viewModel.requestRootAccess() },
                     onRequestAccessibilityService = { openAccessibilitySettings(context) },
                     onScreenNameChange = { viewModel.saveScreenName(it) },
                     onToggleMouse = { viewModel.toggleMouseEnabled(it) },
@@ -296,12 +305,15 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     pendingConnectIp = pendingConnectIp,
                 )
                 LeafRoute.Setup.key -> SetupScreen(
+                    activeMethod = activeMethod,
                     shizukuStatus = shizukuStatus,
+                    rootStatus = rootStatus,
                     accessibilityAvailable = accessibilityAvailable,
                     canDrawOverlays = canDrawOverlays,
                     batteryOptimizationExempt = batteryOptimizationExempt,
                     imeEnabledAndSelected = imeEnabledAndSelected,
                     onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
+                    onRequestRootAccess = { viewModel.requestRootAccess() },
                     onRequestOverlayPermission = {
                         context.startActivity(
                             Intent(
@@ -323,6 +335,8 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     connectionTransportPolicy = connectionTransportPolicy,
                     cursorStyle = cursorStyle,
                     shizukuAvailable = shizukuAvailable,
+                    rootGranted = rootGranted,
+                    rootUsable = rootUsable,
                     accessibilityAvailable = accessibilityAvailable,
                     canDrawOverlays = canDrawOverlays,
                     fingerprints = fingerprints,

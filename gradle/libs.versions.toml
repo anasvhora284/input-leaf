@@ -11,6 +11,7 @@ activityCompose = "1.13.0"
 datastore = "1.2.1"
 coroutines = "1.11.0"
 shizuku = "13.1.5"
+libsu = "6.0.0"
 deviceNames = "2.1.1"
 androidStub = "4.1.1.4"
 junit = "4.13.2"
@@ -43,6 +44,8 @@ coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-androi
 coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 shizuku-api = { module = "dev.rikka.shizuku:api", version.ref = "shizuku" }
 shizuku-provider = { module = "dev.rikka.shizuku:provider", version.ref = "shizuku" }
+libsu-core = { module = "com.github.topjohnwu.libsu:core", version.ref = "libsu" }
+libsu-service = { module = "com.github.topjohnwu.libsu:service", version.ref = "libsu" }
 device-names = { module = "com.jaredrummler:android-device-names", version.ref = "deviceNames" }
 android-stub = { module = "com.google.android:android", version.ref = "androidStub" }
 junit = { module = "junit:junit", version.ref = "junit" }

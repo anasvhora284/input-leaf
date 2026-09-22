@@ -2,7 +2,6 @@ package com.inputleaf.android.shizuku
 
 import android.content.ComponentName
 import android.content.ServiceConnection
-import android.content.pm.PackageManager
 import android.os.DeadObjectException
 import android.os.IBinder
 import android.os.RemoteException
@@ -19,6 +18,9 @@ import com.inputleaf.android.inject.KeysymInjection
 import com.inputleaf.android.inject.KeysymResolver
 import com.inputleaf.android.inject.ProtocolScanCodeDecoder
 import com.inputleaf.android.model.InputLeapEvent
+import com.inputleaf.android.privilege.PrivilegeKind
+import com.inputleaf.android.privilege.PrivilegedUserServiceHost
+import com.inputleaf.android.privilege.ShizukuUserServiceHost
 import com.inputleaf.android.shizuku.uhid.HidMouseState
 import com.inputleaf.android.shizuku.uhid.MouseEdgeAnchor
 import com.inputleaf.android.shizuku.uhid.WheelNotchAccumulator
@@ -26,18 +28,23 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
-import rikka.shizuku.Shizuku
 
 private const val TAG = "ShizukuInputInjector"
-// Bumped for the attachClient and Enter-warp AIDL additions: a cached older UserService
-// does not implement them and would throw on every bind.
-private const val SERVICE_VERSION = 6
 
-class ShizukuInputInjector(
+class ShizukuInputInjector internal constructor(
     screenWidth: Int,
     screenHeight: Int,
+    private val host: PrivilegedUserServiceHost,
 ) : InputInjector {
-    override val name: String = "Shizuku (ADB-level injection)"
+    constructor(screenWidth: Int, screenHeight: Int) : this(
+        screenWidth,
+        screenHeight,
+        ShizukuUserServiceHost(),
+    )
+
+    override val name: String get() = host.displayName
+
+    override fun privilegeKind(): PrivilegeKind = host.kind
 
     private var screenWidth = screenWidth
     private var screenHeight = screenHeight
@@ -66,16 +73,9 @@ class ShizukuInputInjector(
     private var metaState = 0
     private val scanCodeDecoder = ProtocolScanCodeDecoder()
 
-    private val serviceArgs = Shizuku.UserServiceArgs(
-        ComponentName(
-            "com.inputleaf.android",
-            InputInjectorService::class.java.name,
-        ),
-    ).daemon(false).processNameSuffix("input_injector").version(SERVICE_VERSION)
-
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
-            Log.d(TAG, "Shizuku service connected")
+            Log.d(TAG, "${host.kind} service connected")
             val injector = IInputInjector.Stub.asInterface(binder)
             // Best-effort: an injector that cannot watch us still works, it just falls
             // back to process reaping for UHID cleanup.
@@ -87,7 +87,7 @@ class ShizukuInputInjector(
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
-            Log.d(TAG, "Shizuku service disconnected")
+            Log.d(TAG, "${host.kind} service disconnected")
             notifyDisconnected()
             connectDeferred?.complete(false)
         }
@@ -128,35 +128,31 @@ class ShizukuInputInjector(
         nativePointerListener?.invoke(state)
     }
 
-    override fun isAvailable(): Boolean {
-        return try {
-            Shizuku.pingBinder() &&
-                Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-        } catch (e: Exception) {
-            false
-        }
-    }
+    override fun isAvailable(): Boolean = host.isAvailable()
 
     override suspend fun connect(): Boolean {
         if (!isAvailable()) {
-            Log.e(TAG, "Shizuku not available or permission not granted")
+            Log.e(TAG, "${host.kind} not available or permission not granted")
             return false
         }
         if (isBound && service != null) {
             return true
         }
 
-        repeat(3) { attempt ->
+        val attempts = host.bindAttempts.coerceAtLeast(1)
+        repeat(attempts) { attempt ->
             if (bindOnce()) return true
-            Log.w(TAG, "Shizuku bind attempt ${attempt + 1}/3 failed")
-            runCatching {
-                Shizuku.unbindUserService(serviceArgs, serviceConnection, true)
-            }
+            Log.w(TAG, "${host.kind} bind attempt ${attempt + 1}/$attempts failed")
+            runCatching { host.unbind(serviceConnection, destroy = false) }
             isBound = false
             service = null
             delay(400)
-            if (!isAvailable()) return false
+            if (!isAvailable()) {
+                runCatching { host.unbind(serviceConnection, destroy = true) }
+                return false
+            }
         }
+        runCatching { host.unbind(serviceConnection, destroy = true) }
         return false
     }
 
@@ -164,13 +160,16 @@ class ShizukuInputInjector(
         val deferred = CompletableDeferred<Boolean>()
         connectDeferred = deferred
         return try {
-            Shizuku.bindUserService(serviceArgs, serviceConnection)
-            withTimeout(10_000) { deferred.await() }
+            if (!host.bind(serviceConnection)) {
+                Log.e(TAG, "${host.kind} bind could not be started")
+                return false
+            }
+            withTimeout(host.bindTimeoutMs) { deferred.await() }
         } catch (e: TimeoutCancellationException) {
-            Log.e(TAG, "Shizuku service bind timeout")
+            Log.e(TAG, "${host.kind} service bind timeout")
             false
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to bind Shizuku service", e)
+            Log.e(TAG, "Failed to bind ${host.kind} service", e)
             false
         } finally {
             connectDeferred = null
@@ -185,9 +184,9 @@ class ShizukuInputInjector(
                 runCatching { service?.closeVirtualMouse() }
                 hidMouse.detach()
                 service?.destroy()
-                Shizuku.unbindUserService(serviceArgs, serviceConnection, true)
+                host.unbind(serviceConnection, destroy = true)
             } catch (e: Exception) {
-                Log.w(TAG, "Error unbinding Shizuku service", e)
+                Log.w(TAG, "Error unbinding ${host.kind} service", e)
             }
             service = null
             isBound = false
@@ -199,8 +198,11 @@ class ShizukuInputInjector(
     }
 
     override fun setHidKeyboardAttached(attached: Boolean) {
-        val svc = service ?: return
-        try {
+        if (service == null) {
+            Log.w(TAG, "HID keyboard attach=$attached skipped; ${host.kind} service not bound")
+            return
+        }
+        remote("Failed to update HID keyboard attachment", Unit) { svc ->
             if (attached) {
                 if (svc.openVirtualKeyboard()) {
                     Log.i(TAG, "HID keyboard attached")
@@ -211,42 +213,35 @@ class ShizukuInputInjector(
                 svc.releaseHidKeys()
                 svc.closeVirtualKeyboard()
             }
-        } catch (e: DeadObjectException) {
-            Log.w(TAG, "Shizuku service binder is dead", e)
-            notifyDisconnected()
-        } catch (e: Exception) {
-            handleRemoteException(e, "Failed to update HID keyboard attachment")
         }
     }
 
     override fun setHidMouseAttached(attached: Boolean) {
-        val svc = service ?: return
+        val svc = service
+        if (svc == null) {
+            if (attached) {
+                publishNativePointerState(NativePointerState.FALLBACK)
+            }
+            Log.w(TAG, "HID mouse attach=$attached skipped; ${host.kind} service not bound")
+            return
+        }
         if (!attached) {
-            try {
-                svc.closeVirtualMouse()
+            remote("Failed to detach HID mouse", Unit) { s ->
+                runCatching { s.onHidMouseLeave() }
+                s.closeVirtualMouse()
                 hidMouse.detach()
                 wheelNotches.reset()
                 clientClosedMouse = true
                 publishNativePointerState(NativePointerState.NONE)
                 Log.i(TAG, "HID mouse detached")
-            } catch (e: DeadObjectException) {
-                Log.w(TAG, "Shizuku service binder is dead", e)
-                notifyDisconnected()
-            } catch (e: Exception) {
-                handleRemoteException(e, "Failed to detach HID mouse")
             }
             return
         }
 
         if (hidMouse.attached) {
             publishNativePointerState(NativePointerState.ACTIVE)
-            try {
-                finishPendingSnap(svc)
-            } catch (e: DeadObjectException) {
-                Log.w(TAG, "Shizuku service binder is dead", e)
-                notifyDisconnected()
-            } catch (e: Exception) {
-                handleRemoteException(e, "Failed to snap HID mouse")
+            remote("Failed to snap HID mouse", Unit) { s ->
+                finishPendingSnap(s, sendHid = true)
             }
             return
         }
@@ -262,8 +257,10 @@ class ShizukuInputInjector(
                 hidMouse.completeAttach(newDevice = newDevice)
                 clientClosedMouse = false
                 publishNativePointerState(NativePointerState.ACTIVE)
-                // Only the injector knows whether this call created the device and
-                // emitted the warp; inferring it from app state strands the cursor.
+                // Only the privileged process knows whether this call created the device
+                // and emitted the Enter warp. A warm root daemon returns through the
+                // idempotent branch without warping, and guessing from app state strands
+                // the cursor.
                 val daemonWarped = runCatching { svc.consumeEnterWarpApplied() }.getOrDefault(false)
                 Log.i(TAG, "HID mouse attached (newDevice=$newDevice daemonWarped=$daemonWarped)")
                 finishPendingSnap(svc, sendHid = !daemonWarped)
@@ -273,13 +270,9 @@ class ShizukuInputInjector(
                 publishNativePointerState(NativePointerState.FALLBACK)
                 Log.w(TAG, "HID mouse unavailable; pointer uses injectMotionEvent")
             }
-        } catch (e: DeadObjectException) {
-            Log.w(TAG, "Shizuku service binder is dead", e)
-            hidMouse.detach()
-            notifyDisconnected()
         } catch (e: Exception) {
             hidMouse.detach()
-            publishNativePointerState(NativePointerState.FALLBACK)
+            if (service != null) publishNativePointerState(NativePointerState.FALLBACK)
             handleRemoteException(e, "Failed to attach HID mouse")
         }
     }
@@ -302,32 +295,21 @@ class ShizukuInputInjector(
             TAG,
             "HID mouse enter $x,$y phase=${hidMouse.phase} cooked=${hidMouse.cookedX},${hidMouse.cookedY}",
         )
-        val svc = service ?: return
         // Hand the coords to the injector so a CREATE2 can warp there itself. Warping
         // from here loses the race against AOSP seeding the new pointer at centre.
-        try {
-            svc.onHidMouseEnter(x, y, pointerMaxX(), pointerMaxY(), pointerSpeed)
-            if (hidMouse.attached) {
-                finishPendingSnap(svc)
+        remote("Failed to store HID mouse enter on injector", Unit) {
+            it.onHidMouseEnter(x, y, pointerMaxX(), pointerMaxY(), pointerSpeed)
+        }
+        if (hidMouse.attached) {
+            remote("Failed to snap HID mouse", Unit) { s ->
+                finishPendingSnap(s, sendHid = true)
             }
-        } catch (e: DeadObjectException) {
-            Log.w(TAG, "Shizuku service binder is dead", e)
-            notifyDisconnected()
-        } catch (e: Exception) {
-            handleRemoteException(e, "Failed to store HID mouse enter on injector")
         }
     }
 
     override fun onHidMouseLeave() {
         hidMouse.markLeave()
-        try {
-            service?.onHidMouseLeave()
-        } catch (e: DeadObjectException) {
-            Log.w(TAG, "Shizuku service binder is dead", e)
-            notifyDisconnected()
-        } catch (e: Exception) {
-            handleRemoteException(e, "Failed to clear HID mouse enter on injector")
-        }
+        remote("Failed to clear HID mouse enter on injector", Unit) { it.onHidMouseLeave() }
     }
 
     /**
@@ -366,18 +348,8 @@ class ShizukuInputInjector(
     }
 
     fun tryHidKey(evdevCode: Int, isDown: Boolean): Boolean {
-        val svc = service ?: return false
         if (evdevCode == 0) return false
-        return try {
-            svc.injectHidKey(evdevCode, isDown)
-        } catch (e: DeadObjectException) {
-            Log.w(TAG, "Shizuku service binder is dead", e)
-            notifyDisconnected()
-            false
-        } catch (e: Exception) {
-            handleRemoteException(e, null)
-            false
-        }
+        return remote(null, false) { it.injectHidKey(evdevCode, isDown) }
     }
 
     fun tryHidMouse(event: InputLeapEvent): Boolean {
@@ -426,10 +398,6 @@ class ShizukuInputInjector(
                 }
                 else -> false
             }
-        } catch (e: DeadObjectException) {
-            Log.w(TAG, "Shizuku service binder is dead", e)
-            notifyDisconnected()
-            false
         } catch (e: Exception) {
             handleRemoteException(e, null)
             false
@@ -517,17 +485,34 @@ class ShizukuInputInjector(
 
                 else -> Unit
             }
-        } catch (e: DeadObjectException) {
-            Log.w(TAG, "Shizuku service binder is dead", e)
-            notifyDisconnected()
         } catch (e: Exception) {
             handleRemoteException(e, "Failed to inject event")
         }
     }
 
+    /**
+     * Runs one AIDL call against the bound privileged service.
+     *
+     * A dead binder means the privileged process is gone, so it must drop the session
+     * rather than be logged and ignored; anything else is a per-call failure. Every
+     * remote call routes through here so the two are never confused, and so the log
+     * names the actual host instead of always saying Shizuku.
+     */
+    private inline fun <T> remote(what: String?, fallback: T, call: (IInputInjector) -> T): T {
+        val svc = service ?: return fallback
+        return try {
+            call(svc)
+        } catch (e: Exception) {
+            handleRemoteException(e, what)
+            fallback
+        }
+    }
+
     private fun handleRemoteException(e: Exception, message: String?) {
-        if (e is RemoteException || e.cause is DeadObjectException || e.cause is RemoteException) {
-            Log.w(TAG, message ?: "Shizuku service remote exception / dead binder", e)
+        if (e is DeadObjectException || e is RemoteException ||
+            e.cause is DeadObjectException || e.cause is RemoteException
+        ) {
+            Log.w(TAG, "${host.kind} service binder is dead (${message ?: "remote call"})", e)
             notifyDisconnected()
         } else if (message != null) {
             Log.w(TAG, message, e)
