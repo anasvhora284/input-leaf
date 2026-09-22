@@ -16,22 +16,21 @@ import org.robolectric.RobolectricTestRunner
 class UhidChannelReadinessTest {
 
     @Test
-    fun `START without OPEN becomes ready without the old 1500ms OPEN wait`() {
+    fun `OPEN becomes ready without the old 1500ms wait`() {
         val kernel = PipedOutputStream()
         val input = PipedInputStream(kernel, 8192)
         val channel = UhidChannel.forTesting(
             ByteArrayOutputStream(),
             input,
             UhidReadinessConfig(
-                startTimeoutMs = 400,
-                openGraceMs = 80,
+                openTimeoutMs = 400,
                 presenceTimeoutMs = 150,
                 presence = { _, _ -> true },
             ),
         )
         thread(isDaemon = true) {
             Thread.sleep(25)
-            kernel.write(typeWord(UhidProtocol.UHID_START))
+            kernel.write(typeWord(UhidProtocol.UHID_OPEN))
             kernel.flush()
         }
 
@@ -45,7 +44,7 @@ class UhidChannelReadinessTest {
     }
 
     @Test
-    fun `presence probe can complete readiness immediately after START`() {
+    fun `presence probe can complete readiness immediately after OPEN`() {
         val kernel = PipedOutputStream()
         val input = PipedInputStream(kernel, 8192)
         var presenceChecks = 0
@@ -53,8 +52,7 @@ class UhidChannelReadinessTest {
             ByteArrayOutputStream(),
             input,
             UhidReadinessConfig(
-                startTimeoutMs = 400,
-                openGraceMs = 400,
+                openTimeoutMs = 400,
                 presenceTimeoutMs = 400,
                 presence = { name, uniq ->
                     presenceChecks++
@@ -64,7 +62,7 @@ class UhidChannelReadinessTest {
         )
         thread(isDaemon = true) {
             Thread.sleep(20)
-            kernel.write(typeWord(UhidProtocol.UHID_START))
+            kernel.write(typeWord(UhidProtocol.UHID_OPEN))
             kernel.flush()
         }
 

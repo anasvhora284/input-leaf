@@ -13,15 +13,38 @@ import java.nio.ByteOrder
  * The field that is easy to get wrong: `rd_size` is a **u16 at offset 260**, after
  * `name[128]`, `phys[64]` and `uniq[64]`. Writing it as a u32 at 132 lands inside
  * `phys[]` and the kernel rejects or misparses the device.
+ *
+ * The event-type constants below are the kernel's, and the tests assert the literal
+ * numbers so the ABI is guarded rather than merely self-consistent. They previously
+ * read START=4 and OPEN=6, which are really the kernel's OPEN and OUTPUT: the code
+ * happened to gate on the right practical signal under the wrong name, while the
+ * "OPEN" branch waited on a host→device report that never arrives.
  */
 internal object UhidProtocol {
 
+    // enum uhid_event_type, in declaration order from uapi/linux/uhid.h. These are wire
+    // values: do not renumber them to suit the code.
     const val UHID_DESTROY = 1
-    const val UHID_START = 4
-    /** EventHub opened the evdev node — safe to send the first input report. */
-    const val UHID_OPEN = 6
+
+    /** hid-core created the device. Nothing is necessarily listening yet. */
+    const val UHID_START = 2
+    const val UHID_STOP = 3
+
+    /**
+     * A consumer (Android's EventHub) opened the evdev node — safe to send the first
+     * input report. This, not [UHID_START], is the readiness gate: START fires before
+     * EventHub attaches, so writing INPUT2 on START races the very drop that the
+     * readiness wait exists to prevent.
+     */
+    const val UHID_OPEN = 4
+    const val UHID_CLOSE = 5
+
+    /** Device→host report. Carries `data[4096] + u16 size + u8 rtype`. */
+    const val UHID_OUTPUT = 6
+    const val UHID_GET_REPORT = 9
     const val UHID_CREATE2 = 11
     const val UHID_INPUT2 = 12
+    const val UHID_SET_REPORT = 13
 
     const val HID_MAX_DESCRIPTOR_SIZE = 4096
     const val UHID_DATA_MAX = 4096
@@ -139,8 +162,17 @@ internal object UhidProtocol {
         }
     }
 
-    private fun payloadSize(type: Int): Int = when (type) {
-        UHID_START, 5, 6, 7 -> 0
+    /**
+     * Payload bytes following the u32 type word, from the packed structs in `uhid.h`.
+     * Used to step over an event whose body we do not care about, so a wrong size here
+     * desynchronises every later read on the stream.
+     */
+    internal fun payloadSize(type: Int): Int = when (type) {
+        UHID_START -> 8 // struct uhid_start_req { u64 dev_flags }
+        UHID_STOP, UHID_OPEN, UHID_CLOSE -> 0
+        UHID_OUTPUT -> UHID_DATA_MAX + 2 + 1 // data[4096] + u16 size + u8 rtype
+        UHID_GET_REPORT -> 6 // u32 id + u8 rnum + u8 rtype
+        UHID_SET_REPORT -> 4 + 1 + 1 + 2 + UHID_DATA_MAX
         UHID_INPUT2 -> 2 + UHID_DATA_MAX
         UHID_CREATE2 -> CREATE2_HEADER_SIZE + HID_MAX_DESCRIPTOR_SIZE
         else -> UHID_DATA_MAX

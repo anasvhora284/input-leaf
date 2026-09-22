@@ -14,12 +14,15 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Timeouts for UHID device readiness. ColorOS does not emit [UhidProtocol.UHID_OPEN];
- * [UhidProtocol.UHID_START] means hid-core created the device and is the wait target.
+ * Timeouts for UHID device readiness.
+ *
+ * The gate is [UhidProtocol.UHID_OPEN] — a consumer opened the evdev node — followed by
+ * a bounded sysfs presence probe. [UhidProtocol.UHID_START] only says hid-core created
+ * the device, which is too early to write INPUT2. ColorOS never emits OPEN, so the wait
+ * is bounded and creation continues regardless.
  */
 internal data class UhidReadinessConfig(
-    val startTimeoutMs: Long = 300L,
-    val openGraceMs: Long = 80L,
+    val openTimeoutMs: Long = 300L,
     val presenceTimeoutMs: Long = 150L,
     val pollIntervalMs: Long = 10L,
     val presence: (name: String, uniq: String) -> Boolean =
@@ -77,35 +80,36 @@ internal class UhidChannel private constructor(
             val elapsedMs = TimeUnit.NANOSECONDS.toMillis(readinessConfig.nanoTime() - startedAt)
             when {
                 wait.sawOpen.get() ->
-                    Log.i(TAG, "UHID device '$name' ready (START+OPEN) in ${elapsedMs}ms")
+                    Log.i(TAG, "UHID device '$name' ready (OPEN) in ${elapsedMs}ms")
                 wait.sawStart.get() ->
-                    Log.i(TAG, "UHID device '$name' ready (START) in ${elapsedMs}ms")
+                    Log.w(
+                        TAG,
+                        "UHID device '$name' START but no OPEN after ${elapsedMs}ms; continuing",
+                    )
                 else ->
-                    Log.w(TAG, "No UHID_START for '$name' after ${elapsedMs}ms; continuing")
+                    Log.w(TAG, "No UHID_START/OPEN for '$name' after ${elapsedMs}ms; continuing")
             }
         }
     }
 
     /**
-     * Wait for START (kernel hid created). OPEN is best-effort only: ColorOS never
-     * sends it, so we must not block the full historical 1.5s OPEN timeout.
+     * Wait for OPEN, then confirm the node through sysfs.
+     *
+     * Both windows are bounded and creation proceeds either way: ColorOS never emits
+     * OPEN, so blocking on it indefinitely would stall every attach on that OEM.
      */
     private fun awaitReady(wait: ReadinessWait, name: String, uniq: String) {
-        val startDeadline = readinessConfig.nanoTime() +
-            TimeUnit.MILLISECONDS.toNanos(readinessConfig.startTimeoutMs)
-        while (readinessConfig.nanoTime() < startDeadline && !wait.sawStart.get()) {
+        val openDeadline = readinessConfig.nanoTime() +
+            TimeUnit.MILLISECONDS.toNanos(readinessConfig.openTimeoutMs)
+        while (readinessConfig.nanoTime() < openDeadline && !wait.sawOpen.get()) {
             readinessConfig.sleeper(readinessConfig.pollIntervalMs)
         }
-        if (!wait.sawStart.get()) return
+        if (!wait.sawOpen.get()) return
 
-        // OPEN and EventHub appearance are best-effort in the same bounded window.
-        // ColorOS does not emit OPEN; do not wait a second timeout for it.
-        val readyDeadline = readinessConfig.nanoTime() +
-            TimeUnit.MILLISECONDS.toNanos(
-                maxOf(readinessConfig.openGraceMs, readinessConfig.presenceTimeoutMs),
-            )
-        while (readinessConfig.nanoTime() < readyDeadline) {
-            if (wait.sawOpen.get() || readinessConfig.presence(name, uniq)) return
+        val presenceDeadline = readinessConfig.nanoTime() +
+            TimeUnit.MILLISECONDS.toNanos(readinessConfig.presenceTimeoutMs)
+        while (readinessConfig.nanoTime() < presenceDeadline) {
+            if (readinessConfig.presence(name, uniq)) return
             readinessConfig.sleeper(readinessConfig.pollIntervalMs)
         }
     }
@@ -141,6 +145,7 @@ internal class UhidChannel private constructor(
                         .int
                     val wait = readiness.get() ?: continue
                     when (type) {
+                        // START is diagnostic only; OPEN is the gate.
                         UhidProtocol.UHID_START -> {
                             if (wait.sawStart.compareAndSet(false, true)) {
                                 Log.d(TAG, "UHID_START")

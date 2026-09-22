@@ -52,8 +52,33 @@ class UhidProtocolTest {
     }
 
     @Test
-    fun `UHID_OPEN event type is six`() {
-        assertThat(UhidProtocol.UHID_OPEN).isEqualTo(6)
+    fun `event types match the kernel uhid ABI`() {
+        // Literal numbers on purpose: asserting against the constants would only prove
+        // the file agrees with itself, which is how START=4 / OPEN=6 survived before.
+        // Source: enum uhid_event_type, uapi/linux/uhid.h.
+        assertThat(UhidProtocol.UHID_DESTROY).isEqualTo(1)
+        assertThat(UhidProtocol.UHID_START).isEqualTo(2)
+        assertThat(UhidProtocol.UHID_STOP).isEqualTo(3)
+        assertThat(UhidProtocol.UHID_OPEN).isEqualTo(4)
+        assertThat(UhidProtocol.UHID_CLOSE).isEqualTo(5)
+        assertThat(UhidProtocol.UHID_OUTPUT).isEqualTo(6)
+        assertThat(UhidProtocol.UHID_GET_REPORT).isEqualTo(9)
+        assertThat(UhidProtocol.UHID_CREATE2).isEqualTo(11)
+        assertThat(UhidProtocol.UHID_INPUT2).isEqualTo(12)
+        assertThat(UhidProtocol.UHID_SET_REPORT).isEqualTo(13)
+    }
+
+    @Test
+    fun `payload sizes match the packed structs in uhid_h`() {
+        assertThat(UhidProtocol.payloadSize(UhidProtocol.UHID_START)).isEqualTo(8)
+        assertThat(UhidProtocol.payloadSize(UhidProtocol.UHID_STOP)).isEqualTo(0)
+        assertThat(UhidProtocol.payloadSize(UhidProtocol.UHID_OPEN)).isEqualTo(0)
+        assertThat(UhidProtocol.payloadSize(UhidProtocol.UHID_CLOSE)).isEqualTo(0)
+        // The regression that mattered: OUTPUT was treated as zero-payload, so draining
+        // one would leave 4099 bytes in the stream and misframe every later read.
+        assertThat(UhidProtocol.payloadSize(UhidProtocol.UHID_OUTPUT)).isEqualTo(4099)
+        assertThat(UhidProtocol.payloadSize(UhidProtocol.UHID_GET_REPORT)).isEqualTo(6)
+        assertThat(UhidProtocol.payloadSize(UhidProtocol.UHID_INPUT2)).isEqualTo(4098)
     }
 
     @Test
