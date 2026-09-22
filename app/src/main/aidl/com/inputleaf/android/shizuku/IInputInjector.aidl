@@ -83,6 +83,14 @@ interface IInputInjector {
     boolean injectHidMouse(int dx, int dy, int buttons, int wheel);
     
     /**
+     * Hand the injector a binder owned by the client process so it can watch for that
+     * process dying. Without it, an app that is force-stopped or crashes while HID
+     * devices are attached leaves them registered on /dev/uhid: the teardown calls
+     * never arrive, and Android keeps believing a physical keyboard is connected.
+     */
+    void attachClient(IBinder token);
+
+    /**
      * Destroy the service and release resources.
      */
     void destroy();

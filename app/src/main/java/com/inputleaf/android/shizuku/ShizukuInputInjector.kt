@@ -29,7 +29,9 @@ import kotlinx.coroutines.withTimeout
 import rikka.shizuku.Shizuku
 
 private const val TAG = "ShizukuInputInjector"
-private const val SERVICE_VERSION = 4
+// Bumped for the attachClient AIDL addition: a cached v4 UserService left over from a
+// previous install does not implement it and would throw on every bind.
+private const val SERVICE_VERSION = 5
 
 class ShizukuInputInjector(
     screenWidth: Int,
@@ -42,6 +44,9 @@ class ShizukuInputInjector(
     private val hidMouse = HidMouseState(pointerMaxX(), pointerMaxY())
 
     var onServiceDisconnectedCallback: (() -> Unit)? = null
+
+    /** Owned by this process, so the injector's death watch fires exactly when we die. */
+    private val clientToken = android.os.Binder()
 
     private var service: IInputInjector? = null
     private var isBound = false
@@ -71,7 +76,12 @@ class ShizukuInputInjector(
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             Log.d(TAG, "Shizuku service connected")
-            service = IInputInjector.Stub.asInterface(binder)
+            val injector = IInputInjector.Stub.asInterface(binder)
+            // Best-effort: an injector that cannot watch us still works, it just falls
+            // back to process reaping for UHID cleanup.
+            runCatching { injector.attachClient(clientToken) }
+                .onFailure { Log.w(TAG, "Could not register client death watch", it) }
+            service = injector
             isBound = true
             connectDeferred?.complete(true)
         }

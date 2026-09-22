@@ -15,7 +15,16 @@ import com.inputleaf.android.shizuku.uhid.UhidChannel
  * 
  * This class is instantiated by Shizuku in a separate process with elevated privileges.
  */
-class InputInjectorService : IInputInjector.Stub() {
+class InputInjectorService : IInputInjector.Stub {
+
+    /** Seam so the UHID lifecycle can be exercised without a real `/dev/uhid`. */
+    private val openChannel: () -> UhidChannel?
+
+    constructor() : this({ UhidChannel.openHandle() })
+
+    internal constructor(openChannel: () -> UhidChannel?) {
+        this.openChannel = openChannel
+    }
 
     private val inputManager: HiddenInputManager.Target? =
         try {
@@ -204,7 +213,7 @@ class InputInjectorService : IInputInjector.Stub() {
 
     override fun openVirtualKeyboard(): Boolean = synchronized(keyboardLock) {
         if (keyboard != null) return true
-        val channel = UhidChannel.openHandle() ?: return false
+        val channel = openChannel() ?: return false
         return try {
             val startedAt = android.os.SystemClock.uptimeMillis()
             channel.createDevice(
@@ -250,7 +259,7 @@ class InputInjectorService : IInputInjector.Stub() {
             android.util.Log.i("InputInjectorService", "HID mouse already open (idempotent)")
             return true
         }
-        val channel = UhidChannel.openHandle() ?: return false
+        val channel = openChannel() ?: return false
         return try {
             val startedAt = android.os.SystemClock.uptimeMillis()
             channel.createDevice(
@@ -287,8 +296,49 @@ class InputInjectorService : IInputInjector.Stub() {
     override fun injectHidMouse(dx: Int, dy: Int, buttons: Int, wheel: Int): Boolean =
         synchronized(mouseLock) { mouse }?.move(dx, dy, buttons, wheel) ?: false
     
-    override fun destroy() {
+    private val clientLock = Any()
+    private var clientToken: android.os.IBinder? = null
+
+    /**
+     * Destroy the UHID devices from inside the process that owns the `/dev/uhid` fds
+     * when the client goes away, instead of relying on this process being reaped.
+     *
+     * The explicit teardown in the client's disconnect() cannot help here: once the
+     * client is gone those binder calls throw DeadObjectException and are swallowed, so
+     * no UHID_DESTROY is ever written and the devices stay attached for as long as this
+     * process lingers -- which on some OEM Shizuku builds is a long time.
+     */
+    private val clientDeathRecipient = android.os.IBinder.DeathRecipient {
+        android.util.Log.w("InputInjectorService", "Client died; destroying UHID devices")
         closeVirtualKeyboard()
         closeVirtualMouse()
     }
+
+    override fun attachClient(token: android.os.IBinder?) {
+        if (token == null) return
+        synchronized(clientLock) {
+            runCatching { clientToken?.unlinkToDeath(clientDeathRecipient, 0) }
+            clientToken = token
+            // A token that is already dead throws here rather than calling back, so the
+            // devices have to be torn down inline.
+            val linked = runCatching { token.linkToDeath(clientDeathRecipient, 0) }.isSuccess
+            if (!linked) {
+                clientToken = null
+                android.util.Log.w("InputInjectorService", "Client token already dead at attach")
+                closeVirtualKeyboard()
+                closeVirtualMouse()
+            }
+        }
+    }
+
+    override fun destroy() {
+        synchronized(clientLock) {
+            runCatching { clientToken?.unlinkToDeath(clientDeathRecipient, 0) }
+            clientToken = null
+        }
+        closeVirtualKeyboard()
+        closeVirtualMouse()
+    }
+
+    internal fun deathRecipientForTest(): android.os.IBinder.DeathRecipient = clientDeathRecipient
 }
