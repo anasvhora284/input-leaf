@@ -6,6 +6,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import com.inputleaf.android.shizuku.uhid.HidKeyboard
 import com.inputleaf.android.shizuku.uhid.HidMouse
+import com.inputleaf.android.shizuku.uhid.HidMouseEnterWarp
 import com.inputleaf.android.shizuku.uhid.UhidChannel
 
 /**
@@ -210,6 +211,9 @@ class InputInjectorService : IInputInjector.Stub {
     private var keyboard: HidKeyboard? = null
     private var uhidMouseChannel: UhidChannel? = null
     private var mouse: HidMouse? = null
+    private val mouseEnterWarp = HidMouseEnterWarp()
+    /** Guarded by [mouseLock]. True only while an [openVirtualMouse] that created the device warped. */
+    private var lastOpenWarpApplied = false
 
     override fun openVirtualKeyboard(): Boolean = synchronized(keyboardLock) {
         if (keyboard != null) return true
@@ -256,6 +260,8 @@ class InputInjectorService : IInputInjector.Stub {
 
     override fun openVirtualMouse(): Boolean = synchronized(mouseLock) {
         if (mouse != null) {
+            // No CREATE2, so no warp was emitted; the client must send its own snap.
+            lastOpenWarpApplied = false
             android.util.Log.i("InputInjectorService", "HID mouse already open (idempotent)")
             return true
         }
@@ -270,14 +276,28 @@ class InputInjectorService : IInputInjector.Stub {
                 uniq = UNIQ_MOUSE,
             )
             uhidMouseChannel = channel
-            mouse = HidMouse(channel)
+            val hidMouse = HidMouse(channel)
+            mouse = hidMouse
+            val pending = mouseEnterWarp.pending
+            val plans = mouseEnterWarp.applyIfPending(hidMouse)
+            lastOpenWarpApplied = pending != null && mouseEnterWarp.pending == null
             android.util.Log.i(
                 "InputInjectorService",
                 "HID mouse connected in ${android.os.SystemClock.uptimeMillis() - startedAt}ms pid=${android.os.Process.myPid()}",
             )
+            if (pending != null) {
+                android.util.Log.i(
+                    "InputInjectorService",
+                    "HID mouse enter warp from ${(pending.maxX) / 2},${(pending.maxY) / 2} " +
+                        "to ${pending.x},${pending.y} speed=${pending.pointerSpeed} " +
+                        "${if (lastOpenWarpApplied) "applied after UHID ready" else "kept pending"} " +
+                        "hidReports=${plans.count { !it.isNoOp }}",
+                )
+            }
             true
         } catch (e: Exception) {
             android.util.Log.w("InputInjectorService", "HID mouse create failed", e)
+            lastOpenWarpApplied = false
             runCatching { channel.close() }
             false
         }
@@ -296,6 +316,26 @@ class InputInjectorService : IInputInjector.Stub {
     override fun injectHidMouse(dx: Int, dy: Int, buttons: Int, wheel: Int): Boolean =
         synchronized(mouseLock) { mouse }?.move(dx, dy, buttons, wheel) ?: false
     
+    override fun onHidMouseEnter(x: Int, y: Int, maxX: Int, maxY: Int, pointerSpeed: Int) {
+        synchronized(mouseLock) {
+            mouseEnterWarp.onEnter(x, y, maxX, maxY, pointerSpeed)
+            android.util.Log.i(
+                "InputInjectorService",
+                "HID mouse enter stored $x,$y max=$maxX,$maxY speed=$pointerSpeed mouseOpen=${mouse != null}",
+            )
+        }
+    }
+
+    override fun onHidMouseLeave() {
+        synchronized(mouseLock) { mouseEnterWarp.onLeave() }
+    }
+
+    override fun consumeEnterWarpApplied(): Boolean = synchronized(mouseLock) {
+        val applied = lastOpenWarpApplied
+        lastOpenWarpApplied = false
+        applied
+    }
+
     private val clientLock = Any()
     private var clientToken: android.os.IBinder? = null
 

@@ -83,6 +83,26 @@ interface IInputInjector {
     boolean injectHidMouse(int dx, int dy, int buttons, int wheel);
     
     /**
+     * Store the InputLeap Enter coords on the injector process so [openVirtualMouse] can
+     * warp the pointer itself right after UHID OPEN. Must run in the process that owns
+     * the /dev/uhid fd: warping from the client loses the race against AOSP seeding a
+     * new pointer at display centre, which strands the cursor for the whole session.
+     */
+    void onHidMouseEnter(int x, int y, int maxX, int maxY, int pointerSpeed);
+
+    /**
+     * Drop a stored Enter so a later CREATE2 cannot replay stale coordinates.
+     */
+    void onHidMouseLeave();
+
+    /**
+     * True when the most recent [openVirtualMouse] actually created the device and
+     * emitted the stored Enter warp itself. False when that call hit the idempotent
+     * "already open" branch, so the caller must send its own snap. Clears on read.
+     */
+    boolean consumeEnterWarpApplied();
+
+    /**
      * Hand the injector a binder owned by the client process so it can watch for that
      * process dying. Without it, an app that is force-stopped or crashes while HID
      * devices are attached leaves them registered on /dev/uhid: the teardown calls

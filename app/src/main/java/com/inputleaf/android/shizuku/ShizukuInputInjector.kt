@@ -29,9 +29,9 @@ import kotlinx.coroutines.withTimeout
 import rikka.shizuku.Shizuku
 
 private const val TAG = "ShizukuInputInjector"
-// Bumped for the attachClient AIDL addition: a cached v4 UserService left over from a
-// previous install does not implement it and would throw on every bind.
-private const val SERVICE_VERSION = 5
+// Bumped for the attachClient and Enter-warp AIDL additions: a cached older UserService
+// does not implement them and would throw on every bind.
+private const val SERVICE_VERSION = 6
 
 class ShizukuInputInjector(
     screenWidth: Int,
@@ -255,8 +255,11 @@ class ShizukuInputInjector(
                 hidMouse.completeAttach(newDevice = newDevice)
                 clientClosedMouse = false
                 publishNativePointerState(NativePointerState.ACTIVE)
-                Log.i(TAG, "HID mouse attached (newDevice=$newDevice)")
-                finishPendingSnap(svc)
+                // Only the injector knows whether this call created the device and
+                // emitted the warp; inferring it from app state strands the cursor.
+                val daemonWarped = runCatching { svc.consumeEnterWarpApplied() }.getOrDefault(false)
+                Log.i(TAG, "HID mouse attached (newDevice=$newDevice daemonWarped=$daemonWarped)")
+                finishPendingSnap(svc, sendHid = !daemonWarped)
             } else {
                 hidMouse.markUnusable()
                 hidMouse.detach()
@@ -293,6 +296,17 @@ class ShizukuInputInjector(
             "HID mouse enter $x,$y phase=${hidMouse.phase} cooked=${hidMouse.cookedX},${hidMouse.cookedY}",
         )
         val svc = service ?: return
+        // Hand the coords to the injector so a CREATE2 can warp there itself. Warping
+        // from here loses the race against AOSP seeding the new pointer at centre.
+        try {
+            svc.onHidMouseEnter(x, y, pointerMaxX(), pointerMaxY(), pointerSpeed)
+        } catch (e: DeadObjectException) {
+            Log.w(TAG, "Shizuku service binder is dead", e)
+            notifyDisconnected()
+            return
+        } catch (e: Exception) {
+            handleRemoteException(e, "Failed to store HID mouse enter on injector")
+        }
         if (hidMouse.attached) {
             finishPendingSnap(svc)
         }
@@ -300,21 +314,36 @@ class ShizukuInputInjector(
 
     override fun onHidMouseLeave() {
         hidMouse.markLeave()
+        try {
+            service?.onHidMouseLeave()
+        } catch (e: DeadObjectException) {
+            Log.w(TAG, "Shizuku service binder is dead", e)
+            notifyDisconnected()
+        } catch (e: Exception) {
+            handleRemoteException(e, "Failed to clear HID mouse enter on injector")
+        }
     }
 
-    private fun finishPendingSnap(svc: IInputInjector) {
+    /**
+     * @param sendHid false when the injector already emitted this warp itself, so the
+     * cooked model advances without replaying the reports and doubling the movement.
+     */
+    private fun finishPendingSnap(svc: IInputInjector, sendHid: Boolean = true) {
         val target = hidMouse.peekPendingSnap() ?: return
         hidMouse.updatePointerTarget(target.first, target.second)
         Log.i(
             TAG,
-            "HID mouse snap to ${target.first},${target.second} from ${hidMouse.cookedX},${hidMouse.cookedY} centerSeed=${hidMouse.needsCenterSeed()}",
+            "HID mouse snap to ${target.first},${target.second} from ${hidMouse.cookedX},${hidMouse.cookedY} " +
+                "centerSeed=${hidMouse.needsCenterSeed()} sendHid=$sendHid",
         )
         val now = SystemClock.uptimeMillis()
         val plans = MouseEdgeAnchor.planSnap(hidMouse.plannerInput(now), pointerSpeed)
         for (plan in plans) {
             if (plan.isNoOp) continue
-            val sent = svc.injectHidMouse(plan.hidX, plan.hidY, hidMouse.buttons(), 0)
-            if (!sent) return
+            if (sendHid) {
+                val sent = svc.injectHidMouse(plan.hidX, plan.hidY, hidMouse.buttons(), 0)
+                if (!sent) return
+            }
             hidMouse.applySuccessfulPlan(plan, now)
         }
         val (errX, errY) = hidMouse.errorToTarget(target.first, target.second)
