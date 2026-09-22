@@ -101,13 +101,23 @@ internal object UhidProtocol {
         System.arraycopy(bytes, 0, array, offset, minOf(bytes.size, size - 1))
     }
 
-    fun input2Packet(report: ByteArray): ByteArray {
+    /**
+     * Writes an INPUT2 event into [dest], which must be at least [INPUT2_PACKET_SIZE].
+     * Reusing [dest] avoids a 4KB allocation on every mouse report in the injector.
+     */
+    fun writeInput2Into(dest: ByteArray, report: ByteArray) {
+        require(dest.size >= INPUT2_PACKET_SIZE) { "INPUT2 dest too small: ${dest.size}" }
         require(report.size <= UHID_DATA_MAX) { "Report too large: ${report.size}" }
-        val packet = ByteBuffer.allocate(INPUT2_PACKET_SIZE).order(ByteOrder.LITTLE_ENDIAN)
-        packet.putInt(0, UHID_INPUT2)
-        packet.putShort(4, report.size.toShort())
-        System.arraycopy(report, 0, packet.array(), 6, report.size)
-        return packet.array()
+        val buffer = ByteBuffer.wrap(dest).order(ByteOrder.LITTLE_ENDIAN)
+        buffer.putInt(0, UHID_INPUT2)
+        buffer.putShort(4, report.size.toShort())
+        System.arraycopy(report, 0, dest, 6, report.size)
+    }
+
+    fun input2Packet(report: ByteArray): ByteArray {
+        val packet = ByteArray(INPUT2_PACKET_SIZE)
+        writeInput2Into(packet, report)
+        return packet
     }
 
     /**
