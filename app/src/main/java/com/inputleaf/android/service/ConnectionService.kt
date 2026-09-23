@@ -2,14 +2,21 @@ package com.inputleaf.android.service
 
 import android.app.Service
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Point
 import android.graphics.Rect
+import android.database.ContentObserver
+import android.net.Uri
 import android.os.Binder
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.WindowManager
+import com.inputleaf.android.inject.AccessibilityInputService
+import com.inputleaf.android.inject.NativePointerState
 import com.inputleaf.android.model.ConnectionState
 import com.inputleaf.android.model.InputLeapEvent
 import com.inputleaf.android.network.ConnectResult
@@ -28,12 +35,16 @@ import rikka.shizuku.Shizuku
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 private const val TAG = "ConnectionService"
 private const val KEEPALIVE_POLL_MS = 5_000L
+private const val LEAVE_DEBOUNCE_MS = 300L
+// How long the cursor must stay away before the HID mouse is actually destroyed.
+private const val HID_MOUSE_IDLE_DETACH_MS = 30_000L
 
 class ConnectionService : Service() {
 
@@ -47,6 +58,7 @@ class ConnectionService : Service() {
     private var retryJob: Job? = null
     private var retryAttempt = 0
     private var connectGeneration = 0
+    private var infoAckPending = false
     private var userInitiatedDisconnect = false
     private var cursorOverlayEnabled = false
     private var mouseEnabled = true
@@ -54,14 +66,32 @@ class ConnectionService : Service() {
     private var previousImeId: String? = null
     private var previousImeLabel: String? = null
     private var isUsingAccessibilityIme = false
-    private var screenWidth = 0
-    private var screenHeight = 0
+    // Written on the main thread (rotation / DINF), read from the IO event loop. The
+    // HID path is published through HidMouseState.resizeDisplay, but the fallback touch
+    // path reads these directly and would otherwise clamp against stale bounds.
+    @Volatile private var screenWidth = 0
+    @Volatile private var screenHeight = 0
     private var currentMouseX = 0f
     private var currentMouseY = 0f
     private var activeServerIp: String? = null
     private var activeScreenName: String? = null
     private var shizukuRecoveryJob: Job? = null
+    private var leaveDebounceJob: Job? = null
+    private var hidMouseIdleJob: Job? = null
+    private val hidKeyboardGate = HidAttachmentController()
+    private val hidMouseGate = HidAttachmentController()
+    @Volatile private var pointerOnScreen = false
     private lateinit var prefs: AppPreferences
+
+    private val pointerSpeedObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            applyPointerSpeedFromSettings()
+        }
+
+        override fun onChange(selfChange: Boolean, uri: Uri?) {
+            applyPointerSpeedFromSettings()
+        }
+    }
 
     private val shizukuBinderReceivedListener = Shizuku.OnBinderReceivedListener {
         Log.i(TAG, "Shizuku binder received in ConnectionService")
@@ -101,6 +131,7 @@ class ConnectionService : Service() {
             prefs.showCursor.collect { enabled ->
                 cursorOverlayEnabled = enabled
                 Log.d(TAG, "Cursor overlay enabled changed: $enabled")
+                applyCursorOverlay()
             }
         }
 
@@ -108,7 +139,8 @@ class ConnectionService : Service() {
             mouseEnabled = prefs.mouseEnabled.first()
             prefs.mouseEnabled.collect { enabled ->
                 mouseEnabled = enabled
-                if (!enabled) hideCursorOverlay()
+                applyCursorOverlay()
+                setHidMouseAttached(enabled && stateMachine.state.value is ConnectionState.Active)
             }
         }
 
@@ -116,12 +148,34 @@ class ConnectionService : Service() {
             keyboardEnabled = prefs.keyboardEnabled.first()
             prefs.keyboardEnabled.collect { enabled ->
                 keyboardEnabled = enabled
+                setHidKeyboardAttached(enabled && stateMachine.state.value is ConnectionState.Active)
             }
         }
 
-        if (Settings.canDrawOverlays(this)) {
+        if (canShowCursor()) {
             startService(Intent(this, CursorOverlayService::class.java))
         }
+
+        registerPointerSpeedObserver()
+    }
+
+    private fun registerPointerSpeedObserver() {
+        contentResolver.registerContentObserver(
+            Settings.System.getUriFor(SETTINGS_POINTER_SPEED_KEY),
+            false,
+            pointerSpeedObserver,
+        )
+        applyPointerSpeedFromSettings()
+    }
+
+    private fun unregisterPointerSpeedObserver() {
+        contentResolver.unregisterContentObserver(pointerSpeedObserver)
+    }
+
+    private fun applyPointerSpeedFromSettings() {
+        val speed = readPointerSpeed()
+        injector?.updatePointerSpeed(speed)
+        Log.d(TAG, "Pointer speed updated to $speed")
     }
 
     private fun observeState() = scope.launch {
@@ -146,6 +200,7 @@ class ConnectionService : Service() {
         }
 
         userInitiatedDisconnect = false
+        infoAckPending = false
         activeServerIp = serverIp
         activeScreenName = screenName
         val generation = ++connectGeneration
@@ -298,20 +353,46 @@ class ConnectionService : Service() {
                 if (generation != connectGeneration) return@collect
                 when (event) {
                     is InputLeapEvent.Enter -> {
+                        // Also cancels a pending HID-mouse idle detach: the mouse is
+                        // usually still registered from the last visit, so this Enter is
+                        // an ordinary delta from a position we still know.
+                        cancelLeaveDebounce()
+                        pointerOnScreen = true
+                        Log.i(TAG, "Enter ${event.x},${event.y}")
                         stateMachine.onActive()
                         stateMachine.onKeepAlive()
-                        if (mouseEnabled) showCursorOverlay()
+                        injector?.updatePointerSpeed(readPointerSpeed())
+                        injector?.onHidMouseEnter(event.x, event.y)
+                        applyCursorOverlay()
+                        setHidKeyboardAttached(keyboardEnabled)
+                        setHidMouseAttached(mouseEnabled)
                     }
                     is InputLeapEvent.Leave -> {
-                        stateMachine.onLeave()
-                        hideCursorOverlay()
+                        injector?.onHidMouseLeave()
+                        scheduleLeave(generation)
                     }
                     is InputLeapEvent.KeepAlive -> {
                         stateMachine.onKeepAlive()
                         conn.sendKeepAlive()
                     }
+                    is InputLeapEvent.InfoAck -> {
+                        infoAckPending = false
+                    }
+                    is InputLeapEvent.QueryInfo -> {
+                        connection?.let {
+                            if (generation == connectGeneration) {
+                                it.sendDataInfo(
+                                    screenWidth,
+                                    screenHeight,
+                                    currentMouseX.toInt(),
+                                    currentMouseY.toInt(),
+                                )
+                            }
+                        }
+                    }
                     is InputLeapEvent.MouseMoveAbs -> {
                         if (!mouseEnabled) return@collect
+                        if (infoAckPending) return@collect
                         stateMachine.onKeepAlive()
                         currentMouseX = event.x.toFloat()
                         currentMouseY = event.y.toFloat()
@@ -320,6 +401,7 @@ class ConnectionService : Service() {
                     }
                     is InputLeapEvent.MouseMoveRel -> {
                         if (!mouseEnabled) return@collect
+                        if (infoAckPending) return@collect
                         stateMachine.onKeepAlive()
                         currentMouseX = (currentMouseX + event.dx).coerceIn(0f, screenWidth.toFloat())
                         currentMouseY = (currentMouseY + event.dy).coerceIn(0f, screenHeight.toFloat())
@@ -338,8 +420,12 @@ class ConnectionService : Service() {
                     }
                     is InputLeapEvent.Unhandled -> if (event.tag == "__DISCONNECTED__") {
                         if (generation != connectGeneration || userInitiatedDisconnect) return@collect
+                        cancelLeaveDebounce()
+                        pointerOnScreen = false
                         stateMachine.onDisconnected()
-                        hideCursorOverlay()
+                        applyCursorOverlay()
+                        setHidKeyboardAttached(false)
+                        setHidMouseAttached(false)
                         restorePreviousIme()
                         scheduleRetry(ip, screenName, generation)
                     }
@@ -354,24 +440,116 @@ class ConnectionService : Service() {
 
     fun setCursorOverlayEnabled(enabled: Boolean) {
         cursorOverlayEnabled = enabled
-        if (enabled && stateMachine.state.value is ConnectionState.Active) {
+        applyCursorOverlay()
+    }
+
+    private fun applyCursorOverlay() {
+        val inj = injector
+        val show = CursorOverlayPolicy.shouldShowOverlay(
+            cursorSettingEnabled = cursorOverlayEnabled,
+            onScreen = pointerOnScreen,
+            mouseEnabled = mouseEnabled,
+            native = inj?.nativePointerState() ?: NativePointerState.NONE,
+            expectsNativePointer = inj?.expectsNativePointer() == true,
+        )
+        if (show) {
             showCursorOverlay()
-        } else if (!enabled) {
+        } else {
             hideCursorOverlay()
         }
     }
 
     private fun showCursorOverlay() {
-        if (!cursorOverlayEnabled) return
-        if (!Settings.canDrawOverlays(this)) {
-            Log.w(TAG, "Cannot draw overlays - permission not granted")
+        if (!canShowCursor()) {
+            Log.w(TAG, "Cannot show cursor — no overlay permission and accessibility is off")
             return
         }
         CursorOverlayService.show()
     }
 
+    private fun canShowCursor(): Boolean =
+        Settings.canDrawOverlays(this) ||
+            AccessibilityInputService.isServiceRunning() ||
+            isAccessibilityEnabled()
+
+    private fun isAccessibilityEnabled(): Boolean {
+        val enabled = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+        ) ?: return false
+        val component = android.content.ComponentName(this, AccessibilityInputService::class.java)
+        return enabled.contains(component.flattenToShortString()) ||
+            enabled.contains(component.flattenToString())
+    }
+
     private fun hideCursorOverlay() {
         CursorOverlayService.hide()
+    }
+
+    private fun cancelLeaveDebounce() {
+        leaveDebounceJob?.cancel()
+        leaveDebounceJob = null
+        hidMouseIdleJob?.cancel()
+        hidMouseIdleJob = null
+    }
+
+    private fun scheduleLeave(generation: Int) {
+        leaveDebounceJob?.cancel()
+        leaveDebounceJob = scope.launch {
+            delay(LEAVE_DEBOUNCE_MS)
+            if (generation != connectGeneration) return@launch
+            Log.i(TAG, "Leave")
+            pointerOnScreen = false
+            stateMachine.onLeave()
+            applyCursorOverlay()
+            // The keyboard must go: while it is registered Android believes a physical
+            // keyboard is attached and keeps the soft keyboard suppressed.
+            setHidKeyboardAttached(false)
+            scheduleHidMouseIdleDetach(generation)
+            leaveDebounceJob = null
+        }
+    }
+
+    /**
+     * Keep the HID mouse registered across a Leave.
+     *
+     * Destroying it means the next Enter creates a new device, and AOSP seeds a new
+     * pointer at display centre. Warping away from that seed is a race against AOSP's
+     * own asynchronous initialisation, and one that cannot be won reliably -- there is
+     * no signal for "the seed has landed". Keeping the device sidesteps the race
+     * entirely: the pointer does not move while the cursor is away, so the position
+     * model stays true and Enter becomes an ordinary delta.
+     *
+     * The device is still dropped once the cursor has been away long enough that a
+     * parked pointer is more annoying than paying for a re-create.
+     */
+    private fun scheduleHidMouseIdleDetach(generation: Int) {
+        hidMouseIdleJob?.cancel()
+        hidMouseIdleJob = scope.launch {
+            delay(HID_MOUSE_IDLE_DETACH_MS)
+            if (generation != connectGeneration || pointerOnScreen) return@launch
+            Log.i(TAG, "HID mouse idle ${HID_MOUSE_IDLE_DETACH_MS}ms; detaching")
+            setHidMouseAttached(false)
+            hidMouseIdleJob = null
+        }
+    }
+
+    private fun setHidKeyboardAttached(attached: Boolean) {
+        hidKeyboardGate.setWanted(attached)
+        scope.launch(Dispatchers.IO) {
+            hidKeyboardGate.applyLatest { wanted ->
+                injector?.setHidKeyboardAttached(wanted)
+            }
+        }
+    }
+
+    private fun setHidMouseAttached(attached: Boolean) {
+        hidMouseGate.setWanted(attached)
+        scope.launch(Dispatchers.IO) {
+            hidMouseGate.applyLatest { wanted ->
+                injector?.setHidMouseAttached(wanted)
+            }
+        }
     }
 
     private fun updateCursorPosition(x: Float, y: Float) {
@@ -381,6 +559,7 @@ class ConnectionService : Service() {
 
     fun setInjector(injector: com.inputleaf.android.inject.InputInjector) {
         if (this.injector != null && this.injector != injector) {
+            this.injector?.setOnNativePointerStateChanged(null)
             this.injector?.disconnect()
             if (this.injector is com.inputleaf.android.inject.AccessibilityInputInjector &&
                 injector !is com.inputleaf.android.inject.AccessibilityInputInjector
@@ -389,13 +568,29 @@ class ConnectionService : Service() {
             }
         }
         this.injector = injector
+        hidKeyboardGate.noteInjectorChanged()
+        hidMouseGate.noteInjectorChanged()
+        // The service's bounds are authoritative (proven by DINF); application-context
+        // WindowManager metrics can disagree on some OEMs (seen: portrait from app
+        // context while landscape on ColorOS).
+        injector.updateScreenSize(screenWidth, screenHeight)
+        injector.updatePointerSpeed(readPointerSpeed())
+        injector.setOnNativePointerStateChanged {
+            scope.launch { applyCursorOverlay() }
+        }
         if (injector is ShizukuInputInjector) {
             injector.onServiceDisconnectedCallback = {
                 handleShizukuServiceDisconnected()
             }
         }
+        if (pointerOnScreen) {
+            setHidKeyboardAttached(keyboardEnabled)
+            setHidMouseAttached(mouseEnabled)
+        }
         Log.i(TAG, "Input injector set to: ${injector.name}")
     }
+
+    private fun readPointerSpeed(): Int = readSystemPointerSpeed(contentResolver)
 
     private fun dispatchInput(event: InputLeapEvent) {
         injector?.send(event)
@@ -410,8 +605,12 @@ class ConnectionService : Service() {
                 if (stateMachine.onKeepAliveMiss()) {
                     Log.w(TAG, "Keep-alive timeout — disconnecting")
                     conn.close()
+                    cancelLeaveDebounce()
+                    pointerOnScreen = false
                     stateMachine.onDisconnected()
-                    hideCursorOverlay()
+                    applyCursorOverlay()
+                    setHidKeyboardAttached(false)
+                    setHidMouseAttached(false)
                     restorePreviousIme()
                     break
                 }
@@ -422,7 +621,8 @@ class ConnectionService : Service() {
     private fun scheduleRetry(ip: String, screenName: String, generation: Int) {
         if (userInitiatedDisconnect || generation != connectGeneration) return
         retryJob?.cancel()
-        val delayMs = RetryDelayCalculator.getDelay(retryAttempt++)
+        val delayMs = RetryDelayCalculator.getDelay(retryAttempt)
+        retryAttempt++
         retryJob = scope.launch {
             delay(delayMs)
             if (userInitiatedDisconnect || generation != connectGeneration) return@launch
@@ -433,6 +633,7 @@ class ConnectionService : Service() {
     private fun cancelPendingJobs(keepConnection: Boolean) {
         retryJob?.cancel()
         retryJob = null
+        cancelLeaveDebounce()
         eventLoopJob?.cancel()
         eventLoopJob = null
         connectJob?.cancel()
@@ -452,14 +653,19 @@ class ConnectionService : Service() {
 
     fun disconnect() {
         userInitiatedDisconnect = true
+        infoAckPending = false
         clearActiveSession()
         shizukuRecoveryJob?.cancel()
         shizukuRecoveryJob = null
         connectGeneration++
         cancelPendingJobs(keepConnection = false)
+        pointerOnScreen = false
+        setHidKeyboardAttached(false)
+        setHidMouseAttached(false)
+        injector?.setOnNativePointerStateChanged(null)
         injector?.disconnect()
         injector = null
-        hideCursorOverlay()
+        applyCursorOverlay()
         restorePreviousIme()
         stateMachine.onDisconnected()
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -469,6 +675,28 @@ class ConnectionService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_DISCONNECT) disconnect()
         return START_STICKY
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val bounds = getScreenBounds()
+        val w = bounds.width()
+        val h = bounds.height()
+        if (w == screenWidth && h == screenHeight) return
+        Log.i(TAG, "Screen bounds changed ${screenWidth}x$screenHeight -> ${w}x$h")
+        screenWidth = w
+        screenHeight = h
+        currentMouseX = currentMouseX.coerceIn(0f, w.toFloat())
+        currentMouseY = currentMouseY.coerceIn(0f, h.toFloat())
+        injector?.updateScreenSize(w, h)
+        val connected = connection != null && stateMachine.state.value.let {
+            it is ConnectionState.Idle || it is ConnectionState.Active
+        }
+        if (connected) {
+            infoAckPending = true
+            connection?.sendDataInfo(w, h, currentMouseX.toInt(), currentMouseY.toInt())
+            Log.i(TAG, "Sent DINF update ${w}x${h}")
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -586,6 +814,7 @@ class ConnectionService : Service() {
     }
 
     override fun onDestroy() {
+        unregisterPointerSpeedObserver()
         try {
             Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
             Shizuku.removeBinderDeadListener(shizukuBinderDeadListener)
@@ -597,10 +826,74 @@ class ConnectionService : Service() {
         connectGeneration++
         cancelPendingJobs(keepConnection = false)
         scope.cancel()
+        injector?.setOnNativePointerStateChanged(null)
         injector?.disconnect()
-        hideCursorOverlay()
+        pointerOnScreen = false
+        applyCursorOverlay()
         restorePreviousIme()
         stopService(Intent(this, CursorOverlayService::class.java))
         super.onDestroy()
     }
 }
+
+internal enum class ConnectAttemptOutcome {
+    Success,
+    Retrying,
+    Rejected,
+    TerminalFailure,
+}
+
+internal fun shouldClearActiveSession(outcome: ConnectAttemptOutcome): Boolean =
+    outcome == ConnectAttemptOutcome.Rejected ||
+        outcome == ConnectAttemptOutcome.TerminalFailure
+
+class ConnectionStateMachine {
+    private val _state = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
+    val state: StateFlow<ConnectionState> = _state
+
+    @Volatile private var keepAliveMissed = 0
+
+    fun onConnecting(ip: String) { _state.value = ConnectionState.Connecting(ip) }
+
+    fun onHandshaking(ip: String) { _state.value = ConnectionState.Handshaking(ip) }
+
+    fun onIdle(ip: String, serverName: String) {
+        keepAliveMissed = 0
+        _state.value = ConnectionState.Idle(ip, serverName)
+    }
+
+    fun onActive() {
+        val current = _state.value
+        if (current is ConnectionState.Active) {
+            println("StateMachine: Duplicate kMsgCEnter received — ignoring")
+            return
+        }
+        val (ip, name) = when (current) {
+            is ConnectionState.Idle -> current.serverIp to current.serverName
+            else -> {
+                println("StateMachine: kMsgCEnter received in unexpected state: $current — ignoring")
+                return
+            }
+        }
+        _state.value = ConnectionState.Active(ip, name)
+    }
+
+    fun onLeave() {
+        val current = _state.value as? ConnectionState.Active ?: return
+        _state.value = ConnectionState.Idle(current.serverIp, current.serverName)
+    }
+
+    fun onKeepAlive() { keepAliveMissed = 0 }
+
+    fun onKeepAliveMiss(): Boolean {
+        keepAliveMissed++
+        return keepAliveMissed >= 4
+    }
+
+    fun onDisconnected() {
+        keepAliveMissed = 0
+        _state.value = ConnectionState.Disconnected
+    }
+}
+
+

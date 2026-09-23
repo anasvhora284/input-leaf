@@ -151,6 +151,8 @@ class CursorOverlayService : Service() {
         if (_isVisible.value) {
             Log.d(TAG, "isVisible was true on create, showing cursor")
             showCursorInternal()
+        } else {
+            ensureCursorView(visible = false)
         }
     }
     
@@ -179,69 +181,67 @@ class CursorOverlayService : Service() {
     }
     
     private fun showCursorInternal() {
-        Log.d(TAG, "showCursorInternal() called - isShowing=$isShowing, canDrawOverlays=${Settings.canDrawOverlays(this)}")
-        if (isShowing || !Settings.canDrawOverlays(this)) return
-        
-        val resId = if (currentCursorStyle == "leaf") {
-            com.inputleaf.android.R.drawable.cursor
-        } else {
-            com.inputleaf.android.R.drawable.ic_cursor_aosp
-        }
-        val scaleXValue = if (currentCursorStyle == "leaf") -1f else 1f
-        val view = android.widget.ImageView(this).apply {
-            setImageResource(resId)
-            scaleX = scaleXValue
-        }
-        cursorView = view
-        
-        val params = WindowManager.LayoutParams(
-            CURSOR_SIZE,
-            CURSOR_SIZE,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            } else {
-                @Suppress("DEPRECATION")
-                WindowManager.LayoutParams.TYPE_PHONE
-            },
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            x = _cursorX.value.toInt() - CURSOR_SIZE / 2
-            y = _cursorY.value.toInt() - CURSOR_SIZE / 2
-        }
-        
-        try {
-            windowManager?.addView(cursorView, params)
-            isShowing = true
-            Log.d(TAG, "Cursor overlay added to window manager successfully")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to add cursor overlay", e)
-            e.printStackTrace()
-        }
+        ensureCursorView(visible = true)
     }
-    
+
+    private fun ensureCursorView(visible: Boolean) {
+        Log.d(TAG, "ensureCursorView visible=$visible isShowing=$isShowing canDrawOverlays=${Settings.canDrawOverlays(this)}")
+        if (cursorView == null) {
+            if (!Settings.canDrawOverlays(this)) {
+                isShowing = false
+                return
+            }
+            val resId = if (currentCursorStyle == "leaf") {
+                com.inputleaf.android.R.drawable.cursor
+            } else {
+                com.inputleaf.android.R.drawable.ic_cursor_aosp
+            }
+            val scaleXValue = if (currentCursorStyle == "leaf") -1f else 1f
+            val view = android.widget.ImageView(this).apply {
+                setImageResource(resId)
+                scaleX = scaleXValue
+                visibility = android.view.View.INVISIBLE
+            }
+            cursorView = view
+            val params = WindowManager.LayoutParams(
+                CURSOR_SIZE,
+                CURSOR_SIZE,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                } else {
+                    @Suppress("DEPRECATION")
+                    WindowManager.LayoutParams.TYPE_PHONE
+                },
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                x = _cursorX.value.toInt() - CURSOR_SIZE / 2
+                y = _cursorY.value.toInt() - CURSOR_SIZE / 2
+            }
+            try {
+                windowManager?.addView(view, params)
+                Log.d(TAG, "Cursor overlay added to window manager successfully")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to add cursor overlay", e)
+                cursorView = null
+                return
+            }
+        }
+        cursorView?.visibility = if (visible) android.view.View.VISIBLE else android.view.View.INVISIBLE
+        isShowing = visible
+    }
+
     private fun hideCursorInternal() {
         Log.d(TAG, "hideCursorInternal() called - isShowing=$isShowing")
-        if (!isShowing) return
-        try {
-            cursorView?.let { view ->
-                windowManager?.removeView(view)
-            }
-            cursorView = null
-            isShowing = false
-            Log.d(TAG, "Cursor overlay hidden")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to hide cursor overlay", e)
-            e.printStackTrace()
-        }
+        cursorView?.visibility = android.view.View.INVISIBLE
+        isShowing = false
     }
     
     private fun moveCursorInternal(x: Float, y: Float) {
-        if (!isShowing) return
         cursorView?.let { view ->
             val params = view.layoutParams as? WindowManager.LayoutParams ?: return
             params.x = x.toInt() - CURSOR_SIZE / 2

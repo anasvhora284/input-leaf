@@ -14,6 +14,10 @@ shizuku = "13.1.5"
 deviceNames = "2.1.1"
 androidStub = "4.1.1.4"
 junit = "4.13.2"
+# compose-ui-test-junit4 pulls Espresso 3.5.0 transitively, which reflects on the
+# InputManager.getInstance() Android 14 removed, so every Compose UI test dies in
+# Espresso.onIdle on API 34+. 3.6.1 still calls it; 3.7.0 uses getInputManager().
+espresso = "3.7.0"
 truth = "1.4.5"
 mockito = "5.23.0"
 androidxTestCore = "1.7.0"
@@ -42,6 +46,7 @@ shizuku-provider = { module = "dev.rikka.shizuku:provider", version.ref = "shizu
 device-names = { module = "com.jaredrummler:android-device-names", version.ref = "deviceNames" }
 android-stub = { module = "com.google.android:android", version.ref = "androidStub" }
 junit = { module = "junit:junit", version.ref = "junit" }
+espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "espresso" }
 truth = { module = "com.google.truth:truth", version.ref = "truth" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }

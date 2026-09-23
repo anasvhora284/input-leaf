@@ -2,49 +2,22 @@ package com.inputleaf.android.util
 
 import android.os.Build
 import androidx.compose.ui.graphics.Color
+import android.provider.Settings
 import com.inputleaf.android.R
-import com.jaredrummler.android.device.DeviceName
 
 object DeviceIdentity {
 
-    fun getMarketingName(): String {
-        return try {
-            val name = DeviceName.getDeviceName()
-            if (isUnresolvedName(name)) {
-                formatFallbackName()
-            } else {
-                name
-            }
-        } catch (e: Exception) {
-            formatFallbackName()
-        }
-    }
+    fun getMarketingName(): String = formatFallbackName()
 
     fun requestMarketingName(context: android.content.Context, onResult: (String) -> Unit) {
-        try {
-            // 1. Try to get the user-set or default system device name (e.g. "OnePlus Nord 4")
-            val systemName = android.provider.Settings.Global.getString(
-                context.contentResolver,
-                android.provider.Settings.Global.DEVICE_NAME
-            )
-            
-            if (!isUnresolvedName(systemName) && systemName != null) {
-                onResult(systemName)
-                return
-            }
-
-            // 2. Fallback to external library (async)
-            DeviceName.with(context).request { info, _ ->
-                val name = info?.marketName ?: info?.model ?: info?.codename
-                if (!isUnresolvedName(name) && name != null) {
-                    onResult(name)
-                } else {
-                    onResult(getMarketingName())
-                }
-            }
-        } catch (e: Exception) {
-            onResult(getMarketingName())
-        }
+        val systemName = Settings.Global.getString(
+            context.contentResolver,
+            Settings.Global.DEVICE_NAME,
+        )
+        onResult(
+            if (!isUnresolvedName(systemName) && systemName != null) systemName
+            else formatFallbackName(),
+        )
     }
 
     private fun isUnresolvedName(name: String?): Boolean {

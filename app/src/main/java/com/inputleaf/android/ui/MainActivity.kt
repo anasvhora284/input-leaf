@@ -1,14 +1,9 @@
 package com.inputleaf.android.ui
 
 import android.Manifest
-import android.content.ComponentName
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
-import com.inputleaf.android.util.BatteryOptimizationHelper
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -106,7 +101,7 @@ class MainActivity : ComponentActivity() {
                 shapes = com.inputleaf.android.ui.theme.InputLeafShapes
             ) {
                 Surface(Modifier.fillMaxSize()) {
-                    AppNavigation(viewModel)
+                    LeafNavigation(viewModel)
                 }
             }
         }

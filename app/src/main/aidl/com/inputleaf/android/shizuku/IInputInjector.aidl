@@ -42,7 +42,74 @@ interface IInputInjector {
      * @return true if injection succeeded
      */
     boolean injectText(String text);
+
+    /**
+     * Register a real HID keyboard on /dev/uhid so Android treats keys as hardware input.
+     * Idempotent while already open.
+     */
+    boolean openVirtualKeyboard();
+
+    /**
+     * Destroy the HID keyboard. Android then sees the physical keyboard disconnect.
+     */
+    void closeVirtualKeyboard();
+
+    /**
+     * Send a key through the HID keyboard.
+     * @return false when unmapped or the keyboard is not open, so the caller can fall back
+     */
+    boolean injectHidKey(int evdevCode, boolean isDown);
+
+    /**
+     * Release every held HID key so a leave/disconnect cannot stick a key down.
+     */
+    void releaseHidKeys();
+
+    /**
+     * Register a real HID mouse on /dev/uhid so Android treats motion as hardware input.
+     * Idempotent while already open.
+     */
+    boolean openVirtualMouse();
+
+    /**
+     * Destroy the HID mouse. Android then sees the physical mouse disconnect.
+     */
+    void closeVirtualMouse();
+
+    /**
+     * Send a relative motion report through the HID mouse.
+     * @return false when the mouse is not open, so the caller can fall back
+     */
+    boolean injectHidMouse(int dx, int dy, int buttons, int wheel);
     
+    /**
+     * Store the InputLeap Enter coords on the injector process so [openVirtualMouse] can
+     * warp the pointer itself right after UHID OPEN. Must run in the process that owns
+     * the /dev/uhid fd: warping from the client loses the race against AOSP seeding a
+     * new pointer at display centre, which strands the cursor for the whole session.
+     */
+    void onHidMouseEnter(int x, int y, int maxX, int maxY, int pointerSpeed);
+
+    /**
+     * Drop a stored Enter so a later CREATE2 cannot replay stale coordinates.
+     */
+    void onHidMouseLeave();
+
+    /**
+     * True when the most recent [openVirtualMouse] actually created the device and
+     * emitted the stored Enter warp itself. False when that call hit the idempotent
+     * "already open" branch, so the caller must send its own snap. Clears on read.
+     */
+    boolean consumeEnterWarpApplied();
+
+    /**
+     * Hand the injector a binder owned by the client process so it can watch for that
+     * process dying. Without it, an app that is force-stopped or crashes while HID
+     * devices are attached leaves them registered on /dev/uhid: the teardown calls
+     * never arrive, and Android keeps believing a physical keyboard is connected.
+     */
+    void attachClient(IBinder token);
+
     /**
      * Destroy the service and release resources.
      */

@@ -25,11 +25,13 @@ fun ServerListScreen(
     onScan: () -> Unit,
     onConnect: (ServerInfo) -> Unit,
     onAddManual: (String) -> Unit,
-    onToggleFavorite: (String) -> Unit
+    onToggleFavorite: (String) -> Unit,
+    pendingConnectIp: String? = null,
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
     var manualIp by remember { mutableStateOf("") }
 
+    val connectingIp = connectingServerIp(connectionState, pendingConnectIp)
     val favorites = discoveredServers.filter { favoriteServers.contains(it.ip) }
     val others = discoveredServers.filter { !favoriteServers.contains(it.ip) }
 
@@ -74,12 +76,15 @@ fun ServerListScreen(
 
                 items(favorites) { server ->
                     val isConnected = isServerConnected(connectionState, server)
+                    val isConnecting = connectingIp == server.ip
                     ServerListItem(
                         server = server,
                         isConnected = isConnected,
                         onServerClick = onConnect,
                         isFavorite = true,
-                        onToggleFavorite = { onToggleFavorite(server.ip) }
+                        onToggleFavorite = { onToggleFavorite(server.ip) },
+                        isConnecting = isConnecting,
+                        enabled = connectingIp == null,
                     )
                 }
             }
@@ -99,12 +104,15 @@ fun ServerListScreen(
 
             items(others) { server ->
                 val isConnected = isServerConnected(connectionState, server)
+                val isConnecting = connectingIp == server.ip
                 ServerListItem(
                     server = server,
                     isConnected = isConnected,
                     onServerClick = onConnect,
                     isFavorite = false,
-                    onToggleFavorite = { onToggleFavorite(server.ip) }
+                    onToggleFavorite = { onToggleFavorite(server.ip) },
+                    isConnecting = isConnecting,
+                    enabled = connectingIp == null,
                 )
             }
 
@@ -136,7 +144,7 @@ fun ServerListScreen(
                 ) {
                     OutlinedButton(
                         onClick = onScan,
-                        enabled = !isScanning,
+                        enabled = !isScanning && connectingIp == null,
                         modifier = Modifier.weight(1f)
                     ) {
                         if (isScanning) {
@@ -147,6 +155,7 @@ fun ServerListScreen(
                     }
                     OutlinedButton(
                         onClick = { showAddDialog = true },
+                        enabled = connectingIp == null,
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Add Manually")
