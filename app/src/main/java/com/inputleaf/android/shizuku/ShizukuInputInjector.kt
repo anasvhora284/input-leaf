@@ -240,7 +240,14 @@ class ShizukuInputInjector(
 
         if (hidMouse.attached) {
             publishNativePointerState(NativePointerState.ACTIVE)
-            finishPendingSnap(svc)
+            try {
+                finishPendingSnap(svc)
+            } catch (e: DeadObjectException) {
+                Log.w(TAG, "Shizuku service binder is dead", e)
+                notifyDisconnected()
+            } catch (e: Exception) {
+                handleRemoteException(e, "Failed to snap HID mouse")
+            }
             return
         }
         if (hidMouse.phase == HidMouseState.AttachPhase.ATTACHING) {
@@ -300,15 +307,14 @@ class ShizukuInputInjector(
         // from here loses the race against AOSP seeding the new pointer at centre.
         try {
             svc.onHidMouseEnter(x, y, pointerMaxX(), pointerMaxY(), pointerSpeed)
+            if (hidMouse.attached) {
+                finishPendingSnap(svc)
+            }
         } catch (e: DeadObjectException) {
             Log.w(TAG, "Shizuku service binder is dead", e)
             notifyDisconnected()
-            return
         } catch (e: Exception) {
             handleRemoteException(e, "Failed to store HID mouse enter on injector")
-        }
-        if (hidMouse.attached) {
-            finishPendingSnap(svc)
         }
     }
 
