@@ -22,8 +22,8 @@ android {
         applicationId = "com.inputleaf.android"
         minSdk = 26
         targetSdk = 34
-        versionCode = 8
-        versionName = "1.4.2"
+        versionCode = 9
+        versionName = "1.4.3"
         // JUnit4 runner so the androidTest classes are discovered on the emulator
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
