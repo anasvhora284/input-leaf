@@ -5,6 +5,7 @@ import com.topjohnwu.superuser.Shell
 import org.junit.Test
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.mockStatic
+import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 
@@ -83,6 +84,12 @@ class RootAccessTest {
 
             assertThat(LibSuRootAccess.requestAccess()).isTrue()
             verify(cached).close()
+
+            val alreadyRoot = mock(Shell::class.java)
+            `when`(alreadyRoot.isRoot).thenReturn(true)
+            shells.`when`<Shell> { Shell.getCachedShell() }.thenReturn(alreadyRoot)
+            assertThat(LibSuRootAccess.requestAccess()).isTrue()
+            verify(alreadyRoot, never()).close()
 
             shells.`when`<Shell> { Shell.getCachedShell() }.thenReturn(null)
             shells.`when`<Shell> { Shell.getShell() }.thenThrow(IllegalStateException("su denied"))

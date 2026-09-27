@@ -56,15 +56,9 @@ object LibSuRootAccess : RootAccess {
         // "Grant root" could never succeed again without an app restart. Drop it first.
         runCatching {
             val cached = Shell.getCachedShell()
-            if (cached != null && !cached.isRoot) {
-                cached.close()
-            }
+            if (cached != null && !cached.isRoot) cached.close()
         }
-        return try {
-            Shell.getShell().isRoot
-        } catch (_: Throwable) {
-            false
-        }
+        return runCatching { Shell.getShell().isRoot }.getOrDefault(false)
     }
 
     internal fun isSuPresent(exists: (String) -> Boolean = pathExists): Boolean {
@@ -76,10 +70,6 @@ object LibSuRootAccess : RootAccess {
     }
 
     private fun grantedOrNull(): Boolean? {
-        return try {
-            Shell.isAppGrantedRoot()
-        } catch (_: Throwable) {
-            null
-        }
+        return runCatching { Shell.isAppGrantedRoot() }.getOrNull()
     }
 }
