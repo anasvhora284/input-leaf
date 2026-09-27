@@ -16,6 +16,9 @@ interface RootAccess {
  * would report [RootAvailability.MISSING] on a rooted phone and skip HID attach.
  */
 object LibSuRootAccess : RootAccess {
+    /** Overridable in tests so availability can see a marker without a real su binary. */
+    internal var pathExists: (String) -> Boolean = { File(it).exists() }
+
     private val suPaths = listOf(
         "/system/bin/su",
         "/system/xbin/su",
@@ -64,11 +67,11 @@ object LibSuRootAccess : RootAccess {
         }
     }
 
-    internal fun isSuPresent(exists: (String) -> Boolean = { File(it).exists() }): Boolean {
+    internal fun isSuPresent(exists: (String) -> Boolean = pathExists): Boolean {
         return suPaths.any(exists)
     }
 
-    internal fun hasRootMarker(exists: (String) -> Boolean = { File(it).exists() }): Boolean {
+    internal fun hasRootMarker(exists: (String) -> Boolean = pathExists): Boolean {
         return rootedMarkers.any(exists)
     }
 

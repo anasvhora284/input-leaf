@@ -14,6 +14,8 @@ class PrivilegeSelectorTest {
         assertThat(PrivilegeSelector.select(snapshot)).isEqualTo(PrivilegeKind.SHIZUKU)
         assertThat(InjectorMethodResolver.resolve("auto", snapshot, accessibilityAvailable = true))
             .isEqualTo(ResolvedInjector.PRIVILEGED_SHIZUKU)
+        assertThat(InjectorMethodResolver.resolve("shizuku", snapshot, accessibilityAvailable = false))
+            .isEqualTo(ResolvedInjector.PRIVILEGED_SHIZUKU)
     }
 
     @Test
@@ -113,6 +115,19 @@ class PrivilegeSelectorTest {
             .isEqualTo(PrivilegeKind.NONE)
         assertThat(PrivilegedInjectorFactory.kindFor("accessibility", rooted))
             .isEqualTo(PrivilegeKind.NONE)
+    }
+
+    @Test
+    fun `explicit root or accessibility that cannot attach resolves to none`() {
+        val snapshot = PrivilegeSnapshot(
+            shizukuReady = false,
+            root = RootAvailability.MISSING,
+        )
+        assertThat(InjectorMethodResolver.resolve("root", snapshot, accessibilityAvailable = true))
+            .isEqualTo(ResolvedInjector.NONE)
+        assertThat(
+            InjectorMethodResolver.resolve("accessibility", snapshot, accessibilityAvailable = false),
+        ).isEqualTo(ResolvedInjector.NONE)
     }
 
     @Test
