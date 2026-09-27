@@ -42,12 +42,10 @@ internal class ShizukuUserServiceHost : PrivilegedUserServiceHost {
     ).daemon(false).processNameSuffix("input_injector").version(SHIZUKU_SERVICE_VERSION)
 
     override fun isAvailable(): Boolean {
-        return try {
+        return runCatching {
             Shizuku.pingBinder() &&
                 Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-        } catch (_: Exception) {
-            false
-        }
+        }.getOrDefault(false)
     }
 
     override fun bind(connection: ServiceConnection): Boolean {
@@ -65,10 +63,7 @@ internal class ShizukuUserServiceHost : PrivilegedUserServiceHost {
     }
 }
 
-internal class RootUserServiceHost(
-    context: Context,
-    private val rootAccess: RootAccess = LibSuRootAccess,
-) : PrivilegedUserServiceHost {
+internal class RootUserServiceHost(context: Context, private val rootAccess: RootAccess = LibSuRootAccess) : PrivilegedUserServiceHost {
     override val kind: PrivilegeKind = PrivilegeKind.ROOT
     override val displayName: String = "Root (physical HID devices)"
     // One su fork plus a root process start; three 60s attempts would freeze connect()
@@ -111,14 +106,7 @@ internal class RootUserServiceHost(
 }
 
 internal object PrivilegedInjectorFactory {
-    fun create(
-        context: Context,
-        screenWidth: Int,
-        screenHeight: Int,
-        snapshot: PrivilegeSnapshot = currentSnapshot(),
-        method: String = "auto",
-        rootAccess: RootAccess = LibSuRootAccess,
-    ): ShizukuInputInjector {
+    fun create(context: Context, screenWidth: Int, screenHeight: Int, snapshot: PrivilegeSnapshot = currentSnapshot(), method: String = "auto", rootAccess: RootAccess = LibSuRootAccess): ShizukuInputInjector {
         val host = hostFor(context, kindFor(method, snapshot), rootAccess)
         return ShizukuInputInjector(screenWidth, screenHeight, host)
     }
@@ -133,11 +121,7 @@ internal object PrivilegedInjectorFactory {
         }
     }
 
-    fun hostFor(
-        context: Context,
-        kind: PrivilegeKind,
-        rootAccess: RootAccess = LibSuRootAccess,
-    ): PrivilegedUserServiceHost {
+    fun hostFor(context: Context, kind: PrivilegeKind, rootAccess: RootAccess = LibSuRootAccess): PrivilegedUserServiceHost {
         return when (kind) {
             PrivilegeKind.SHIZUKU -> ShizukuUserServiceHost()
             PrivilegeKind.ROOT -> RootUserServiceHost(context, rootAccess)
