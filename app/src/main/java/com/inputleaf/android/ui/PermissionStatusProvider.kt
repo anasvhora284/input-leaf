@@ -204,6 +204,15 @@ class PermissionStatusProvider(
         }
     }
 
+    /**
+     * Same persistence as the Grant button. Connect prompts through
+     * [LibSuRootAccess.requestAccess] and must not throw that boolean away,
+     * or the next cold start forgets a grant libsu cannot see without a shell.
+     */
+    internal suspend fun rememberRootGrant(granted: Boolean) {
+        updateRootGrant(granted)
+    }
+
     /** Publishes the settled grant and remembers it so the next cold start can skip the tap. */
     private suspend fun updateRootGrant(granted: Boolean) {
         _rootStatus.value = if (granted) {

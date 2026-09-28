@@ -528,7 +528,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
         return when (InjectorMethodResolver.resolve(method, snapshot, accessibilityInjector.isAvailable())) {
             ResolvedInjector.PRIVILEGED_ROOT -> {
-                withContext(Dispatchers.IO) { LibSuRootAccess.requestAccess() }
+                val granted = withContext(Dispatchers.IO) { LibSuRootAccess.requestAccess() }
+                permissionProvider.rememberRootGrant(granted)
                 // The snapshot above may have been a guess (su binary present, never
                 // prompted). Now that the prompt has settled, re-resolve so a denial
                 // falls through to Shizuku or Accessibility instead of failing connect.

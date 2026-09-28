@@ -7,6 +7,7 @@ import android.view.KeyEvent
 import com.inputleaf.android.model.InputLeapEvent
 import com.inputleaf.android.privilege.PrivilegeKind
 import com.inputleaf.android.privilege.PrivilegedInjectorFactory
+import com.inputleaf.android.privilege.snapshotForLatentHid
 import com.inputleaf.android.shizuku.ShizukuInputInjector
 import kotlinx.coroutines.delay
 
@@ -20,6 +21,7 @@ class AccessibilityInputInjector(
         context,
         screenWidth,
         screenHeight,
+        snapshot = snapshotForLatentHid(PrivilegedInjectorFactory.currentSnapshot()),
     ),
 ) : InputInjector {
 

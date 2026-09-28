@@ -131,6 +131,19 @@ class PrivilegeSelectorTest {
     }
 
     @Test
+    fun `latent accessibility hid ignores root that has never been asked`() {
+        val neverAsked = PrivilegeSnapshot(shizukuReady = false, root = RootAvailability.UNKNOWN)
+        assertThat(PrivilegedInjectorFactory.kindFor("auto", snapshotForLatentHid(neverAsked)))
+            .isEqualTo(PrivilegeKind.NONE)
+        val granted = PrivilegeSnapshot(shizukuReady = false, root = RootAvailability.GRANTED)
+        assertThat(PrivilegedInjectorFactory.kindFor("auto", snapshotForLatentHid(granted)))
+            .isEqualTo(PrivilegeKind.ROOT)
+        val shizuku = PrivilegeSnapshot(shizukuReady = true, root = RootAvailability.UNKNOWN)
+        assertThat(PrivilegedInjectorFactory.kindFor("auto", snapshotForLatentHid(shizuku)))
+            .isEqualTo(PrivilegeKind.SHIZUKU)
+    }
+
+    @Test
     fun `explicit accessibility keeps overlay path even when root is present`() {
         val snapshot = PrivilegeSnapshot(
             shizukuReady = false,

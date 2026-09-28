@@ -787,7 +787,7 @@ class ConnectionService : Service() {
     }
 
     private fun handleShizukuRestarted() {
-        if (injector?.privilegeKind() == PrivilegeKind.ROOT) {
+        if (shouldIgnoreShizukuRestart(injector)) {
             Log.d(TAG, "Ignoring Shizuku restart because root HID injector is active")
             return
         }
@@ -813,11 +813,18 @@ class ConnectionService : Service() {
 
             Log.i(TAG, "Attempting auto-recovery of privileged session to $ip")
             val bounds = getScreenBounds()
+            val snapshot = PrivilegedInjectorFactory.currentSnapshot()
+            val recoveryKind = privilegedRecoveryKind(preferredMethod, snapshot)
+            if (recoveryKind == null) {
+                Log.w(TAG, "Skipping privileged recovery; $preferredMethod cannot attach")
+                return@launch
+            }
             val newInjector = PrivilegedInjectorFactory.create(
                 this@ConnectionService,
                 bounds.width(),
                 bounds.height(),
-                method = preferredMethod,
+                snapshot,
+                preferredMethod,
             )
 
             if (newInjector.isAvailable() && newInjector.connect()) {
@@ -859,6 +866,23 @@ internal enum class ConnectAttemptOutcome {
     Retrying,
     Rejected,
     TerminalFailure,
+}
+
+/** True only for the root host itself. Accessibility reports that host's kind too. */
+internal fun shouldIgnoreShizukuRestart(injector: com.inputleaf.android.inject.InputInjector?): Boolean {
+    return injector is ShizukuInputInjector && injector.privilegeKind() == PrivilegeKind.ROOT
+}
+
+/**
+ * Kind to reconnect, or null when the saved method cannot attach.
+ * [PrivilegeKind.NONE] must not fall through to the other host.
+ */
+internal fun privilegedRecoveryKind(
+    method: String,
+    snapshot: com.inputleaf.android.privilege.PrivilegeSnapshot,
+): PrivilegeKind? {
+    val kind = PrivilegedInjectorFactory.kindFor(method, snapshot)
+    return if (kind == PrivilegeKind.NONE) null else kind
 }
 
 internal fun shouldClearActiveSession(outcome: ConnectAttemptOutcome): Boolean =

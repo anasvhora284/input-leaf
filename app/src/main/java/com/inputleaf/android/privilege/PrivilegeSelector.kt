@@ -7,6 +7,16 @@ package com.inputleaf.android.privilege
  * Accessibility is not a privilege path; the caller may still use it as
  * overlay/IME fallback when this returns [PrivilegeKind.NONE].
  */
+/**
+ * Snapshot used when Accessibility keeps a latent HID injector.
+ * [RootAvailability.UNKNOWN] still [RootAvailability.canUse], but binding it runs
+ * `su` and can prompt. Only an already granted shell may attach.
+ */
+internal fun snapshotForLatentHid(snapshot: PrivilegeSnapshot): PrivilegeSnapshot {
+    if (snapshot.root == RootAvailability.GRANTED) return snapshot
+    return snapshot.copy(root = RootAvailability.MISSING)
+}
+
 object PrivilegeSelector {
     fun select(snapshot: PrivilegeSnapshot): PrivilegeKind {
         return when {

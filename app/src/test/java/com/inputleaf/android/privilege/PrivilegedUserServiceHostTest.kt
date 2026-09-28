@@ -11,6 +11,8 @@ import android.os.IBinder
 import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import com.inputleaf.android.inject.AccessibilityInputInjector
+import com.topjohnwu.superuser.Shell
 import com.topjohnwu.superuser.ipc.RootService
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -155,6 +157,26 @@ class PrivilegedUserServiceHostTest {
         })
         assertThat(snapshot.root).isEqualTo(RootAvailability.GRANTED)
         assertThat(snapshot.shizukuReady).isFalse()
+    }
+
+    @Test
+    fun `accessibility latent hid does not bind root that was never asked`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val previous = LibSuRootAccess.pathExists
+        try {
+            LibSuRootAccess.pathExists = { it == "/proc/ksu" }
+            mockStatic(Shell::class.java).use { shells ->
+                shells.`when`<Boolean?> { Shell.isAppGrantedRoot() }.thenReturn(null)
+                val neverAsked = AccessibilityInputInjector(context, 1080, 1920)
+                assertThat(neverAsked.privilegeKind()).isNotEqualTo(PrivilegeKind.ROOT)
+
+                shells.`when`<Boolean?> { Shell.isAppGrantedRoot() }.thenReturn(true)
+                val granted = AccessibilityInputInjector(context, 1080, 1920)
+                assertThat(granted.privilegeKind()).isEqualTo(PrivilegeKind.ROOT)
+            }
+        } finally {
+            LibSuRootAccess.pathExists = previous
+        }
     }
 
     private val connection = object : ServiceConnection {
