@@ -46,13 +46,17 @@ jobs:
       - name: Run fast JVM tests and generate coverage
         run: ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest :koverXmlReportDebugJvm
 
+      # Lines with no JaCoCo counters are Codecov skipped coverage (-1). See codecov.yml.
+      - name: Skip JaCoCo lines with no instructions
+        run: python3 scripts/codecov_skip_unprobed.py build/reports/kover/coverage-debug-jvm.xml build/reports/kover/unprobed.json
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           # Fork PRs use Codecov's tokenless upload; trusted runs authenticate with OIDC.
           use_oidc: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-          files: build/reports/kover/coverage-debug-jvm.xml
+          files: build/reports/kover/coverage-debug-jvm.xml,build/reports/kover/unprobed.json
           flags: jvm
           disable_search: true
           # Codecov returns an authentication error until the upstream repository is enabled there.

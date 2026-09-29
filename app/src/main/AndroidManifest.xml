@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <uses-permission android:name="android.permission.ACCESS_SUPERUSER"/>
 
     <application
         android:name=".InputLeafApplication"
@@ -27,6 +28,10 @@
         <service
             android:name=".service.ConnectionService"
             android:foregroundServiceType="connectedDevice"
+            android:exported="false"/>
+        <!-- libsu RootService: no android:process; the library starts uid 0 itself. -->
+        <service
+            android:name=".privilege.RootInputInjectorService"
             android:exported="false"/>
         <service
             android:name=".service.CursorOverlayService"

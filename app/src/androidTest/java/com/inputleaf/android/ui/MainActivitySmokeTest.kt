@@ -63,11 +63,13 @@ class MainActivitySmokeTest {
     }
 
     @Test
-    fun nextButtonAdvancesToShizukuPermissionPage() {
+    fun nextButtonAdvancesToPermissionMethodsPage() {
         waitAndAssertText("Welcome to Input Leaf")
 
         composeRule.onNodeWithText("Next").performClick()
 
-        waitAndAssertText("Shizuku Setup (Optional)")
+        // The page heading is on screen. "Non-root Accessibility" is the third
+        // accordion row and sits below the fold, so assertIsDisplayed fails on it.
+        waitAndAssertText("Choose an input method")
     }
 }

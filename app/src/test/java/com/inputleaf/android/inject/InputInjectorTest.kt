@@ -2,6 +2,7 @@ package com.inputleaf.android.inject
 
 import com.google.common.truth.Truth.assertThat
 import com.inputleaf.android.model.InputLeapEvent
+import com.inputleaf.android.privilege.PrivilegeKind
 import org.junit.Test
 
 class InputInjectorTest {
@@ -25,5 +26,6 @@ class InputInjectorTest {
         injector.updatePointerSpeed(2)
         injector.onHidMouseEnter(100, 200)
         injector.onHidMouseLeave()
+        assertThat(injector.privilegeKind()).isEqualTo(PrivilegeKind.NONE)
     }
 }

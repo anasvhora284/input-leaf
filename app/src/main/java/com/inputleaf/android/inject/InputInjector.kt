@@ -1,6 +1,7 @@
 package com.inputleaf.android.inject
 
 import com.inputleaf.android.model.InputLeapEvent
+import com.inputleaf.android.privilege.PrivilegeKind
 
 interface InputInjector {
     suspend fun connect(): Boolean
@@ -8,6 +9,7 @@ interface InputInjector {
     fun disconnect()
     fun isAvailable(): Boolean
     val name: String
+    fun privilegeKind(): PrivilegeKind = PrivilegeKind.NONE
     fun setHidKeyboardAttached(attached: Boolean) {}
     fun setHidMouseAttached(attached: Boolean) {}
     fun usesNativePointer(): Boolean = false

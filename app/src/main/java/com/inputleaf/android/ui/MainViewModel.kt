@@ -21,6 +21,12 @@ import com.inputleaf.android.network.ClientCertificateValidationResult
 import com.inputleaf.android.network.ConnectResult
 import com.inputleaf.android.network.ConnectionTransportPolicy
 import com.inputleaf.android.network.ServerScanner
+import com.inputleaf.android.privilege.InjectorMethodResolver
+import com.inputleaf.android.privilege.PrivilegeKind
+import com.inputleaf.android.privilege.LibSuRootAccess
+import com.inputleaf.android.privilege.PrivilegeSnapshot
+import com.inputleaf.android.privilege.PrivilegedInjectorFactory
+import com.inputleaf.android.privilege.ResolvedInjector
 import com.inputleaf.android.service.ConnectionService
 import com.inputleaf.android.storage.AppPreferences
 import com.inputleaf.android.storage.ClientCertificateStore
@@ -32,7 +38,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import rikka.shizuku.Shizuku
+import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.net.InetAddress
 import java.net.NetworkInterface
@@ -138,6 +144,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         prefs.connectionTransportPolicy
 
     val shizukuAvailable: Flow<Boolean> = permissionProvider.shizukuAvailable
+    /** The method a live session is injecting through; null when nothing is connected. */
+    private val _activeMethod = MutableStateFlow<PermissionMethod?>(null)
+    val activeMethod: StateFlow<PermissionMethod?> = _activeMethod
+
+    val rootStatus: StateFlow<RootStatus> = permissionProvider.rootStatus
+    val rootGranted: Flow<Boolean> = permissionProvider.rootGranted
+    val rootUsable: Flow<Boolean> = permissionProvider.rootUsable
     val accessibilityAvailable: Flow<Boolean> = permissionProvider.accessibilityAvailable
     val imeEnabledAndSelected: Flow<Boolean> = permissionProvider.imeEnabledAndSelected
 
@@ -232,7 +245,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
             val injector = resolveInjector(preferredMethod = method)
             if (injector == null) {
-                _errorState.value = "Selected input method is not available. Enable Shizuku or Accessibility Service."
+                _errorState.value = "Selected input method is not available. Enable Shizuku, grant root, or turn on Accessibility Service."
                 disconnect()
                 return@launch
             }
@@ -245,6 +258,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
 
             val name = prefs.screenName.first()
+            _activeMethod.value = permissionMethodOf(injector)
             service?.setInjector(injector)
             service?.reconnect(currentIp, name)
         }
@@ -377,17 +391,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     init {
         bindService()
 
-        // Auto-connect when Shizuku becomes available (e.g. started after app launch or restarted)
+        // Auto-connect when Shizuku or root becomes available
         viewModelScope.launch {
-            permissionProvider.shizukuAvailable.collect { available ->
-                if (available && !userRequestedDisconnect) {
+            combine(permissionProvider.shizukuAvailable, permissionProvider.rootGranted) { shizuku, root ->
+                shizuku || root
+            }.collect { privilegeReady ->
+                if (privilegeReady && !userRequestedDisconnect) {
                     val auto = prefs.autoConnect.first()
                     val lastIp = prefs.lastServerIp.first()
                     val currentState = service?.state?.value ?: _connectionState.value
                     if (auto && !lastIp.isNullOrBlank() && currentState is ConnectionState.Disconnected) {
-                        Log.i("InputLeaf", "Shizuku became available — auto-connecting to last server: $lastIp")
+                        Log.i("InputLeaf", "Privileged injection became available — auto-connecting to last server: $lastIp")
                         if (_errorState.value?.contains("input method", ignoreCase = true) == true ||
-                            _errorState.value?.contains("Shizuku", ignoreCase = true) == true
+                            _errorState.value?.contains("Shizuku", ignoreCase = true) == true ||
+                            _errorState.value?.contains("root", ignoreCase = true) == true
                         ) {
                             _errorState.value = null
                         }
@@ -432,6 +449,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun checkShizukuStatus() = permissionProvider.checkShizukuStatus()
     fun requestShizukuPermission() = permissionProvider.requestShizukuPermission()
+    fun checkRootStatus() = permissionProvider.checkRootStatus()
+    fun requestRootAccess() = permissionProvider.requestRootAccess()
+
+    /**
+     * AccessibilityInputInjector reports the privilege kind of its latent HID host, so
+     * the type has to be checked before the kind or a touch-fallback session would show
+     * up as Shizuku.
+     */
+    private fun permissionMethodOf(
+        injector: com.inputleaf.android.inject.InputInjector,
+    ): PermissionMethod = when {
+        injector is com.inputleaf.android.inject.AccessibilityInputInjector ->
+            PermissionMethod.ACCESSIBILITY
+        injector.privilegeKind() == PrivilegeKind.ROOT -> PermissionMethod.ROOT
+        injector.privilegeKind() == PrivilegeKind.SHIZUKU -> PermissionMethod.SHIZUKU
+        else -> PermissionMethod.ACCESSIBILITY
+    }
     fun checkOverlayPermission() = permissionProvider.checkOverlayPermission()
     fun checkBatteryOptimization() = permissionProvider.checkBatteryOptimization()
     
@@ -482,15 +516,51 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val method = preferredMethod ?: prefs.inputMethod.first()
         val wm = getApplication<Application>().getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
         val bounds = wm.currentWindowMetrics.bounds
-        val shizukuInjector = com.inputleaf.android.shizuku.ShizukuInputInjector(bounds.width(), bounds.height())
-        val accessibilityInjector = com.inputleaf.android.inject.AccessibilityInputInjector(getApplication(), bounds.width(), bounds.height())
+        val snapshot = PrivilegeSnapshot(
+            shizukuReady = permissionProvider.shizukuStatus.value == ShizukuStatus.READY,
+            root = permissionProvider.rootAvailability(),
+        )
+        val accessibilityInjector = com.inputleaf.android.inject.AccessibilityInputInjector(
+            getApplication(),
+            bounds.width(),
+            bounds.height(),
+        )
 
-        return when {
-            method == "shizuku" && shizukuInjector.isAvailable() -> shizukuInjector
-            method == "accessibility" && accessibilityInjector.isAvailable() -> accessibilityInjector
-            method == "auto" && shizukuInjector.isAvailable() -> shizukuInjector
-            method == "auto" && accessibilityInjector.isAvailable() -> accessibilityInjector
-            else -> null
+        return when (InjectorMethodResolver.resolve(method, snapshot, accessibilityInjector.isAvailable())) {
+            ResolvedInjector.PRIVILEGED_ROOT -> {
+                val granted = withContext(Dispatchers.IO) { LibSuRootAccess.requestAccess() }
+                permissionProvider.rememberRootGrant(granted)
+                // The snapshot above may have been a guess (su binary present, never
+                // prompted). Now that the prompt has settled, re-resolve so a denial
+                // falls through to Shizuku or Accessibility instead of failing connect.
+                val settled = snapshot.copy(root = permissionProvider.rootAvailability())
+                when (InjectorMethodResolver.resolve(
+                    method,
+                    settled,
+                    accessibilityInjector.isAvailable(),
+                )) {
+                    ResolvedInjector.PRIVILEGED_ROOT, ResolvedInjector.PRIVILEGED_SHIZUKU ->
+                        PrivilegedInjectorFactory.create(
+                            getApplication(),
+                            bounds.width(),
+                            bounds.height(),
+                            settled,
+                            method,
+                        )
+                    ResolvedInjector.ACCESSIBILITY -> accessibilityInjector
+                    ResolvedInjector.NONE -> null
+                }
+            }
+            ResolvedInjector.PRIVILEGED_SHIZUKU ->
+                PrivilegedInjectorFactory.create(
+                    getApplication(),
+                    bounds.width(),
+                    bounds.height(),
+                    snapshot,
+                    method,
+                )
+            ResolvedInjector.ACCESSIBILITY -> accessibilityInjector
+            ResolvedInjector.NONE -> null
         }
     }
 
@@ -513,7 +583,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val injector = resolveInjector()
             if (injector == null) {
                 _pendingConnectIp.value = null
-                _errorState.value = "No input method available. Enable Shizuku or Accessibility Service."
+                _errorState.value = "No input method available. Enable Shizuku, grant root, or turn on Accessibility Service."
                 return@launch
             }
             
@@ -523,7 +593,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 _errorState.value = "Failed to connect to input method: ${injector.name}"
                 return@launch
             }
-            
+
+            _activeMethod.value = permissionMethodOf(injector)
             service?.setInjector(injector)
             if (service == null) {
                 _pendingConnectIp.value = null
@@ -537,6 +608,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun disconnect() {
         userRequestedDisconnect = true
         _pendingConnectIp.value = null
+        _activeMethod.value = null
         service?.disconnect()
     }
 

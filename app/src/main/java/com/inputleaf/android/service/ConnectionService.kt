@@ -24,6 +24,8 @@ import com.inputleaf.android.network.ConnectionTransportPolicy
 import com.inputleaf.android.network.InputLeapConnection
 import com.inputleaf.android.network.ServerTransport
 import com.inputleaf.android.network.TlsFingerprintManager
+import com.inputleaf.android.privilege.PrivilegeKind
+import com.inputleaf.android.privilege.PrivilegedInjectorFactory
 import com.inputleaf.android.shizuku.ShizukuInputInjector
 import com.inputleaf.android.storage.AppPreferences
 import com.inputleaf.android.storage.ClientCertificateStore
@@ -363,9 +365,9 @@ class ConnectionService : Service() {
                         stateMachine.onKeepAlive()
                         injector?.updatePointerSpeed(readPointerSpeed())
                         injector?.onHidMouseEnter(event.x, event.y)
-                        applyCursorOverlay()
                         setHidKeyboardAttached(keyboardEnabled)
                         setHidMouseAttached(mouseEnabled)
+                        applyCursorOverlay()
                     }
                     is InputLeapEvent.Leave -> {
                         injector?.onHidMouseLeave()
@@ -451,6 +453,11 @@ class ConnectionService : Service() {
             mouseEnabled = mouseEnabled,
             native = inj?.nativePointerState() ?: NativePointerState.NONE,
             expectsNativePointer = inj?.expectsNativePointer() == true,
+        )
+        Log.i(
+            TAG,
+            "Cursor overlay show=$show native=${inj?.nativePointerState()} " +
+                "expectsNative=${inj?.expectsNativePointer() == true} onScreen=$pointerOnScreen",
         )
         if (show) {
             showCursorOverlay()
@@ -580,7 +587,7 @@ class ConnectionService : Service() {
         }
         if (injector is ShizukuInputInjector) {
             injector.onServiceDisconnectedCallback = {
-                handleShizukuServiceDisconnected()
+                handlePrivilegedServiceDisconnected()
             }
         }
         if (pointerOnScreen) {
@@ -764,50 +771,68 @@ class ConnectionService : Service() {
     }
 
     private fun handleShizukuDied() {
-        if (injector is ShizukuInputInjector) {
+        // AccessibilityInputInjector also reports SHIZUKU (it holds a latent Shizuku host),
+        // so the kind alone would tear down a working Accessibility session.
+        val inj = injector
+        if (inj is ShizukuInputInjector && inj.privilegeKind() == PrivilegeKind.SHIZUKU) {
             Log.w(TAG, "Shizuku binder died while using Shizuku injector; disconnecting injector")
             injector?.disconnect()
-            handleShizukuServiceDisconnected()
+            handlePrivilegedServiceDisconnected()
         }
     }
 
-    private fun handleShizukuServiceDisconnected() {
-        Log.w(TAG, "Shizuku UserService disconnected mid-session")
-        triggerShizukuRecovery(delayMs = 300L)
+    private fun handlePrivilegedServiceDisconnected() {
+        Log.w(TAG, "Privileged UserService disconnected mid-session")
+        triggerPrivilegedRecovery(delayMs = 300L)
     }
 
     private fun handleShizukuRestarted() {
+        if (shouldIgnoreShizukuRestart(injector)) {
+            Log.d(TAG, "Ignoring Shizuku restart because root HID injector is active")
+            return
+        }
         Log.i(TAG, "Shizuku service restarted")
-        triggerShizukuRecovery(delayMs = 600L)
+        triggerPrivilegedRecovery(delayMs = 600L)
     }
 
-    private fun triggerShizukuRecovery(delayMs: Long) {
+    private fun triggerPrivilegedRecovery(delayMs: Long) {
         val ip = activeServerIp ?: return
         val name = activeScreenName ?: return
         if (userInitiatedDisconnect) return
 
         shizukuRecoveryJob?.cancel()
         shizukuRecoveryJob = scope.launch {
-            // Check if user specifically configured accessibility mode in prefs
             val preferredMethod = prefs.inputMethod.first()
             if (preferredMethod == "accessibility") {
-                Log.d(TAG, "Skipping Shizuku recovery because preferred method is Accessibility")
+                Log.d(TAG, "Skipping privileged recovery because preferred method is Accessibility")
                 return@launch
             }
 
             delay(delayMs)
             if (userInitiatedDisconnect || activeServerIp != ip) return@launch
 
-            Log.i(TAG, "Attempting auto-recovery of Shizuku session to $ip")
+            Log.i(TAG, "Attempting auto-recovery of privileged session to $ip")
             val bounds = getScreenBounds()
-            val newInjector = ShizukuInputInjector(bounds.width(), bounds.height())
+            val snapshot = PrivilegedInjectorFactory.currentSnapshot()
+            val recoveryKind = privilegedRecoveryKind(preferredMethod, snapshot)
+            if (recoveryKind == null) {
+                Log.w(TAG, "Skipping privileged recovery; $preferredMethod cannot attach")
+                return@launch
+            }
+            val newInjector = PrivilegedInjectorFactory.create(
+                this@ConnectionService,
+                bounds.width(),
+                bounds.height(),
+                snapshot,
+                preferredMethod,
+            )
 
             if (newInjector.isAvailable() && newInjector.connect()) {
-                Log.i(TAG, "Shizuku injector recovered successfully; reconnecting session to $ip")
+                Log.i(TAG, "Privileged injector recovered (${newInjector.name}); reconnecting session to $ip")
                 setInjector(newInjector)
                 reconnect(ip, name)
             } else {
-                Log.w(TAG, "Could not recover Shizuku injector (not ready or permission missing)")
+                Log.w(TAG, "Could not recover privileged injector (Shizuku/root not ready)")
                 newInjector.disconnect()
             }
         }
@@ -841,6 +866,23 @@ internal enum class ConnectAttemptOutcome {
     Retrying,
     Rejected,
     TerminalFailure,
+}
+
+/** True only for the root host itself. Accessibility reports that host's kind too. */
+internal fun shouldIgnoreShizukuRestart(injector: com.inputleaf.android.inject.InputInjector?): Boolean {
+    return injector is ShizukuInputInjector && injector.privilegeKind() == PrivilegeKind.ROOT
+}
+
+/**
+ * Kind to reconnect, or null when the saved method cannot attach.
+ * [PrivilegeKind.NONE] must not fall through to the other host.
+ */
+internal fun privilegedRecoveryKind(
+    method: String,
+    snapshot: com.inputleaf.android.privilege.PrivilegeSnapshot,
+): PrivilegeKind? {
+    val kind = PrivilegedInjectorFactory.kindFor(method, snapshot)
+    return if (kind == PrivilegeKind.NONE) null else kind
 }
 
 internal fun shouldClearActiveSession(outcome: ConnectAttemptOutcome): Boolean =
