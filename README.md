@@ -32,6 +32,7 @@ Instead of switching hands between your physical keyboard and phone touch screen
 - **mDNS server auto-discovery** — Finds compatible servers on your local Wi-Fi automatically.
 - **Encrypted TLS connections** — Supports TLS encryption with Trust-On-First-Use (TOFU) certificate pinning.
 - **Battery efficient and resilient** — Automatic exponential-backoff reconnects when network interruptions occur.
+- **Material 3 Expressive design** — Dynamic color on Android 12+, light and dark themes, and edge-to-edge screens.
 
 ---
 

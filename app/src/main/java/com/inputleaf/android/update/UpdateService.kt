@@ -50,6 +50,7 @@ object UpdateService {
             versionCode = 9,
             highlights = listOf(
                 "Rooted devices can grant su and inject through a uid-0 HID service, without Shizuku.",
+                "New Material 3 Expressive design with dynamic color, edge-to-edge screens, and a refreshed settings layout.",
             ),
         ),
         VersionChangelog(
