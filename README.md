@@ -152,33 +152,154 @@ When using **Shizuku Mode**, Input Leaf passes through hardware-level keyboard s
 
 ## Screenshots
 
+Material 3 Expressive UI with dynamic color (Android 12+) and a leaf-green fallback theme.
+
+### Onboarding
+
 <table align="center">
   <tr>
     <td align="center" width="33%">
-      <img src="docs/01_splash_screen.jpg" width="220" alt="Input Leaf Splash Screen"><br>
-      <b>Splash Screen</b>
+      <img src="docs/screenshots/01_onboarding_welcome.jpg" width="220" alt="Onboarding: Welcome"><br>
+      <b>Welcome</b>
     </td>
     <td align="center" width="33%">
-      <img src="docs/02_setup_flow.jpg" width="220" alt="Guided Setup Flow"><br>
-      <b>Guided Onboarding</b>
+      <img src="docs/screenshots/02_onboarding_input_method.jpg" width="220" alt="Onboarding: Choose an Input Method"><br>
+      <b>Choose an Input Method</b>
     </td>
     <td align="center" width="33%">
-      <img src="docs/03_shizuku_setup.jpg" width="220" alt="Shizuku Authorization"><br>
-      <b>Shizuku Permission</b>
+      <img src="docs/screenshots/03_onboarding_accessibility.jpg" width="220" alt="Onboarding: Accessibility Fallback"><br>
+      <b>Accessibility Fallback</b>
+    </td>
+  </tr>
+</table>
+
+### Home
+
+<table align="center">
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/04_home_disconnected.jpg" width="220" alt="Home: Disconnected"><br>
+      <b>Disconnected</b>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/05_home_connecting.jpg" width="220" alt="Home: Connecting"><br>
+      <b>Connecting</b>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/06_home_connected.jpg" width="220" alt="Home: Connected & Ready"><br>
+      <b>Connected & Ready</b>
+    </td>
+  </tr>
+</table>
+
+### Servers
+
+<table align="center">
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/07_servers_discovered.jpg" width="220" alt="Servers: Discovered Servers"><br>
+      <b>Discovered Servers</b>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/08_servers_favorite.jpg" width="220" alt="Servers: Favorites"><br>
+      <b>Favorites</b>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/11_servers_connected.jpg" width="220" alt="Servers: Connected Server"><br>
+      <b>Connected Server</b>
     </td>
   </tr>
   <tr>
     <td align="center" width="33%">
-      <img src="docs/04_overlay_permission.jpg" width="220" alt="Overlay Permission"><br>
-      <b>System Overlay</b>
+      <img src="docs/screenshots/09_servers_add_manual.jpg" width="220" alt="Servers: Add Manually"><br>
+      <b>Add Manually</b>
     </td>
     <td align="center" width="33%">
-      <img src="docs/06_home_screen.jpg" width="220" alt="Main Connection Screen"><br>
-      <b>Connected & Ready</b>
+      <img src="docs/screenshots/10_servers_trust_fingerprint.jpg" width="220" alt="Servers: Trust on First Use"><br>
+      <b>Trust on First Use</b>
+    </td>
+  </tr>
+</table>
+
+### Permissions
+
+<table align="center">
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/12_permissions_shizuku.jpg" width="220" alt="Permissions: Shizuku Ready"><br>
+      <b>Shizuku Ready</b>
     </td>
     <td align="center" width="33%">
-      <img src="docs/07_settings_screen.jpg" width="220" alt="Settings Screen"><br>
-      <b>Custom Settings</b>
+      <img src="docs/screenshots/13_permissions_root.jpg" width="220" alt="Permissions: Root Access"><br>
+      <b>Root Access</b>
+    </td>
+  </tr>
+</table>
+
+### Settings
+
+<table align="center">
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/14_settings_connection_display.jpg" width="220" alt="Settings: Connection & Display"><br>
+      <b>Connection & Display</b>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/15_settings_security.jpg" width="220" alt="Settings: Security"><br>
+      <b>Security</b>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/16_settings_about.jpg" width="220" alt="Settings: About & Community"><br>
+      <b>About & Community</b>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/17_dialog_connection_security.jpg" width="220" alt="Settings: Connection Security"><br>
+      <b>Connection Security</b>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/18_dialog_input_method.jpg" width="220" alt="Settings: Input Method"><br>
+      <b>Input Method</b>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/19_dialog_cursor_style.jpg" width="220" alt="Settings: Cursor Style"><br>
+      <b>Cursor Style</b>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/20_dialog_screen_name.jpg" width="220" alt="Settings: Screen Name"><br>
+      <b>Screen Name</b>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/21_dialog_author.jpg" width="220" alt="Settings: Author Info"><br>
+      <b>Author Info</b>
+    </td>
+  </tr>
+</table>
+
+### Light Theme
+
+<table align="center">
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/22_light_home.jpg" width="220" alt="Light Theme: Home"><br>
+      <b>Home</b>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/23_light_servers.jpg" width="220" alt="Light Theme: Servers"><br>
+      <b>Servers</b>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/24_light_permissions.jpg" width="220" alt="Light Theme: Permissions"><br>
+      <b>Permissions</b>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/25_light_settings.jpg" width="220" alt="Light Theme: Settings"><br>
+      <b>Settings</b>
     </td>
   </tr>
 </table>
