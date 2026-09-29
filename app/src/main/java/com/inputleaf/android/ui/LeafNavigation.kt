@@ -8,6 +8,8 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -18,11 +20,10 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ShortNavigationBar
+import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
@@ -30,7 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.inputleaf.android.network.ConnectionTransportPolicy
 import com.inputleaf.android.ui.components.UpdateAvailableDialog
@@ -252,13 +252,9 @@ fun LeafNavigation(viewModel: MainViewModel) {
 
     Scaffold(
         bottomBar = {
-            NavigationBar(
-                modifier = Modifier.fillMaxWidth(),
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                tonalElevation = 0.dp,
-            ) {
+            ShortNavigationBar {
                 navItems.forEachIndexed { index, item ->
-                    NavigationBarItem(
+                    ShortNavigationBarItem(
                         icon = { Icon(item.icon, contentDescription = item.label) },
                         label = { Text(item.label) },
                         selected = selectedIndex == index,
@@ -267,8 +263,9 @@ fun LeafNavigation(viewModel: MainViewModel) {
                 }
             }
         },
+        contentWindowInsets = WindowInsets(0),
     ) { innerPadding ->
-        Box(Modifier.fillMaxSize().padding(innerPadding)) {
+        Box(Modifier.fillMaxSize().padding(innerPadding).consumeWindowInsets(innerPadding)) {
             when (screen) {
                 LeafRoute.Home.key -> MainScreen(
                     connectionState = connectionState,

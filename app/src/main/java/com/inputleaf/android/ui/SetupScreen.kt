@@ -1,19 +1,20 @@
 package com.inputleaf.android.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.inputleaf.android.ui.components.PermissionMethodsAccordion
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -33,33 +34,28 @@ fun SetupScreen(
     onRequestImeSetup: () -> Unit,
     activeMethod: PermissionMethod? = null,
 ) {
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Setup",
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleLarge,
-                        letterSpacing = 0.5.sp
-                    )
-                }
+            LargeFlexibleTopAppBar(
+                title = { Text("Setup") },
+                subtitle = { Text("Permissions") },
+                scrollBehavior = scrollBehavior,
             )
         }
     ) { padding ->
         LazyColumn(
-            contentPadding = padding,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = padding.calculateTopPadding(),
+                bottom = padding.calculateBottomPadding() + 16.dp,
+            ),
+            modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
-                Text(
-                    text = "Permissions",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
                 Text(
                     text = "Pick one input method. Grant Shizuku or root for the system cursor and physical HID keyboard. Accessibility still works as a fallback. You do not need both Shizuku and root.",
                     style = MaterialTheme.typography.bodyMedium,

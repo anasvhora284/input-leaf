@@ -14,18 +14,20 @@ import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.toShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.inputleaf.android.ui.RootStatus
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun RootStatusCard(
     status: RootStatus,
@@ -37,9 +39,10 @@ fun RootStatusCard(
         RootStatus.GRANTED -> {
             Card(
                 modifier = modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
+                shape = MaterialTheme.shapes.large,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
                 ),
             ) {
                 Row(
@@ -55,18 +58,13 @@ fun RootStatusCard(
                         iconSize = 28.dp,
                         backgroundColor = MaterialTheme.colorScheme.tertiary,
                         iconTint = MaterialTheme.colorScheme.onTertiary,
+                        shape = MaterialShapes.Cookie9Sided.toShape(),
                     )
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Root Ready",
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer,
-                            style = MaterialTheme.typography.titleSmall,
-                        )
+                        Text(text = "Root Ready", style = MaterialTheme.typography.titleSmall)
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "System cursor and HID keyboard can use su instead of Shizuku",
-                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f),
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
@@ -79,7 +77,6 @@ fun RootStatusCard(
             } else {
                 Icons.Rounded.Security
             }
-            val color: Color = MaterialTheme.colorScheme.secondary
             val title = if (status == RootStatus.DENIED) "Root Denied" else "Root Available"
             val description = if (status == RootStatus.DENIED) {
                 "Input Leaf was not granted su. You can still use Shizuku or Accessibility."
@@ -88,7 +85,7 @@ fun RootStatusCard(
             }
             Card(
                 modifier = modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
+                shape = MaterialTheme.shapes.large,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                 ),
@@ -99,13 +96,11 @@ fun RootStatusCard(
                             icon = icon,
                             size = 40.dp,
                             iconSize = 24.dp,
-                            backgroundColor = color.copy(alpha = 0.1f),
-                            iconTint = color,
+                            backgroundColor = MaterialTheme.colorScheme.secondaryContainer,
                         )
                         Spacer(modifier = Modifier.width(16.dp))
                         Text(
                             text = title,
-                            fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface,
                             style = MaterialTheme.typography.titleSmall,
                         )
@@ -118,7 +113,7 @@ fun RootStatusCard(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     TextButton(onClick = onRequestRootAccess) {
-                        Text("Grant root", color = MaterialTheme.colorScheme.primary)
+                        Text("Grant root")
                     }
                 }
             }

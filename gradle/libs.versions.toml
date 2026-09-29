@@ -31,7 +31,7 @@ robolectric = "4.14.1"
 [libraries]
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 compose-ui = { module = "androidx.compose.ui:ui" }
-compose-material3 = { module = "androidx.compose.material3:material3" }
+compose-material3 = { module = "androidx.compose.material3:material3", version = "1.5.0-alpha29" }
 compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
 compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }

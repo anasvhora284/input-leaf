@@ -3,44 +3,42 @@ package com.inputleaf.android.ui
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
-import com.inputleaf.android.update.InstallSource
-import com.inputleaf.android.update.UpdateService
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.inputleaf.android.ui.components.CircularAvatar
-import com.inputleaf.android.ui.components.GradientCard
-import com.inputleaf.android.ui.components.SectionHeader
-import com.inputleaf.android.ui.components.SettingsRow
-import com.inputleaf.android.ui.components.ThemeModeOption
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.unit.dp
+import com.inputleaf.android.R
 import com.inputleaf.android.network.ClientCertificateSummary
 import com.inputleaf.android.network.ConnectionTransportPolicy
 import com.inputleaf.android.network.TlsFingerprintManager
+import com.inputleaf.android.ui.components.CircularAvatar
+import com.inputleaf.android.ui.components.ConnectedChoiceRow
+import com.inputleaf.android.ui.components.SectionHeader
+import com.inputleaf.android.ui.components.SettingsGroup
+import com.inputleaf.android.ui.components.SettingsRow
+import com.inputleaf.android.ui.components.SettingsSwitchRow
+import com.inputleaf.android.update.InstallSource
+import com.inputleaf.android.update.UpdateService
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SettingsScreen(
     screenName: String,
@@ -90,8 +88,6 @@ fun SettingsScreen(
         }
     }
 
-    var editingName by remember(screenName) { mutableStateOf(screenName) }
-    var showThemeDialog by remember { mutableStateOf(false) }
     var showEditNameDialog by remember { mutableStateOf(false) }
     var showInputMethodDialog by remember { mutableStateOf(false) }
     var showTransportPolicyDialog by remember { mutableStateOf(false) }
@@ -100,22 +96,19 @@ fun SettingsScreen(
     var showRegenerateConfirm by remember { mutableStateOf(false) }
     var showAuthorDialog by remember { mutableStateOf(false) }
 
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Settings",
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleLarge,
-                        letterSpacing = 0.5.sp
-                    )
-                },
+            LargeFlexibleTopAppBar(
+                title = { Text("Settings") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back")
                     }
-                }
+                },
+                scrollBehavior = scrollBehavior,
             )
         }
     ) { padding ->
@@ -124,46 +117,30 @@ fun SettingsScreen(
                 .fillMaxWidth()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 16.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            // Connection Section
-            SectionHeader("CONNECTION")
-            
-            GradientCard(
-                modifier = Modifier.fillMaxWidth(),
-                backgroundColor = MaterialTheme.colorScheme.surface,
-                cornerRadius = 24.dp,
-                padding = 0.dp
-            ) {
-                Column {
-                    // Screen Name
+            SectionHeader("Connection")
+            SettingsGroup {
+                row { shapes ->
                     SettingsRow(
                         icon = Icons.Rounded.Phone,
                         title = "Screen name",
                         subtitle = screenName,
+                        shapes = shapes,
                         onClick = { showEditNameDialog = true }
                     )
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        thickness = 1.dp,
-                        modifier = Modifier.padding(start = 72.dp)
-                    )
-                    // Auto-connect
-                    SettingsRow(
+                }
+                row { shapes ->
+                    SettingsSwitchRow(
                         icon = Icons.Rounded.Build,
                         title = "Auto-connect on launch",
-                        trailingContent = {
-                            Switch(
-                                checked = autoConnect,
-                                onCheckedChange = onAutoConnectChange,
-                            )
-                        }
+                        checked = autoConnect,
+                        onCheckedChange = onAutoConnectChange,
+                        shapes = shapes,
                     )
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        thickness = 1.dp,
-                        modifier = Modifier.padding(start = 72.dp)
-                    )
+                }
+                row { shapes ->
                     SettingsRow(
                         icon = Icons.Rounded.Lock,
                         title = "Connection security",
@@ -172,14 +149,11 @@ fun SettingsScreen(
                             ConnectionTransportPolicy.TLS_ONLY -> "TLS only"
                             ConnectionTransportPolicy.PLAIN_ONLY -> "Plain only"
                         },
+                        shapes = shapes,
                         onClick = { showTransportPolicyDialog = true }
                     )
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        thickness = 1.dp,
-                        modifier = Modifier.padding(start = 72.dp)
-                    )
-                    // Input Method
+                }
+                row { shapes ->
                     SettingsRow(
                         icon = Icons.Rounded.Keyboard,
                         title = "Input method",
@@ -189,431 +163,231 @@ fun SettingsScreen(
                             "accessibility" -> "Accessibility Service (overlay fallback)"
                             else -> "Auto (Shizuku, then root, then Accessibility)"
                         },
+                        shapes = shapes,
                         onClick = { showInputMethodDialog = true }
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Display Section
-            SectionHeader("DISPLAY")
-            
-            GradientCard(
-                modifier = Modifier.fillMaxWidth(),
-                backgroundColor = MaterialTheme.colorScheme.surface,
-                cornerRadius = 24.dp,
-                padding = 0.dp
-            ) {
-                Column {
-                    if (!cursorAvailable) {
-                        // Permission warning
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.errorContainer)
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            CircularAvatar(
-                                icon = Icons.Rounded.Warning,
-                                size = 40.dp,
-                                iconSize = 24.dp,
-                                backgroundColor = MaterialTheme.colorScheme.error.copy(alpha = 0.1f),
-                                iconTint = MaterialTheme.colorScheme.error
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Overlay or Accessibility required",
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onErrorContainer,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Text(
-                                    text = "Grant overlay permission or enable Accessibility Service to show the cursor",
-                                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f),
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                        }
-                        TextButton(
-                            onClick = onRequestOverlayPermission,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                        ) {
-                            Text("Grant Permission", color = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                    // Show Cursor toggle
-                    SettingsRow(
+            SectionHeader("Display")
+            if (!cursorAvailable) {
+                NoticeCard(
+                    icon = Icons.Rounded.Warning,
+                    title = "Overlay or Accessibility required",
+                    body = "Grant overlay permission or enable Accessibility Service to show the cursor",
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    action = {
+                        TextButton(onClick = onRequestOverlayPermission) { Text("Grant Permission") }
+                    },
+                )
+            }
+            SettingsGroup {
+                row { shapes ->
+                    SettingsSwitchRow(
                         icon = Icons.Rounded.Info,
                         title = "Show cursor overlay",
-                        subtitle = when {
-                            canDrawOverlays || accessibilityAvailable -> "Display cursor when active"
-                            else -> "Needs overlay permission or Accessibility"
-                        },
-                        trailingContent = {
-                            Switch(
-                                checked = showCursor,
-                                onCheckedChange = onShowCursorChange,
-                                enabled = cursorAvailable,
-                            )
-                        }
+                        subtitle = if (cursorAvailable) "Display cursor when active" else "Needs overlay permission or Accessibility",
+                        checked = showCursor,
+                        onCheckedChange = onShowCursorChange,
+                        enabled = cursorAvailable,
+                        shapes = shapes,
                     )
-                    if (showCursor && cursorAvailable) {
+                }
+                if (showCursor && cursorAvailable) {
+                    row { shapes ->
                         SettingsRow(
                             icon = Icons.Rounded.Edit,
                             title = "Cursor style",
                             subtitle = if (cursorStyle == "leaf") "Input Leaf custom" else "Android default",
+                            shapes = shapes,
                             onClick = { showCursorStyleDialog = true }
                         )
-                        if ((shizukuAvailable || rootGranted) &&
-                            (inputMethod == "auto" || inputMethod == "shizuku" || inputMethod == "root")
-                        ) {
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 6.dp)
-                                    .clip(RoundedCornerShape(12.dp)),
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Info,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "Cursor in notification panel",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = "Enable Accessibility Service for cursor visibility over the notification shade.",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-                        } else if (!accessibilityAvailable) {
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 6.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable {
-                                        try {
-                                            val intent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                            }
-                                            context.startActivity(intent)
-                                        } catch (_: Exception) {
-                                            Toast.makeText(context, "Unable to open Accessibility Settings", Toast.LENGTH_SHORT).show()
-                                        }
-                                    },
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Info,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "Cursor in notification panel",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = "Enable Accessibility Service for cursor visibility over the notification shade.",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                        }
                     }
-                    // Theme setting
-                    SettingsRow(
-                        icon = Icons.Rounded.Settings,
-                        title = "Theme",
-                        subtitle = when (themeMode) {
-                            "LIGHT" -> "Light"
-                            "DARK" -> "Dark"
-                            else -> "System default"
+                }
+                row { shapes ->
+                    SegmentedListItem(
+                        shapes = shapes,
+                        leadingContent = {
+                            CircularAvatar(
+                                icon = Icons.Rounded.Settings,
+                                size = 40.dp,
+                                iconSize = 22.dp,
+                                backgroundColor = MaterialTheme.colorScheme.secondaryContainer,
+                            )
                         },
-                        onClick = { showThemeDialog = true }
-                    )
+                        supportingContent = {
+                            ConnectedChoiceRow(
+                                options = listOf("SYSTEM" to "System", "LIGHT" to "Light", "DARK" to "Dark"),
+                                selected = themeMode,
+                                onSelect = onThemeModeChange,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        },
+                    ) {
+                        Text("Theme")
+                    }
                 }
             }
+            val usesPrivilegedInput = (shizukuAvailable || rootGranted) &&
+                (inputMethod == "auto" || inputMethod == "shizuku" || inputMethod == "root")
+            if (showCursor && cursorAvailable && (usesPrivilegedInput || !accessibilityAvailable)) {
+                val onAccessibilityShortcut: () -> Unit = {
+                    try {
+                        context.startActivity(
+                            Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    } catch (_: Exception) {
+                        Toast.makeText(context, "Unable to open Accessibility Settings", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                NoticeCard(
+                    icon = Icons.Rounded.Info,
+                    title = "Cursor in notification panel",
+                    body = "Enable Accessibility Service for cursor visibility over the notification shade.",
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    onClick = if (usesPrivilegedInput) null else onAccessibilityShortcut,
+                )
+            }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            SectionHeader("SECURITY")
-
-            GradientCard(
-                modifier = Modifier.fillMaxWidth(),
-                backgroundColor = MaterialTheme.colorScheme.surface,
-                cornerRadius = 24.dp,
-                padding = 0.dp
-            ) {
-                Column {
+            SectionHeader("Security")
+            SettingsGroup {
+                row { shapes ->
                     SettingsRow(
                         icon = Icons.Rounded.Badge,
                         title = "This device's fingerprint",
                         subtitle = clientCertificateSummary?.let { summary ->
-                            TlsFingerprintManager.formatFingerprint(summary.fingerprint.take(16)) +
-                                "…"
+                            TlsFingerprintManager.formatFingerprint(summary.fingerprint.take(16)) + "…"
                         } ?: "Creating a certificate for this device…",
+                        shapes = shapes,
                         onClick = { if (clientCertificateSummary != null) showLocalFingerprint = true },
                         trailingContent = {
                             IconButton(
                                 onClick = { showRegenerateConfirm = true },
                                 enabled = clientCertificateSummary != null,
                             ) {
-                                Icon(
-                                    Icons.Rounded.Refresh,
-                                    contentDescription = "Regenerate certificate",
-                                    tint = MaterialTheme.colorScheme.outline,
-                                )
+                                Icon(Icons.Rounded.Refresh, contentDescription = "Regenerate certificate")
                             }
                         }
                     )
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        thickness = 1.dp,
-                        modifier = Modifier.padding(start = 72.dp)
-                    )
-                    // Trusted servers header
+                }
+                row { shapes ->
                     SettingsRow(
                         icon = Icons.Rounded.Lock,
                         title = "Trusted servers",
                         subtitle = "${fingerprints.size} server${if (fingerprints.size != 1) "s" else ""}",
+                        shapes = shapes,
                     )
-                    // Server entries
-                    fingerprints.entries.forEachIndexed { index, (ip, fp) ->
-                        if (index > 0) {
-                            HorizontalDivider(
-                                color = MaterialTheme.colorScheme.outlineVariant,
-                                thickness = 1.dp,
-                                modifier = Modifier.padding(start = 72.dp)
-                            )
-                        }
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                }
+                fingerprints.forEach { (ip, fp) ->
+                    row { shapes ->
+                        SegmentedListItem(
+                            shapes = shapes,
+                            supportingContent = { Text(fp.take(16) + "...") },
+                            trailingContent = {
+                                IconButton(onClick = { onDeleteFingerprint(ip) }) {
+                                    Icon(Icons.Rounded.Delete, contentDescription = "Remove")
+                                }
+                            },
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = ip,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Text(
-                                    text = fp.take(16) + "...",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                            IconButton(onClick = { onDeleteFingerprint(ip) }) {
-                                Icon(
-                                    Icons.Rounded.Delete,
-                                    contentDescription = "Remove",
-                                    tint = MaterialTheme.colorScheme.outline
-                                )
-                            }
+                            Text(ip)
                         }
                     }
                 }
             }
-            
-            Spacer(modifier = Modifier.height(24.dp))
 
-            // About & Community Section
-            SectionHeader("ABOUT & COMMUNITY")
-
-            GradientCard(
-                modifier = Modifier.fillMaxWidth(),
-                backgroundColor = MaterialTheme.colorScheme.surface,
-                cornerRadius = 24.dp,
-                padding = 0.dp
-            ) {
-                Column {
-                    // App Info Header
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Image(
-                            painter = painterResource(id = com.inputleaf.android.R.drawable.ic_splash_logo),
-                            contentDescription = "Input Leaf Logo",
-                            modifier = Modifier
-                                .size(52.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            SectionHeader("About & Community")
+            SettingsGroup {
+                row { shapes ->
+                    SegmentedListItem(
+                        shapes = shapes,
+                        leadingContent = {
+                            Image(
+                                painter = painterResource(id = R.drawable.ic_splash_logo),
+                                contentDescription = "Input Leaf Logo",
+                                modifier = Modifier
+                                    .size(52.dp)
+                                    .clip(MaterialTheme.shapes.medium)
+                            )
+                        },
+                        supportingContent = { Text("Open-source Android client for Input Leap") },
+                        trailingContent = {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                shape = MaterialTheme.shapes.small,
                             ) {
                                 Text(
-                                    text = "Input Leaf",
-                                    fontWeight = FontWeight.Bold,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    text = "v$versionName",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                                 )
-                                Surface(
-                                    color = MaterialTheme.colorScheme.primaryContainer,
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Text(
-                                        text = "v$versionName",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
                             }
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "Open-source Android client for Input Leap",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        },
+                    ) {
+                        Text("Input Leaf", style = MaterialTheme.typography.titleMediumEmphasized)
                     }
-
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        thickness = 1.dp,
-                        modifier = Modifier.padding(start = 72.dp)
-                    )
-
-                    // Check for updates
+                }
+                row { shapes ->
                     SettingsRow(
                         icon = Icons.Rounded.Sync,
                         title = "Check for updates",
                         subtitle = if (isCheckingUpdate) "Checking latest release…" else "v$versionName · $installSourceLabel",
+                        shapes = shapes,
                         onClick = onCheckForUpdates,
                         trailingContent = if (isCheckingUpdate) {
-                            {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                            { LoadingIndicator(Modifier.size(32.dp)) }
                         } else null
                     )
-
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        thickness = 1.dp,
-                        modifier = Modifier.padding(start = 72.dp)
-                    )
-
-                    // GitHub Repository
+                }
+                row { shapes ->
                     SettingsRow(
-                        painter = painterResource(id = com.inputleaf.android.R.drawable.ic_brand_github),
+                        painter = painterResource(id = R.drawable.ic_brand_github),
                         title = "GitHub Repository",
                         subtitle = "anasvhora284/input-leaf",
+                        shapes = shapes,
                         onClick = { openUrl(context, "https://github.com/anasvhora284/input-leaf") }
                     )
-
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        thickness = 1.dp,
-                        modifier = Modifier.padding(start = 72.dp)
-                    )
-
-                    // Contributors
+                }
+                row { shapes ->
                     SettingsRow(
                         icon = Icons.Rounded.Group,
                         title = "Contributors",
                         subtitle = "View contributors on GitHub",
+                        shapes = shapes,
                         onClick = { openUrl(context, "https://github.com/anasvhora284/input-leaf/graphs/contributors") }
                     )
-
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        thickness = 1.dp,
-                        modifier = Modifier.padding(start = 72.dp)
-                    )
-
-                    // Report an Issue
+                }
+                row { shapes ->
                     SettingsRow(
                         icon = Icons.Rounded.BugReport,
                         title = "Report an Issue",
                         subtitle = "GitHub issues & feature requests",
+                        shapes = shapes,
                         onClick = { openUrl(context, "https://github.com/anasvhora284/input-leaf/issues") }
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Author Info Section
-            SectionHeader("DEVELOPER")
-
-            GradientCard(
-                modifier = Modifier.fillMaxWidth(),
-                backgroundColor = MaterialTheme.colorScheme.surface,
-                cornerRadius = 24.dp,
-                padding = 0.dp
-            ) {
-                Column {
+            SectionHeader("Developer")
+            SettingsGroup {
+                row { shapes ->
                     SettingsRow(
                         icon = Icons.Rounded.Person,
                         title = "Author Info",
                         subtitle = "Anas Vhora · Connect & Socials",
+                        shapes = shapes,
                         onClick = { showAuthorDialog = true }
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
-
-            // Made with love footer
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 24.dp),
+                    .padding(top = 20.dp, bottom = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = "Made with ",
                         style = MaterialTheme.typography.bodyMedium,
@@ -622,7 +396,7 @@ fun SettingsScreen(
                     Icon(
                         imageVector = Icons.Rounded.Favorite,
                         contentDescription = "Love",
-                        tint = Color(0xFFE11D48),
+                        tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
@@ -631,37 +405,18 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { openUrl(context, "https://github.com/anasvhora284") }) {
+                        Text("Anas Vhora")
+                    }
                     Text(
-                        text = "Anas Vhora",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        ),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .clickable { openUrl(context, "https://github.com/anasvhora284") }
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                    )
-                    Text(
-                        text = " & ",
+                        text = "&",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Text(
-                        text = "input-leaf contributors",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        ),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .clickable { openUrl(context, "https://github.com/anasvhora284/input-leaf/graphs/contributors") }
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                    )
+                    TextButton(onClick = { openUrl(context, "https://github.com/anasvhora284/input-leaf/graphs/contributors") }) {
+                        Text("input-leaf contributors")
+                    }
                 }
             }
         }
@@ -687,6 +442,7 @@ fun SettingsScreen(
     if (showRegenerateConfirm) {
         AlertDialog(
             onDismissRequest = { showRegenerateConfirm = false },
+            icon = { Icon(Icons.Rounded.Refresh, contentDescription = null) },
             title = { Text("Regenerate certificate?") },
             text = {
                 Text(
@@ -712,149 +468,54 @@ fun SettingsScreen(
         )
     }
 
-    if (showThemeDialog) {
-        AlertDialog(
-            onDismissRequest = { showThemeDialog = false },
-            title = { Text("Select Theme") },
-            text = {
-                Column {
-                    ThemeModeOption(
-                        text = "System default",
-                        selected = themeMode == "SYSTEM",
-                        onClick = {
-                            onThemeModeChange("SYSTEM")
-                            showThemeDialog = false
-                        }
-                    )
-                    ThemeModeOption(
-                        text = "Light",
-                        selected = themeMode == "LIGHT",
-                        onClick = {
-                            onThemeModeChange("LIGHT")
-                            showThemeDialog = false
-                        }
-                    )
-                    ThemeModeOption(
-                        text = "Dark",
-                        selected = themeMode == "DARK",
-                        onClick = {
-                            onThemeModeChange("DARK")
-                            showThemeDialog = false
-                        }
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showThemeDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
     if (showTransportPolicyDialog) {
-        AlertDialog(
-            onDismissRequest = { showTransportPolicyDialog = false },
-            title = { Text("Connection Security") },
-            text = {
-                Column {
-                    SettingsChoiceOption(
-                        text = "Auto (Recommended)",
-                        selected = connectionTransportPolicy == ConnectionTransportPolicy.AUTO,
-                        status = "Use the last working mode, with fallback",
-                        statusColor = Color.Gray,
-                        onClick = {
-                            onConnectionTransportPolicyChange(ConnectionTransportPolicy.AUTO)
-                            showTransportPolicyDialog = false
-                        }
-                    )
-                    SettingsChoiceOption(
-                        text = "TLS only",
-                        selected = connectionTransportPolicy == ConnectionTransportPolicy.TLS_ONLY,
-                        status = "Require an encrypted Deskflow connection",
-                        statusColor = Color.Gray,
-                        onClick = {
-                            onConnectionTransportPolicyChange(ConnectionTransportPolicy.TLS_ONLY)
-                            showTransportPolicyDialog = false
-                        }
-                    )
-                    SettingsChoiceOption(
-                        text = "Plain only",
-                        selected = connectionTransportPolicy == ConnectionTransportPolicy.PLAIN_ONLY,
-                        status = "Never attempt TLS",
-                        statusColor = Color.Gray,
-                        onClick = {
-                            onConnectionTransportPolicyChange(ConnectionTransportPolicy.PLAIN_ONLY)
-                            showTransportPolicyDialog = false
-                        }
-                    )
-                }
+        ChoiceDialog(
+            title = "Connection Security",
+            icon = Icons.Rounded.Lock,
+            options = listOf(
+                Choice(ConnectionTransportPolicy.AUTO, "Auto (Recommended)", "Use the last working mode, with fallback"),
+                Choice(ConnectionTransportPolicy.TLS_ONLY, "TLS only", "Require an encrypted Deskflow connection"),
+                Choice(ConnectionTransportPolicy.PLAIN_ONLY, "Plain only", "Never attempt TLS"),
+            ),
+            selected = connectionTransportPolicy,
+            onSelect = {
+                onConnectionTransportPolicyChange(it)
+                showTransportPolicyDialog = false
             },
-            confirmButton = {
-                TextButton(onClick = { showTransportPolicyDialog = false }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { showTransportPolicyDialog = false },
         )
     }
 
     if (showInputMethodDialog) {
-        AlertDialog(
-            onDismissRequest = { showInputMethodDialog = false },
-            title = { Text("Select Input Method") },
-            text = {
-                Column {
-                    SettingsChoiceOption(
-                        text = "Auto (Recommended)",
-                        selected = inputMethod == "auto",
-                        status = "Shizuku, then root, then Accessibility",
-                        statusColor = Color.Gray,
-                        onClick = {
-                            onInputMethodChange("auto")
-                            showInputMethodDialog = false
-                        }
-                    )
-                    SettingsChoiceOption(
-                        text = "Shizuku",
-                        selected = inputMethod == "shizuku",
-                        status = if (shizukuAvailable) "Available" else "Not running",
-                        statusColor = if (shizukuAvailable) Color(0xFF4CAF50) else Color.Red,
-                        onClick = {
-                            onInputMethodChange("shizuku")
-                            showInputMethodDialog = false
-                        }
-                    )
-                    SettingsChoiceOption(
-                        text = "Root",
-                        selected = inputMethod == "root",
-                        status = when {
-                            rootGranted -> "Granted"
-                            rootUsable -> "su available"
-                            else -> "Not available"
-                        },
-                        statusColor = if (rootUsable) Color(0xFF4CAF50) else Color.Red,
-                        onClick = {
-                            onInputMethodChange("root")
-                            showInputMethodDialog = false
-                        }
-                    )
-                    SettingsChoiceOption(
-                        text = "Accessibility Service",
-                        selected = inputMethod == "accessibility",
-                        status = if (accessibilityAvailable) "Enabled" else "Disabled",
-                        statusColor = if (accessibilityAvailable) Color(0xFF4CAF50) else Color.Red,
-                        onClick = {
-                            onInputMethodChange("accessibility")
-                            showInputMethodDialog = false
-                        }
-                    )
-                }
+        ChoiceDialog(
+            title = "Select Input Method",
+            icon = Icons.Rounded.Keyboard,
+            options = listOf(
+                Choice("auto", "Auto (Recommended)", "Shizuku, then root, then Accessibility"),
+                Choice("shizuku", "Shizuku", if (shizukuAvailable) "Available" else "Not running", available = shizukuAvailable),
+                Choice(
+                    "root",
+                    "Root",
+                    when {
+                        rootGranted -> "Granted"
+                        rootUsable -> "su available"
+                        else -> "Not available"
+                    },
+                    available = rootUsable,
+                ),
+                Choice(
+                    "accessibility",
+                    "Accessibility Service",
+                    if (accessibilityAvailable) "Enabled" else "Disabled",
+                    available = accessibilityAvailable,
+                ),
+            ),
+            selected = inputMethod,
+            onSelect = {
+                onInputMethodChange(it)
+                showInputMethodDialog = false
             },
-            confirmButton = {
-                TextButton(onClick = { showInputMethodDialog = false }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { showInputMethodDialog = false },
         )
     }
 
@@ -862,6 +523,7 @@ fun SettingsScreen(
         var newName by remember { mutableStateOf(screenName) }
         AlertDialog(
             onDismissRequest = { showEditNameDialog = false },
+            icon = { Icon(Icons.Rounded.Phone, contentDescription = null) },
             title = { Text("Screen Name") },
             text = {
                 OutlinedTextField(
@@ -896,141 +558,41 @@ fun SettingsScreen(
     if (showCursorStyleDialog) {
         AlertDialog(
             onDismissRequest = { showCursorStyleDialog = false },
-            title = {
-                Text(
-                    text = "Select Cursor Style",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            },
+            title = { Text("Select Cursor Style") },
             text = {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Option 1: Android Default
-                    Card(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(140.dp)
-                            .clickable {
-                                onCursorStyleChange("default")
-                                showCursorStyleDialog = false
-                            },
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (cursorStyle == "default")
-                                MaterialTheme.colorScheme.primaryContainer
-                            else
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                        ),
-                        border = if (cursorStyle == "default")
-                            BorderStroke(2.2.dp, MaterialTheme.colorScheme.primary)
-                        else
-                            null
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxSize().padding(12.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(64.dp)
-                                    .background(
-                                        color = Color.LightGray.copy(alpha = 0.2f),
-                                        shape = RoundedCornerShape(12.dp)
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Image(
-                                    painter = painterResource(id = com.inputleaf.android.R.drawable.ic_cursor_aosp),
-                                    contentDescription = "Default Cursor",
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .graphicsLayer(scaleX = 1f)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Default",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = if (cursorStyle == "default")
-                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                else
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    // Option 2: Input Leaf Custom
-                    Card(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(140.dp)
-                            .clickable {
-                                onCursorStyleChange("leaf")
-                                showCursorStyleDialog = false
-                            },
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (cursorStyle == "leaf")
-                                MaterialTheme.colorScheme.primaryContainer
-                            else
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                        ),
-                        border = if (cursorStyle == "leaf")
-                            BorderStroke(2.2.dp, MaterialTheme.colorScheme.primary)
-                        else
-                            null
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxSize().padding(12.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(64.dp)
-                                    .background(
-                                        brush = Brush.linearGradient(
-                                            colors = listOf(
-                                                Color(0xFF10B981).copy(alpha = 0.15f),
-                                                Color(0xFF34D399).copy(alpha = 0.15f)
-                                            )
-                                        ),
-                                        shape = RoundedCornerShape(12.dp)
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Image(
-                                    painter = painterResource(id = com.inputleaf.android.R.drawable.cursor),
-                                    contentDescription = "Leaf Cursor",
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .graphicsLayer(scaleX = -1f)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Input Leaf",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = if (cursorStyle == "leaf")
-                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                else
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
+                    CursorStyleCard(
+                        label = "Default",
+                        painter = painterResource(id = R.drawable.ic_cursor_aosp),
+                        mirrored = false,
+                        selected = cursorStyle == "default",
+                        onClick = {
+                            onCursorStyleChange("default")
+                            showCursorStyleDialog = false
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                    CursorStyleCard(
+                        label = "Input Leaf",
+                        painter = painterResource(id = R.drawable.cursor),
+                        mirrored = true,
+                        selected = cursorStyle == "leaf",
+                        onClick = {
+                            onCursorStyleChange("leaf")
+                            showCursorStyleDialog = false
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showCursorStyleDialog = false }) {
-                    Text("Close", color = MaterialTheme.colorScheme.primary)
+                    Text("Close")
                 }
             }
         )
@@ -1040,40 +602,17 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { showAuthorDialog = false },
             icon = {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .background(
-                            brush = Brush.linearGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)
-                                )
-                            ),
-                            shape = RoundedCornerShape(16.dp)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Person,
-                        contentDescription = "Author",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
+                CircularAvatar(
+                    icon = Icons.Rounded.Person,
+                    size = 56.dp,
+                    iconSize = 32.dp,
+                    backgroundColor = MaterialTheme.colorScheme.primaryContainer,
+                    shape = MaterialShapes.Cookie9Sided.toShape(),
+                )
             },
             title = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Anas Vhora",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Anas Vhora")
                     Text(
                         text = "Developer & Maintainer",
                         style = MaterialTheme.typography.bodySmall,
@@ -1082,170 +621,209 @@ fun SettingsScreen(
                 }
             },
             text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Personal Website
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .clickable { openUrl(context, "https://anasvhora.tech") },
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                val links = listOf(
+                    AuthorLink("Personal Website", "anasvhora.tech", "https://anasvhora.tech", icon = Icons.Rounded.Language),
+                    AuthorLink(
+                        "LinkedIn",
+                        "Anas Vhora",
+                        "https://www.linkedin.com/in/anas-vhora-28455a1a1/",
+                        painter = painterResource(id = R.drawable.ic_brand_linkedin),
+                    ),
+                    AuthorLink(
+                        "GitHub",
+                        "anasvhora284",
+                        "https://github.com/anasvhora284",
+                        painter = painterResource(id = R.drawable.ic_brand_github),
+                    ),
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+                    links.forEachIndexed { index, link ->
+                        SegmentedListItem(
+                            onClick = { openUrl(context, link.url) },
+                            shapes = ListItemDefaults.segmentedShapes(index, links.size),
+                            leadingContent = {
+                                if (link.icon != null) {
+                                    Icon(link.icon, contentDescription = link.title)
+                                } else if (link.painter != null) {
+                                    Icon(link.painter, contentDescription = link.title)
+                                }
+                            },
+                            supportingContent = { Text(link.subtitle) },
+                            trailingContent = {
+                                Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null)
+                            },
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Language,
-                                contentDescription = "Website",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Personal Website",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "anasvhora.tech",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-
-                    // LinkedIn Profile
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .clickable { openUrl(context, "https://www.linkedin.com/in/anas-vhora-28455a1a1/") },
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            Icon(
-                                painter = painterResource(id = com.inputleaf.android.R.drawable.ic_brand_linkedin),
-                                contentDescription = "LinkedIn",
-                                tint = Color(0xFF0A66C2),
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "LinkedIn",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Anas Vhora",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-
-                    // GitHub Profile
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .clickable { openUrl(context, "https://github.com/anasvhora284") },
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            Icon(
-                                painter = painterResource(id = com.inputleaf.android.R.drawable.ic_brand_github),
-                                contentDescription = "GitHub",
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "GitHub",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "anasvhora284",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.size(18.dp)
-                            )
+                            Text(link.title)
                         }
                     }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showAuthorDialog = false }) {
-                    Text("Close", color = MaterialTheme.colorScheme.primary)
+                    Text("Close")
                 }
             }
         )
     }
 }
 
+private class AuthorLink(
+    val title: String,
+    val subtitle: String,
+    val url: String,
+    val icon: ImageVector? = null,
+    val painter: Painter? = null,
+)
+
+private class Choice<T>(val value: T, val label: String, val status: String, val available: Boolean? = null)
+
 @Composable
-private fun SettingsChoiceOption(
-    text: String,
-    selected: Boolean,
-    status: String,
-    statusColor: Color,
-    onClick: () -> Unit
+private fun <T> ChoiceDialog(
+    title: String,
+    icon: ImageVector,
+    options: List<Choice<T>>,
+    selected: T,
+    onSelect: (T) -> Unit,
+    onDismiss: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        RadioButton(
-            selected = selected,
-            onClick = onClick
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(icon, contentDescription = null) },
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+                options.forEachIndexed { index, option ->
+                    SegmentedListItem(
+                        selected = option.value == selected,
+                        onClick = { onSelect(option.value) },
+                        shapes = ListItemDefaults.segmentedShapes(index, options.size),
+                        leadingContent = {
+                            RadioButton(selected = option.value == selected, onClick = null)
+                        },
+                        supportingContent = {
+                            Text(
+                                text = option.status,
+                                color = when (option.available) {
+                                    true -> MaterialTheme.colorScheme.primary
+                                    false -> MaterialTheme.colorScheme.error
+                                    null -> Color.Unspecified
+                                },
+                            )
+                        },
+                    ) {
+                        Text(option.label)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun NoticeCard(
+    icon: ImageVector,
+    title: String,
+    body: String,
+    containerColor: Color,
+    onClick: (() -> Unit)? = null,
+    action: (@Composable () -> Unit)? = null,
+) {
+    val colors = CardDefaults.cardColors(
+        containerColor = containerColor,
+        contentColor = contentColorFor(containerColor),
+    )
+    val content: @Composable ColumnScope.() -> Unit = {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(icon, contentDescription = null)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall)
+                Text(body, style = MaterialTheme.typography.bodySmall)
+            }
+            if (onClick != null) {
+                Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null)
+            }
+        }
+        if (action != null) {
+            Box(Modifier.padding(start = 8.dp, bottom = 8.dp)) { action() }
+        }
+    }
+    if (onClick != null) {
+        Card(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            colors = colors,
+            content = content,
         )
-        Spacer(modifier = Modifier.width(8.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = text, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                text = status,
-                color = statusColor,
-                style = MaterialTheme.typography.bodySmall
-            )
+    } else {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            colors = colors,
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun CursorStyleCard(
+    label: String,
+    painter: Painter,
+    mirrored: Boolean,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedCard(
+        onClick = onClick,
+        modifier = modifier.height(140.dp),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = if (selected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            },
+        ),
+        border = if (selected) {
+            BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+        } else {
+            CardDefaults.outlinedCardBorder()
+        },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Surface(
+                modifier = Modifier.size(64.dp),
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Image(
+                        painter = painter,
+                        contentDescription = "$label Cursor",
+                        modifier = Modifier
+                            .size(36.dp)
+                            .graphicsLayer(scaleX = if (mirrored) -1f else 1f)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = label, style = MaterialTheme.typography.labelLargeEmphasized)
         }
     }
 }

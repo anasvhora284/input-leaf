@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Keyboard
@@ -38,7 +38,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.inputleaf.android.R
@@ -81,7 +80,7 @@ fun OnboardingScreen(
                         modifier = Modifier
                             .padding(horizontal = 4.dp)
                             .size(if (index == currentPage) 24.dp else 8.dp, 8.dp)
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(CircleShape)
                             .background(
                                 if (index <= currentPage) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.outlineVariant
@@ -163,8 +162,7 @@ private fun PermissionMethodsPage(
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = "Choose an input method",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.headlineSmallEmphasized,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
@@ -209,8 +207,7 @@ private fun WelcomePage() {
 
         Text(
             text = "Welcome to Input Leaf",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.headlineMediumEmphasized,
             textAlign = TextAlign.Center
         )
 
@@ -227,7 +224,7 @@ private fun WelcomePage() {
 
         Surface(
             color = MaterialTheme.colorScheme.secondaryContainer,
-            shape = RoundedCornerShape(16.dp)
+            shape = MaterialTheme.shapes.extraLarge
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 FeatureItem(Icons.Rounded.Mouse, "Mouse sharing", "Move your cursor from your PC to your phone")
@@ -256,19 +253,16 @@ private fun FeatureItem(icon: ImageVector, title: String, description: String) {
             imageVector = icon,
             contentDescription = null,
             modifier = Modifier.size(24.dp),
-            tint = MaterialTheme.colorScheme.onSecondaryContainer
         )
         Spacer(modifier = Modifier.width(12.dp))
         Column {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold
+                style = MaterialTheme.typography.bodyMediumEmphasized,
             )
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

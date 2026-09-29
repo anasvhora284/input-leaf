@@ -15,19 +15,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.toShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun PermissionCard(
     icon: ImageVector,
@@ -44,36 +46,30 @@ fun PermissionCard(
         animationSpec = tween(300),
         label = "bg_color",
     )
+    val contentColor by animateColorAsState(
+        targetValue = if (isGranted) MaterialTheme.colorScheme.onTertiaryContainer
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+        animationSpec = tween(300),
+        label = "content_color",
+    )
     val avatarBgColor by animateColorAsState(
         targetValue = if (isGranted) MaterialTheme.colorScheme.tertiary
-            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f),
+            else MaterialTheme.colorScheme.secondaryContainer,
         animationSpec = tween(300),
         label = "avatar_bg_color",
     )
     val iconTintColor by animateColorAsState(
         targetValue = if (isGranted) MaterialTheme.colorScheme.onTertiary
-            else MaterialTheme.colorScheme.onSurfaceVariant,
+            else MaterialTheme.colorScheme.onSecondaryContainer,
         animationSpec = tween(300),
         label = "icon_tint_color",
-    )
-    val titleColor by animateColorAsState(
-        targetValue = if (isGranted) MaterialTheme.colorScheme.onTertiaryContainer
-            else MaterialTheme.colorScheme.onSurfaceVariant,
-        animationSpec = tween(300),
-        label = "title_color",
-    )
-    val descColor by animateColorAsState(
-        targetValue = if (isGranted) MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
-            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-        animationSpec = tween(300),
-        label = "desc_color",
     )
 
     Card(
         onClick = onRequestPermission,
         modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = bgColor),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = bgColor, contentColor = contentColor),
     ) {
         Row(
             modifier = Modifier
@@ -88,19 +84,11 @@ fun PermissionCard(
                 iconSize = 24.dp,
                 backgroundColor = avatarBgColor,
                 iconTint = iconTintColor,
+                shape = if (isGranted) MaterialShapes.Cookie9Sided.toShape() else MaterialShapes.Circle.toShape(),
             )
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    fontWeight = FontWeight.SemiBold,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = titleColor,
-                )
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = descColor,
-                )
+                Text(text = title, style = MaterialTheme.typography.titleSmall)
+                Text(text = description, style = MaterialTheme.typography.bodySmall)
                 AnimatedVisibility(
                     visible = !isGranted,
                     enter = fadeIn() + expandVertically(),
@@ -109,10 +97,6 @@ fun PermissionCard(
                     Button(
                         onClick = onRequestPermission,
                         modifier = Modifier.padding(top = 12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                        ),
                     ) {
                         Text(buttonLabel)
                     }

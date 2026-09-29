@@ -42,7 +42,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.inputleaf.android.ui.PermissionMethod
 import com.inputleaf.android.ui.PermissionMethodAccordionState
@@ -175,7 +174,7 @@ private fun PermissionMethodSection(
     val stateLabel = if (expanded) "expanded" else "collapsed"
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface,
         ),
@@ -199,12 +198,10 @@ private fun PermissionMethodSection(
                     size = 40.dp,
                     iconSize = 22.dp,
                     backgroundColor = MaterialTheme.colorScheme.secondaryContainer,
-                    iconTint = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = title,
-                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
                         style = MaterialTheme.typography.titleSmall,
                     )
@@ -249,7 +246,7 @@ private fun RootUnavailableCard(status: RootStatus) {
     }
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
         ),
@@ -260,13 +257,11 @@ private fun RootUnavailableCard(status: RootStatus) {
                     icon = Icons.Rounded.Warning,
                     size = 40.dp,
                     iconSize = 24.dp,
-                    backgroundColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f),
-                    iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    backgroundColor = MaterialTheme.colorScheme.secondaryContainer,
                 )
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
                     text = title,
-                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.titleSmall,
                 )

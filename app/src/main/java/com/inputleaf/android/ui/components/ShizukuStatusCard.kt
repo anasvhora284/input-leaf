@@ -15,19 +15,21 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.toShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.inputleaf.android.ui.ShizukuStatus
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ShizukuStatusCard(
     status: ShizukuStatus,
@@ -45,9 +47,10 @@ fun ShizukuStatusCard(
                     }
                 },
                 modifier = modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
+                shape = MaterialTheme.shapes.large,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
                 ),
             ) {
                 Row(
@@ -62,28 +65,19 @@ fun ShizukuStatusCard(
                         size = 48.dp,
                         iconSize = 28.dp,
                         backgroundColor = MaterialTheme.colorScheme.tertiary,
-                        iconTint = MaterialTheme.colorScheme.onTertiary
+                        iconTint = MaterialTheme.colorScheme.onTertiary,
+                        shape = MaterialShapes.Cookie9Sided.toShape(),
                     )
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Shizuku Ready",
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer,
-                            style = MaterialTheme.typography.titleSmall
-                        )
+                        Text(text = "Shizuku Ready", style = MaterialTheme.typography.titleSmall)
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Input injection enabled",
-                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f),
-                            style = MaterialTheme.typography.bodySmall
-                        )
+                        Text(text = "Input injection enabled", style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
         }
         else -> {
             val icon: ImageVector?
-            val color: Color
             val title: String
             val description: String
             val actionLabel: String?
@@ -91,11 +85,11 @@ fun ShizukuStatusCard(
 
             when (status) {
                 ShizukuStatus.CHECKING -> {
-                    icon = null; color = MaterialTheme.colorScheme.onSurfaceVariant; title = "Checking Shizuku..."
+                    icon = null; title = "Checking Shizuku..."
                     description = ""; actionLabel = null; action = null
                 }
                 ShizukuStatus.NOT_INSTALLED -> {
-                    icon = Icons.Rounded.Warning; color = MaterialTheme.colorScheme.secondary
+                    icon = Icons.Rounded.Warning
                     title = "Shizuku Not Installed"
                     description = "Install Shizuku, or grant root on a rooted device, to enable system-level mouse and keyboard."
                     actionLabel = "Install Shizuku"
@@ -105,7 +99,7 @@ fun ShizukuStatusCard(
                     }
                 }
                 ShizukuStatus.NOT_RUNNING -> {
-                    icon = Icons.Rounded.Warning; color = MaterialTheme.colorScheme.secondary
+                    icon = Icons.Rounded.Warning
                     title = "Shizuku Not Running"
                     description = "Open Shizuku and start it via Wireless Debugging (Android 11+) or ADB. Rooted devices can grant su instead."
                     actionLabel = "Open Shizuku"
@@ -116,7 +110,7 @@ fun ShizukuStatusCard(
                     }
                 }
                 ShizukuStatus.PERMISSION_REQUIRED -> {
-                    icon = Icons.Rounded.Warning; color = MaterialTheme.colorScheme.secondary
+                    icon = Icons.Rounded.Warning
                     title = "Permission Required"
                     description = "Grant Input Leaf permission to use Shizuku, or grant root, for system-level input."
                     actionLabel = "Grant Permission"; action = onRequestPermission
@@ -125,7 +119,7 @@ fun ShizukuStatusCard(
             
             Card(
                 modifier = modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
+                shape = MaterialTheme.shapes.large,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                 ),
@@ -137,14 +131,12 @@ fun ShizukuStatusCard(
                                 icon = icon,
                                 size = 40.dp,
                                 iconSize = 24.dp,
-                                backgroundColor = color.copy(alpha = 0.1f),
-                                iconTint = color
+                                backgroundColor = MaterialTheme.colorScheme.secondaryContainer,
                             )
                             Spacer(modifier = Modifier.width(16.dp))
                         }
                         Text(
                             text = title,
-                            fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface,
                             style = MaterialTheme.typography.titleSmall
                         )
@@ -160,7 +152,7 @@ fun ShizukuStatusCard(
                     if (actionLabel != null && action != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         TextButton(onClick = action) {
-                            Text(actionLabel, color = MaterialTheme.colorScheme.primary)
+                            Text(actionLabel)
                         }
                     }
                 }
