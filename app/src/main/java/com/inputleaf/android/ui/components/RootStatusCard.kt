@@ -7,10 +7,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Security
+import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -32,15 +35,17 @@ fun RootStatusCard(
     when (status) {
         RootStatus.MISSING, RootStatus.CHECKING -> return
         RootStatus.GRANTED -> {
-            GradientCard(
+            Card(
                 modifier = modifier.fillMaxWidth(),
-                backgroundColor = MaterialTheme.colorScheme.tertiaryContainer,
-                cornerRadius = 24.dp,
-                elevation = 0.dp,
-                padding = 20.dp,
+                shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                ),
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
@@ -70,7 +75,7 @@ fun RootStatusCard(
         }
         RootStatus.AVAILABLE, RootStatus.DENIED -> {
             val icon: ImageVector = if (status == RootStatus.DENIED) {
-                Icons.Default.Warning
+                Icons.Rounded.Warning
             } else {
                 Icons.Rounded.Security
             }
@@ -81,14 +86,14 @@ fun RootStatusCard(
             } else {
                 "Grant the su prompt to use the system cursor and physical HID keyboard without Shizuku."
             }
-            GradientCard(
+            Card(
                 modifier = modifier.fillMaxWidth(),
-                backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
-                cornerRadius = 24.dp,
-                elevation = 0.dp,
-                padding = 20.dp,
+                shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                ),
             ) {
-                Column {
+                Column(modifier = Modifier.padding(20.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularAvatar(
                             icon = icon,

@@ -2,12 +2,22 @@ package com.inputleaf.android.ui.components
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material3.*
+import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,7 +26,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.inputleaf.android.ui.MainViewModel
 import com.inputleaf.android.ui.ShizukuStatus
 
 @Composable
@@ -29,19 +38,22 @@ fun ShizukuStatusCard(
     
     when (status) {
         ShizukuStatus.READY -> {
-            GradientCard(
-                modifier = modifier.fillMaxWidth().clickable {
+            Card(
+                onClick = {
                     context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")?.let {
                         context.startActivity(it)
                     }
                 },
-                backgroundColor = MaterialTheme.colorScheme.tertiaryContainer,
-                cornerRadius = 24.dp,
-                elevation = 0.dp,
-                padding = 20.dp
+                modifier = modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                ),
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
@@ -83,7 +95,7 @@ fun ShizukuStatusCard(
                     description = ""; actionLabel = null; action = null
                 }
                 ShizukuStatus.NOT_INSTALLED -> {
-                    icon = Icons.Default.Warning; color = MaterialTheme.colorScheme.secondary
+                    icon = Icons.Rounded.Warning; color = MaterialTheme.colorScheme.secondary
                     title = "Shizuku Not Installed"
                     description = "Install Shizuku, or grant root on a rooted device, to enable system-level mouse and keyboard."
                     actionLabel = "Install Shizuku"
@@ -93,7 +105,7 @@ fun ShizukuStatusCard(
                     }
                 }
                 ShizukuStatus.NOT_RUNNING -> {
-                    icon = Icons.Default.Warning; color = MaterialTheme.colorScheme.secondary
+                    icon = Icons.Rounded.Warning; color = MaterialTheme.colorScheme.secondary
                     title = "Shizuku Not Running"
                     description = "Open Shizuku and start it via Wireless Debugging (Android 11+) or ADB. Rooted devices can grant su instead."
                     actionLabel = "Open Shizuku"
@@ -104,25 +116,21 @@ fun ShizukuStatusCard(
                     }
                 }
                 ShizukuStatus.PERMISSION_REQUIRED -> {
-                    icon = Icons.Default.Warning; color = MaterialTheme.colorScheme.secondary
+                    icon = Icons.Rounded.Warning; color = MaterialTheme.colorScheme.secondary
                     title = "Permission Required"
                     description = "Grant Input Leaf permission to use Shizuku, or grant root, for system-level input."
                     actionLabel = "Grant Permission"; action = onRequestPermission
                 }
-                else -> {
-                    icon = null; color = MaterialTheme.colorScheme.onSurfaceVariant; title = "Unknown"
-                    description = ""; actionLabel = null; action = null
-                }
             }
             
-            GradientCard(
+            Card(
                 modifier = modifier.fillMaxWidth(),
-                backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
-                cornerRadius = 24.dp,
-                elevation = 0.dp,
-                padding = 20.dp
+                shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                ),
             ) {
-                Column {
+                Column(modifier = Modifier.padding(20.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (icon != null) {
                             CircularAvatar(

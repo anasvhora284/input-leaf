@@ -7,7 +7,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,6 +16,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -68,17 +69,16 @@ fun PermissionCard(
         label = "desc_color",
     )
 
-    GradientCard(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable { onRequestPermission() },
-        backgroundColor = bgColor,
-        cornerRadius = 24.dp,
-        elevation = 0.dp,
-        padding = 20.dp,
+    Card(
+        onClick = onRequestPermission,
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = bgColor),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -93,6 +93,7 @@ fun PermissionCard(
                 Text(
                     text = title,
                     fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleSmall,
                     color = titleColor,
                 )
                 Text(

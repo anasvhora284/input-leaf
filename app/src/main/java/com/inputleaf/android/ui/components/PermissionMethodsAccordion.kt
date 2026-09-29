@@ -16,12 +16,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.rounded.Accessibility
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.FlashOn
 import androidx.compose.material.icons.rounded.Security
+import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -134,7 +136,7 @@ fun PermissionMethodsAccordion(
                 onRequestPermission = onRequestAccessibilityService,
             )
             PermissionCard(
-                icon = Icons.Default.Warning,
+                icon = Icons.Rounded.Warning,
                 title = "Virtual Keyboard",
                 description = "Required for hardware shortcuts like Ctrl+C without Shizuku or root",
                 buttonLabel = "Select Keyboard",
@@ -142,7 +144,7 @@ fun PermissionMethodsAccordion(
                 onRequestPermission = onRequestImeSetup,
             )
             PermissionCard(
-                icon = Icons.Default.Warning,
+                icon = Icons.Rounded.Warning,
                 title = "Overlay Permission",
                 description = "Required to show cursor overlay",
                 isGranted = canDrawOverlays,
@@ -151,7 +153,7 @@ fun PermissionMethodsAccordion(
         }
 
         PermissionCard(
-            icon = Icons.Default.Warning,
+            icon = Icons.Rounded.Warning,
             title = "Battery Optimization",
             description = "Go to: Battery usage → Allow background activity",
             buttonLabel = "Open App Info",
@@ -171,12 +173,12 @@ private fun PermissionMethodSection(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val stateLabel = if (expanded) "expanded" else "collapsed"
-    GradientCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        backgroundColor = MaterialTheme.colorScheme.surface,
-        cornerRadius = 24.dp,
-        elevation = 0.dp,
-        padding = 0.dp,
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+        ),
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
@@ -245,17 +247,17 @@ private fun RootUnavailableCard(status: RootStatus) {
     } else {
         "No su binary was found. You can still use Shizuku or Accessibility."
     }
-    GradientCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
-        cornerRadius = 24.dp,
-        elevation = 0.dp,
-        padding = 20.dp,
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
     ) {
-        Column {
+        Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CircularAvatar(
-                    icon = Icons.Default.Warning,
+                    icon = Icons.Rounded.Warning,
                     size = 40.dp,
                     iconSize = 24.dp,
                     backgroundColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f),
