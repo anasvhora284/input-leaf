@@ -1,6 +1,7 @@
 package com.inputleaf.android.service
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.core.app.ApplicationProvider
@@ -16,6 +17,7 @@ import com.inputleaf.android.testutil.enterFrame
 import com.inputleaf.android.testutil.isExpectedPlainProbeTermination
 import com.inputleaf.android.testutil.keepAliveFrame
 import com.inputleaf.android.testutil.keyDownFrame
+import com.inputleaf.android.testutil.leaveFrame
 import com.inputleaf.android.testutil.mouseMoveAbsFrame
 import com.inputleaf.android.testutil.mouseMoveRelFrame
 import com.inputleaf.android.testutil.performServerHandshake
@@ -97,6 +99,13 @@ class ConnectionServiceLifecycleTest {
                 writeFrame(output, mouseMoveRelFrame(4, -6))
                 writeFrame(output, keyDownFrame(key = 97))
                 Thread.sleep(150)
+                // Leave is debounced: the Idle transition and the HID-leave effects run
+                // once the window wins; Enter then brings the pointer back before the
+                // connection ends abruptly.
+                writeFrame(output, leaveFrame())
+                Thread.sleep(600)
+                writeFrame(output, enterFrame())
+                Thread.sleep(150)
                 socket.close() // abrupt end → unexpected-disconnect → retry
             } catch (failure: Exception) {
                 if (!isExpectedPlainProbeTermination(failure)) throw failure
@@ -111,6 +120,24 @@ class ConnectionServiceLifecycleTest {
                 awaitState(service, 20_000) { it is ConnectionState.Active }
 
                 service.setCursorOverlayEnabled(true)
+
+                // Runtime preference toggles drive the mouse/keyboard enablement collect
+                // lambdas (and their HID attach gating) while the session is live.
+                val appContext = ApplicationProvider.getApplicationContext<Context>()
+                runBlocking {
+                    appContext.dataStore.edit {
+                        it[booleanPreferencesKey("mouse_enabled")] = false
+                        it[booleanPreferencesKey("keyboard_enabled")] = false
+                    }
+                }
+                Thread.sleep(200)
+                runBlocking {
+                    appContext.dataStore.edit {
+                        it[booleanPreferencesKey("mouse_enabled")] = true
+                        it[booleanPreferencesKey("keyboard_enabled")] = true
+                    }
+                }
+                Thread.sleep(200)
 
                 awaitState(service, 20_000) { it is ConnectionState.Disconnected }
                 // The retry fires after ~1s and reconnects.
@@ -252,6 +279,47 @@ class ConnectionServiceLifecycleTest {
                 service.disconnect()
                 Thread.sleep(2_500)
                 assertThat(service.state.value).isEqualTo(ConnectionState.Disconnected)
+            }
+        }
+    }
+
+    @Test
+    fun hidMouseIdleDetachFiresWhileTheSessionStaysAlive() {
+        LoopbackServer(
+            connectionCount = 11,
+            serverSocket = boundLoopbackSocket(),
+        ) { socket, _ ->
+            try {
+                performServerHandshake(socket)
+                Thread.sleep(500)
+                val output = DataOutputStream(socket.outputStream)
+                writeFrame(output, enterFrame())
+                Thread.sleep(500)
+                writeFrame(output, leaveFrame())
+                // Heartbeat faster than the client's 5s keepalive poll so the session
+                // stays healthy while the 30s HID-mouse idle detach window elapses.
+                repeat(10) {
+                    Thread.sleep(4_000)
+                    writeFrame(output, keepAliveFrame())
+                }
+            } catch (failure: Exception) {
+                if (!isExpectedPlainProbeTermination(failure)) throw failure
+            } finally {
+                runCatching { socket.close() }
+            }
+        }.use { _ ->
+            val (binding, service) = boundService()
+            binding.use {
+                service.connect(serverIp = "127.0.0.1", screenName = "smoke", force = true)
+                awaitState(service, 20_000) { it is ConnectionState.Active }
+                // The debounced Leave wins first (back to Idle); then the HID-mouse
+                // idle detach fires on its own timer. Detaching the mouse must not
+                // disturb the still-healthy session or its state.
+                awaitState(service, 10_000) { it is ConnectionState.Idle }
+                Thread.sleep(35_000)
+                assertThat(service.state.value).isEqualTo(ConnectionState.Idle("127.0.0.1", "smoke"))
+                service.disconnect()
+                awaitState(service, 10_000) { it is ConnectionState.Disconnected }
             }
         }
     }
