@@ -1,6 +1,7 @@
 package com.inputleaf.android.service
 
 import android.content.Context
+import android.content.res.Configuration
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.core.app.ApplicationProvider
@@ -160,6 +161,12 @@ class ConnectionServiceLifecycleTest {
                 // dispatched through routeInput → dispatchInput to the live injector; this
                 // both proves routing ran and fails loudly if a route is ever dropped.
                 awaitCall(second, "send")
+
+                // A configuration change during a live session evaluates the connection
+                // gate's Idle/Active check for real (a null connection short-circuits it);
+                // with unchanged bounds it stays a no-op and must not disturb the session.
+                service.onConfigurationChanged(Configuration())
+                assertThat(service.state.value).isNotInstanceOf(ConnectionState.Disconnected::class.java)
 
                 awaitState(service, 20_000) { it is ConnectionState.Disconnected }
                 // The retry fires after ~1s and reconnects.

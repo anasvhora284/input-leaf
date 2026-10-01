@@ -1,6 +1,7 @@
 package com.inputleaf.android.service
 
 import android.content.Context
+import android.content.res.Configuration
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
@@ -36,6 +37,21 @@ class ConnectionServiceTest {
                 (binding.awaitBinder() as ConnectionService.LocalBinder).getService()
 
             service.disconnect()
+
+            assertThat(service.state.value).isEqualTo(ConnectionState.Disconnected)
+        }
+    }
+
+    @Test
+    fun configurationChangeOnIdleServiceIsHandledWithoutCrash() {
+        ServiceBinding(context, ConnectionService::class.java).use { binding ->
+            val service =
+                (binding.awaitBinder() as ConnectionService.LocalBinder).getService()
+
+            // onConfigurationChanged evaluates the connection-state gate before its
+            // bounds-equality early return; with no live connection it must be a no-op
+            // that leaves the idle service untouched rather than throwing.
+            service.onConfigurationChanged(Configuration())
 
             assertThat(service.state.value).isEqualTo(ConnectionState.Disconnected)
         }

@@ -684,6 +684,11 @@ class ConnectionService : Service() {
         val bounds = getScreenBounds()
         val w = bounds.width()
         val h = bounds.height()
+        // The connection-state read is side-effect-free and independent of the new bounds,
+        // so compute it before the bounds-equality early return.
+        val connected = connection != null && coordinator.state.value.let {
+            it is ConnectionState.Idle || it is ConnectionState.Active
+        }
         if (w == screenWidth && h == screenHeight) return
         Log.i(TAG, "Screen bounds changed ${screenWidth}x$screenHeight -> ${w}x$h")
         screenWidth = w
@@ -691,9 +696,6 @@ class ConnectionService : Service() {
         currentMouseX = currentMouseX.coerceIn(0f, w.toFloat())
         currentMouseY = currentMouseY.coerceIn(0f, h.toFloat())
         injector?.updateScreenSize(w, h)
-        val connected = connection != null && coordinator.state.value.let {
-            it is ConnectionState.Idle || it is ConnectionState.Active
-        }
         if (connected) {
             infoAckPending = true
             connection?.sendDataInfo(w, h, currentMouseX.toInt(), currentMouseY.toInt())
