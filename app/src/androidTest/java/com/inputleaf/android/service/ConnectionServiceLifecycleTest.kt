@@ -20,6 +20,7 @@ import com.inputleaf.android.testutil.keyDownFrame
 import com.inputleaf.android.testutil.leaveFrame
 import com.inputleaf.android.testutil.mouseMoveAbsFrame
 import com.inputleaf.android.testutil.mouseMoveRelFrame
+import com.inputleaf.android.testutil.RecordingInputInjector
 import com.inputleaf.android.testutil.performServerHandshake
 import com.inputleaf.android.testutil.readFrame
 import com.inputleaf.android.testutil.writeFrame
@@ -72,6 +73,19 @@ class ConnectionServiceLifecycleTest {
         throw AssertionError("State did not satisfy predicate within ${timeoutMs} ms; last=$last")
     }
 
+    private fun awaitCall(
+        injector: RecordingInputInjector,
+        call: String,
+        timeoutMs: Long = 3_000,
+    ) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (injector.calls.contains(call)) return
+            Thread.sleep(25)
+        }
+        throw AssertionError("injector never recorded '$call'; calls=${injector.calls}")
+    }
+
     private fun setTransportPolicyTlsOnly() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         runBlocking {
@@ -116,8 +130,22 @@ class ConnectionServiceLifecycleTest {
             assertThat(server.port).isEqualTo(24800)
             val (binding, service) = boundService()
             binding.use {
+                // Install an injector before connect so the Enter/move/leave effects the
+                // session drives reach a real object instead of a null-safe no-op.
+                val first = RecordingInputInjector()
+                service.setInjector(first)
                 service.connect(serverIp = "127.0.0.1", screenName = "smoke", force = true)
                 awaitState(service, 20_000) { it is ConnectionState.Active }
+
+                // The Enter above routed a HID-mouse enter to the installed injector.
+                awaitCall(first, "onHidMouseEnter")
+                // Swapping injectors while the pointer is on screen exercises the swap
+                // cleanup (old injector disconnected) and the pointer-on-screen re-attach
+                // branch that only runs when a live cursor is present.
+                val second = RecordingInputInjector()
+                service.setInjector(second)
+                assertThat(first.calls).contains("disconnect")
+                awaitCall(second, "setHidMouseAttached:true")
 
                 service.setCursorOverlayEnabled(true)
 
