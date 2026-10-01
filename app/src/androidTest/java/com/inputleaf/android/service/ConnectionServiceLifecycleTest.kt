@@ -1,7 +1,6 @@
 package com.inputleaf.android.service
 
 import android.content.Context
-import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.core.app.ApplicationProvider
@@ -22,6 +21,7 @@ import com.inputleaf.android.testutil.mouseMoveAbsFrame
 import com.inputleaf.android.testutil.mouseMoveRelFrame
 import com.inputleaf.android.testutil.RecordingInputInjector
 import com.inputleaf.android.testutil.performServerHandshake
+import com.inputleaf.android.testutil.queryInfoFrame
 import com.inputleaf.android.testutil.readFrame
 import com.inputleaf.android.testutil.writeFrame
 import java.io.DataInputStream
@@ -109,8 +109,15 @@ class ConnectionServiceLifecycleTest {
                 writeFrame(output, enterFrame())
                 Thread.sleep(150)
                 writeFrame(output, keepAliveFrame())
+                // Mid-session QINF: the client answers with a DINF, driving the event
+                // loop's QueryInfo arm (the handshake QINF is consumed inside connect()).
+                writeFrame(output, queryInfoFrame())
+                // Space input frames so the client dispatches each route before the next;
+                // a burst drains faster than the IO loop routes and can drop routeInput.
                 writeFrame(output, mouseMoveAbsFrame(120, 80))
+                Thread.sleep(120)
                 writeFrame(output, mouseMoveRelFrame(4, -6))
+                Thread.sleep(120)
                 writeFrame(output, keyDownFrame(key = 97))
                 Thread.sleep(150)
                 // Leave is debounced: the Idle transition and the HID-leave effects run
@@ -149,23 +156,10 @@ class ConnectionServiceLifecycleTest {
 
                 service.setCursorOverlayEnabled(true)
 
-                // Runtime preference toggles drive the mouse/keyboard enablement collect
-                // lambdas (and their HID attach gating) while the session is live.
-                val appContext = ApplicationProvider.getApplicationContext<Context>()
-                runBlocking {
-                    appContext.dataStore.edit {
-                        it[booleanPreferencesKey("mouse_enabled")] = false
-                        it[booleanPreferencesKey("keyboard_enabled")] = false
-                    }
-                }
-                Thread.sleep(200)
-                runBlocking {
-                    appContext.dataStore.edit {
-                        it[booleanPreferencesKey("mouse_enabled")] = true
-                        it[booleanPreferencesKey("keyboard_enabled")] = true
-                    }
-                }
-                Thread.sleep(200)
+                // The mouse/key frames sent above arrive while routing is enabled and are
+                // dispatched through routeInput → dispatchInput to the live injector; this
+                // both proves routing ran and fails loudly if a route is ever dropped.
+                awaitCall(second, "send")
 
                 awaitState(service, 20_000) { it is ConnectionState.Disconnected }
                 // The retry fires after ~1s and reconnects.

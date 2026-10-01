@@ -83,6 +83,12 @@ internal fun enterFrame(): ByteArray = tagFrame(ProtocolConstants.TAG_ENTER, Byt
 
 internal fun keepAliveFrame(): ByteArray = tagFrame(ProtocolConstants.TAG_KEEPALIVE)
 
+/**
+ * A post-handshake QINF the server can push mid-session; the client answers with a DINF,
+ * exercising the event loop's QueryInfo branch (the handshake QINF is consumed inside connect).
+ */
+internal fun queryInfoFrame(): ByteArray = tagFrame(ProtocolConstants.TAG_QUERY_INFO)
+
 internal fun leaveFrame(): ByteArray = tagFrame(ProtocolConstants.TAG_LEAVE)
 
 /** MouseMoveAbs payload: x(2) y(2). */
