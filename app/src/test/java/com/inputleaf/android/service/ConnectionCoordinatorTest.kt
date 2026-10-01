@@ -143,10 +143,22 @@ class ConnectionCoordinatorTest {
         coordinator.onConnected(generation, "server", "phone")
 
         assertThat(coordinator.onEvent(generation, InputLeapEvent.Enter(1, 2, 3, 0)))
-            .containsExactly(ConnectionCoordinator.Effect.ShowCursor)
+            .containsExactly(
+                ConnectionCoordinator.Effect.UpdatePointerSpeed,
+                ConnectionCoordinator.Effect.HidMouseEnter(1, 2),
+                ConnectionCoordinator.Effect.ApplyCursor,
+                ConnectionCoordinator.Effect.AttachInputDevices,
+            ).inOrder()
         assertThat(coordinator.state.value).isEqualTo(ConnectionState.Active("server", "phone"))
+        // Leave is debounced by the Service, so the coordinator reports the side effects
+        // without transitioning; the Idle transition happens when the debounced onLeave fires.
         assertThat(coordinator.onEvent(generation, InputLeapEvent.Leave))
-            .containsExactly(ConnectionCoordinator.Effect.HideCursor)
+            .containsExactly(
+                ConnectionCoordinator.Effect.HidMouseLeave,
+                ConnectionCoordinator.Effect.ScheduleLeave,
+            ).inOrder()
+        assertThat(coordinator.state.value).isEqualTo(ConnectionState.Active("server", "phone"))
+        coordinator.onLeave()
         assertThat(coordinator.state.value).isEqualTo(ConnectionState.Idle("server", "phone"))
 
         val mouseEvents = listOf(
@@ -218,8 +230,17 @@ class ConnectionCoordinatorTest {
 
         assertThat(coordinator.setMouseEnabled(false))
             .containsExactly(ConnectionCoordinator.Effect.HideCursor)
+        assertThat(coordinator.isMouseEnabled()).isFalse()
         assertThat(coordinator.onEvent(generation, move)).isEmpty()
-        assertThat(coordinator.onEvent(generation, InputLeapEvent.Enter(0, 0, 1, 0))).isEmpty()
+        // Enter still fires its HID side effects while the mouse is disabled; only
+        // movement routing is gated, and AttachInputDevices decides the mouse stays off.
+        assertThat(coordinator.onEvent(generation, InputLeapEvent.Enter(0, 0, 1, 0)))
+            .containsAtLeast(
+                ConnectionCoordinator.Effect.UpdatePointerSpeed,
+                ConnectionCoordinator.Effect.HidMouseEnter(0, 0),
+            ).inOrder()
         assertThat(coordinator.setMouseEnabled(true)).isEmpty()
+        assertThat(coordinator.isMouseEnabled()).isTrue()
+        assertThat(coordinator.isKeyboardEnabled()).isTrue()
     }
 }
