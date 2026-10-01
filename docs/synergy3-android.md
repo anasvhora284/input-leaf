@@ -88,6 +88,11 @@ its screen identity and position.
 4. In **Trust This Server?**, verify the server fingerprint before accepting it.
 5. Move the desktop pointer across the configured edge to enter Android.
 
+Manually added, used, and favorited server addresses survive app restarts,
+including when auto-connect is disabled. Addresses stored by older builds in
+favorites and connection records are restored where possible. Scan results alone
+are not saved unless the server is added, used, or favorited.
+
 ## Verify the server fingerprint
 
 On the Mac being connected to, open **Synergy Settings → Security** under the

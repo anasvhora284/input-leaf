@@ -45,6 +45,12 @@ enum class ThemeMode {
 
 private const val MAX_CLIENT_CERTIFICATE_BYTES = 16 * 1024 * 1024
 
+internal fun mergeServerLists(savedAddresses: Set<String>, discovered: List<ServerInfo>): List<ServerInfo> {
+    val servers = savedAddresses.sorted().associateWith { ServerInfo(ip = it) }.toMutableMap()
+    discovered.forEach { servers[it.ip] = it }
+    return servers.values.toList()
+}
+
 internal fun connectionFailureMessage(
     reason: ConnectResult.FailureReason,
     detail: String? = null,
@@ -101,7 +107,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val pendingConnectIp: StateFlow<String?> = _pendingConnectIp
 
     private val _discoveredServers = MutableStateFlow<List<ServerInfo>>(emptyList())
-    val discoveredServers: StateFlow<List<ServerInfo>> = _discoveredServers
+    val discoveredServers: StateFlow<List<ServerInfo>> =
+        combine(prefs.savedServers, _discoveredServers, ::mergeServerLists)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _errorState = MutableStateFlow<String?>(null)
     val errorState: StateFlow<String?> = _errorState
@@ -547,10 +555,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun addManualServer(ip: String) {
         val trimmed = ip.trim()
         if (isValidServerAddress(trimmed)) {
-            _discoveredServers.update { currentServers ->
-                val existing = currentServers.filter { it.ip != trimmed }
-                existing + ServerInfo(ip = trimmed)
-            }
+            viewModelScope.launch { prefs.saveServer(trimmed) }
         }
     }
 
