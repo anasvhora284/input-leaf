@@ -2,6 +2,7 @@ package com.inputleaf.android.network
 
 import com.google.common.truth.Truth.assertThat
 import com.inputleaf.android.model.InputLeapEvent
+import com.inputleaf.android.model.WireProtocol
 import com.inputleaf.android.protocol.ProtocolConstants
 import com.inputleaf.android.testutil.ClientCertificateTestFixture
 import com.inputleaf.android.testutil.LOOPBACK_HOST
@@ -36,6 +37,100 @@ import javax.net.ssl.X509TrustManager
 private const val TEST_TIMEOUT_MS = 5_000L
 
 class InputLeapConnectionTest {
+    @Test fun `Synergy server uses its own magic while negotiating protocol 1_6`() = runBlocking {
+        LoopbackServer { socket, _ ->
+            performServerHandshake(socket, serverMinor = 8, protocol = WireProtocol.SYNERGY)
+        }.use { server ->
+            connection(server.port, transportPolicy = ConnectionTransportPolicy.PLAIN_ONLY)
+                .useConnection { connection ->
+                    assertThat(connection.connect("android", 1920, 1080)).isEqualTo(
+                        ConnectResult.Ok(InputLeapConnection.ServerBanner(1, 8), ServerTransport.PLAIN)
+                    )
+                }
+        }
+    }
+
+    @Test fun `Synergy mTLS accepts a registered phone and forwards signed relative motion`() = runBlocking {
+        val material = ClientCertificateTestFixture.material()
+        val identity = TestTlsIdentity.create(trustClientCertificates = true)
+        val ready = CompletableDeferred<Unit>()
+        val sent = CompletableDeferred<Unit>()
+        try {
+            TlsLoopbackServer(identity.context, requireClientAuth = true) { socket, _ ->
+                socket.startHandshake()
+                performServerHandshake(socket, serverMinor = 8, protocol = WireProtocol.SYNERGY)
+                ready.awaitBlocking()
+                writeFrame(
+                    DataOutputStream(socket.outputStream),
+                    "DMRM".toByteArray() + byteArrayOf(-1, -12, 0, 34),
+                )
+                sent.awaitBlocking()
+            }.use { server ->
+                connection(
+                    server.port,
+                    transportPolicy = ConnectionTransportPolicy.TLS_ONLY,
+                    clientCertificate = material,
+                ).useConnection { connection ->
+                    assertThat(connection.connect("android", 1920, 1080)).isEqualTo(
+                        ConnectResult.Ok(InputLeapConnection.ServerBanner(1, 8), ServerTransport.TLS)
+                    )
+                    val event = async(start = CoroutineStart.UNDISPATCHED) {
+                        withTimeout(TEST_TIMEOUT_MS) { connection.events.first() }
+                    }
+                    ready.complete(Unit)
+                    try {
+                        assertThat(event.await()).isEqualTo(InputLeapEvent.MouseMoveRel(-12, 34))
+                    } finally {
+                        sent.complete(Unit)
+                    }
+                }
+            }
+        } finally {
+            ready.complete(Unit)
+            sent.complete(Unit)
+            material.clear()
+        }
+    }
+
+    @Test fun `unregistered Synergy screens and bad messages fail immediately without retry`() = runBlocking {
+        for ((tag, reason) in listOf(
+            "EUNK" to ConnectResult.FailureReason.UNKNOWN_SCREEN,
+            "EBAD" to ConnectResult.FailureReason.PROTOCOL_ERROR,
+        )) {
+            LoopbackServer { socket, _ ->
+                val input = DataInputStream(socket.inputStream)
+                val output = DataOutputStream(socket.outputStream)
+                writeFrame(output, helloBody(8, WireProtocol.SYNERGY))
+                assertClientHello(readFrame(input), "android", 6, WireProtocol.SYNERGY)
+                writeFrame(output, "QINF".toByteArray())
+                assertThat(String(readFrame(input), 0, 4, Charsets.US_ASCII)).isEqualTo("DINF")
+                writeFrame(output, "CIAK".toByteArray())
+                writeFrame(output, tag.toByteArray())
+                // Wait for the client to close, rather than EOF masking the server's refusal.
+                assertThat(input.read()).isEqualTo(-1)
+            }.use { server ->
+                connection(server.port, transportPolicy = ConnectionTransportPolicy.PLAIN_ONLY)
+                    .useConnection { connection ->
+                        assertFailureReason(connection.connect("android", 1920, 1080), reason)
+                    }
+            }
+            assertThat(ConnectionTransportPolicy.AUTO.shouldRetry(reason)).isFalse()
+            assertThat(ConnectionTransportPolicy.AUTO.shouldFallbackWithinAttempt(reason)).isFalse()
+        }
+    }
+
+    @Test fun `unsupported major version is rejected before sending client data`() = runBlocking {
+        LoopbackServer { socket, _ ->
+            writeFrame(DataOutputStream(socket.outputStream), "Synergy".toByteArray() + byteArrayOf(0, 2, 0, 0))
+            assertThat(socket.inputStream.read()).isEqualTo(-1)
+        }.use { server ->
+            connection(server.port, transportPolicy = ConnectionTransportPolicy.PLAIN_ONLY)
+                .useConnection { connection ->
+                    assertFailureReason(connection.connect("android", 1920, 1080), ConnectResult.FailureReason.INCOMPATIBLE)
+                }
+        }
+    }
+
     @Test fun `plain handshake returns the server banner and selected transport`() = runBlocking {
         LoopbackServer { socket, _ ->
             performServerHandshake(socket, expectedName = "pixel", expectedWidth = 1080, expectedHeight = 2400)
@@ -411,6 +506,7 @@ class InputLeapConnectionTest {
             writeFrame(output, "CALV".toByteArray())
             assertThat(String(readFrame(input))).isEqualTo("CALV")
             writeFrame(output, "CIAK".toByteArray())
+            writeFrame(output, "DSOP".toByteArray() + byteArrayOf(0, 0, 0, 0))
         }.use { server ->
             connection(
                 server.port,
@@ -432,7 +528,6 @@ class InputLeapConnectionTest {
                 DataOutputStream(socket.outputStream),
                 "DMDN".toByteArray() + byteArrayOf(3),
             )
-            socket.inputStream.read()
         }.use { server ->
             connection(
                 server.port,
@@ -573,7 +668,7 @@ class InputLeapConnectionTest {
         }
     }
 
-    @Test fun `reset options completes the handshake after DINF`() = runBlocking {
+    @Test fun `reset options followed by DSOP completes the handshake`() = runBlocking {
         LoopbackServer { socket, _ ->
             val input = DataInputStream(socket.inputStream)
             val output = DataOutputStream(socket.outputStream)
@@ -582,6 +677,7 @@ class InputLeapConnectionTest {
             writeFrame(output, "QINF".toByteArray())
             readFrame(input)
             writeFrame(output, "CROP".toByteArray())
+            writeFrame(output, "DSOP".toByteArray() + byteArrayOf(0, 0, 0, 0))
             runCatching { socket.inputStream.read() }
         }.use { server ->
             connection(
@@ -595,7 +691,7 @@ class InputLeapConnectionTest {
         }
     }
 
-    @Test fun `LSYN completes the handshake after DINF`() = runBlocking {
+    @Test fun `LSYN followed by DSOP completes the handshake`() = runBlocking {
         LoopbackServer { socket, _ ->
             val input = DataInputStream(socket.inputStream)
             val output = DataOutputStream(socket.outputStream)
@@ -604,6 +700,7 @@ class InputLeapConnectionTest {
             writeFrame(output, "QINF".toByteArray())
             readFrame(input)
             writeFrame(output, "LSYN".toByteArray())
+            writeFrame(output, "DSOP".toByteArray() + byteArrayOf(0, 0, 0, 0))
             runCatching { socket.inputStream.read() }
         }.use { server ->
             connection(
@@ -616,7 +713,7 @@ class InputLeapConnectionTest {
         }
     }
 
-    @Test fun `hello and DINF without CIAK complete a lenient handshake`() = runBlocking {
+    @Test fun `keepalives alone cannot make an incomplete handshake succeed`() = runBlocking {
         LoopbackServer { socket, _ ->
             val input = DataInputStream(socket.inputStream)
             val output = DataOutputStream(socket.outputStream)
@@ -635,8 +732,7 @@ class InputLeapConnectionTest {
                 transportPolicy = ConnectionTransportPolicy.PLAIN_ONLY,
                 preferredTransport = ServerTransport.PLAIN,
             ).useConnection { connection ->
-                assertThat(connection.connect("android", 1920, 1080))
-                    .isInstanceOf(ConnectResult.Ok::class.java)
+                assertFailureReason(connection.connect("android", 1920, 1080), ConnectResult.FailureReason.HANDSHAKE)
             }
         }
     }
@@ -664,7 +760,6 @@ class InputLeapConnectionTest {
                 DataOutputStream(socket.outputStream),
                 "DMMV".toByteArray() + byteArrayOf(0, 1, 0, 2),
             )
-            socket.inputStream.read()
         }.use { server ->
             connection(
                 server.port,
@@ -1047,11 +1142,12 @@ internal fun performServerHandshake(
     expectedHeight: Int = 1080,
     serverMinor: Int = ProtocolConstants.PROTOCOL_MINOR,
     expectedClientMinor: Int = ProtocolConstants.negotiateMinor(serverMinor),
+    protocol: WireProtocol = WireProtocol.BARRIER,
 ) {
     val input = DataInputStream(socket.inputStream)
     val output = DataOutputStream(socket.outputStream)
-    writeFrame(output, helloBody(serverMinor))
-    assertClientHello(readFrame(input), expectedName, expectedClientMinor)
+    writeFrame(output, helloBody(serverMinor, protocol))
+    assertClientHello(readFrame(input), expectedName, expectedClientMinor, protocol)
     writeFrame(output, "QINF".toByteArray())
     val info = readFrame(input)
     assertThat(String(info, 0, 4)).isEqualTo("DINF")
@@ -1061,16 +1157,19 @@ internal fun performServerHandshake(
     assertThat(data.readUnsignedShort()).isEqualTo(expectedWidth)
     assertThat(data.readUnsignedShort()).isEqualTo(expectedHeight)
     writeFrame(output, "CIAK".toByteArray())
+    writeFrame(output, "CROP".toByteArray())
+    writeFrame(output, "DSOP".toByteArray() + byteArrayOf(0, 0, 0, 0))
 }
 
 internal fun assertClientHello(
     hello: ByteArray,
     expectedName: String,
     expectedMinor: Int,
+    protocol: WireProtocol = WireProtocol.BARRIER,
 ) {
     val input = DataInputStream(hello.inputStream())
     assertThat(ByteArray(7).also { input.readFully(it) }.toString(Charsets.US_ASCII))
-        .isEqualTo("Barrier")
+        .isEqualTo(protocol.magic)
     assertThat(input.readUnsignedShort()).isEqualTo(ProtocolConstants.PROTOCOL_MAJOR)
     assertThat(input.readUnsignedShort()).isEqualTo(expectedMinor)
     val nameLength = input.readInt()
@@ -1082,9 +1181,10 @@ internal fun assertClientHello(
 
 internal fun helloBody(
     minor: Int = ProtocolConstants.PROTOCOL_MINOR,
+    protocol: WireProtocol = WireProtocol.BARRIER,
 ): ByteArray = java.io.ByteArrayOutputStream().also { bytes ->
     DataOutputStream(bytes).use {
-        it.write("Barrier".toByteArray())
+        it.write(protocol.magic.toByteArray())
         it.writeShort(ProtocolConstants.PROTOCOL_MAJOR)
         it.writeShort(minor)
     }

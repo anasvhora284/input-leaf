@@ -81,6 +81,13 @@ When your mouse crosses the configured border of your desktop monitor, the serve
 
 ## Quick Start
 
+### Synergy 3 (experimental)
+
+For a Mac running **Synergy 3.7.2**, use the [Synergy 3 setup guide](docs/synergy3-android.md).
+It covers screen registration, TLS fingerprints, and Shizuku setup. Compatibility
+has been tested on a Pixel 10 with a macOS server; other Synergy versions and
+platforms remain unverified.
+
 ### 1. Install Server on your PC
 Download and install either:
 - **[Input Leap Releases](https://github.com/input-leap/input-leap/releases)** (Windows, macOS, Linux), or

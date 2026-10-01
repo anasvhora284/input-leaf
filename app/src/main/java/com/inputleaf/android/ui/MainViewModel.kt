@@ -49,19 +49,23 @@ internal fun connectionFailureMessage(
     reason: ConnectResult.FailureReason,
     detail: String? = null,
 ): String = when (reason) {
-    ConnectResult.FailureReason.NETWORK -> "Could not reach the Deskflow server"
+    ConnectResult.FailureReason.NETWORK -> "Could not reach the server"
     ConnectResult.FailureReason.TLS_AGAINST_PLAIN_SERVER ->
-        "Server is not using TLS. Select Auto or Plain only, or enable TLS in Deskflow."
+        "Server is not using TLS. Select Auto or Plain only, or enable TLS on the server."
     ConnectResult.FailureReason.CERTIFICATE_MISMATCH ->
-        "Deskflow's TLS certificate changed. Remove the trusted server only if you expect this."
+        "The server's TLS certificate changed. Remove the trusted server only if you expect this."
     ConnectResult.FailureReason.CLIENT_CERT_REQUIRED ->
-        "Deskflow is asking to trust this phone. Open Settings, compare the fingerprint, and accept it in Deskflow."
+        "The server requires a trusted client certificate. Compare this device’s fingerprint in Settings with the server’s trusted clients."
     ConnectResult.FailureReason.HANDSHAKE ->
-        "Deskflow handshake failed on the selected transport"
+        "Server handshake failed on the selected transport"
     ConnectResult.FailureReason.INCOMPATIBLE ->
-        detail ?: "Deskflow rejected this client's protocol version"
+        detail ?: "The server rejected this client's protocol version"
     ConnectResult.FailureReason.BUSY ->
-        "This screen name is already connected to Deskflow"
+        "This screen name is already connected to the server"
+    ConnectResult.FailureReason.UNKNOWN_SCREEN ->
+        "Screen name is not registered on the server. For Synergy 3, use the core screen name shown by the setup helper."
+    ConnectResult.FailureReason.PROTOCOL_ERROR ->
+        "The server rejected a protocol message"
 }
 
 internal fun clientCertificateImportError(

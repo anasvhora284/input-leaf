@@ -685,7 +685,7 @@ fun SettingsScreen(
             title = { Text("Regenerate certificate?") },
             text = {
                 Text(
-                    "Deskflow will ask you to trust this phone again. Only regenerate if you " +
+                    "You will need to trust this phone again on your server. Only regenerate if you " +
                         "want a new identity."
                 )
             },
@@ -766,7 +766,7 @@ fun SettingsScreen(
                     SettingsChoiceOption(
                         text = "TLS only",
                         selected = connectionTransportPolicy == ConnectionTransportPolicy.TLS_ONLY,
-                        status = "Require an encrypted Deskflow connection",
+                        status = "Require an encrypted server connection",
                         statusColor = Color.Gray,
                         onClick = {
                             onConnectionTransportPolicyChange(ConnectionTransportPolicy.TLS_ONLY)
