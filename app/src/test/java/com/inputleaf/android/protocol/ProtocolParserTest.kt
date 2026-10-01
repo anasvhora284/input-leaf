@@ -139,6 +139,24 @@ class ProtocolParserTest {
             .isEqualTo(InputLeapEvent.MouseWheel(-2, 32767))
     }
 
+    @Test fun `Synergy relative mouse deltas are signed 16-bit values`() {
+        for ((dx, dy) in listOf(-1 to 1, -32768 to 32767, 0 to -120)) {
+            assertThat(parse("DMRM", u16(dx) + u16(dy)))
+                .isEqualTo(InputLeapEvent.MouseMoveRel(dx, dy))
+        }
+        val parser = ProtocolParser(ByteArrayInputStream(
+            frameOf("DMRM", u16(-12) + u16(34)) + frameOf("CALV")
+        ))
+        assertThat(parser.readNext()).isEqualTo(InputLeapEvent.MouseMoveRel(-12, 34))
+        assertThat(parser.readNext()).isEqualTo(InputLeapEvent.KeepAlive)
+    }
+
+    @Test fun `rejects malformed relative mouse packets`() {
+        for (length in listOf(0, 1, 2, 3, 5, 6, 7, 9)) {
+            assertThrows(ProtocolException::class.java) { parse("DMRM", ByteArray(length)) }
+        }
+    }
+
     @Test fun `parses server error messages and unknown tags`() {
         assertThat(parse("EICV", u16(1) + u16(7))).isEqualTo(InputLeapEvent.Incompatible(1, 7))
         assertThat(parse("EBSY")).isEqualTo(InputLeapEvent.Busy)

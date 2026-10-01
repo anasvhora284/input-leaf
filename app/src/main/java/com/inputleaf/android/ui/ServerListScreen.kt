@@ -89,12 +89,12 @@ fun ServerListScreen(
                 }
             }
 
-            // Discovered servers
+            // Saved and discovered servers that are not favorites
             item {
                 ListItem(
                     headlineContent = {
                         Text(
-                            "Discovered Servers",
+                            "Other Servers",
                             style = MaterialTheme.typography.titleMedium
                         )
                     }
@@ -126,7 +126,7 @@ fun ServerListScreen(
                         contentAlignment = androidx.compose.ui.Alignment.Center
                     ) {
                         Text(
-                            text = "No servers found. Try scanning again.",
+                            text = "No servers yet. Add one manually or scan your network.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

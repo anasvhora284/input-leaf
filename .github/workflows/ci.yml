@@ -43,6 +43,9 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6.3.0
 
+      - name: Test Synergy setup helper
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/tests -v
+
       - name: Run fast JVM tests and generate coverage
         run: ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest :koverXmlReportDebugJvm
 

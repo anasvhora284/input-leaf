@@ -178,6 +178,7 @@ class ShizukuInputInjector(
     }
 
     override fun disconnect() {
+        scanCodeDecoder.clearPressedKeys()
         if (isBound || service != null) {
             try {
                 runCatching { service?.releaseHidKeys() }
@@ -199,6 +200,7 @@ class ShizukuInputInjector(
     }
 
     override fun setHidKeyboardAttached(attached: Boolean) {
+        if (!attached) scanCodeDecoder.clearPressedKeys()
         val svc = service ?: return
         try {
             if (attached) {
@@ -541,7 +543,7 @@ class ShizukuInputInjector(
         button: Int,
         isDown: Boolean,
     ) {
-        val scancode = scanCodeDecoder.toEvdev(button, keysym)
+        val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown)
         if (scancode != 0 && svc.injectHidKey(scancode, isDown)) {
             return
         }
@@ -585,7 +587,7 @@ class ShizukuInputInjector(
         button: Int,
         count: Int,
     ) {
-        val scancode = scanCodeDecoder.toEvdev(button, keysym)
+        val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown = true)
         if (scancode != 0 && svc.injectHidKey(scancode, true)) {
             return
         }

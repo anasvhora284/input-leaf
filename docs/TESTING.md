@@ -96,3 +96,14 @@ The initial baseline was verified with JDK 17 and Android SDK 34 when the fast C
 The `android-coverage` CI job verifies on the API 36 emulator that `:app:createDebugCoverageReport` passes and runs the service and onboarding smoke tests added with that job.
 
 Before making changes, run the complete fast suite and treat failures as real regressions or document them explicitly. Do not skip, mute, or retry failing tests merely to produce a green build. GitHub Actions retains available test reports when either CI job fails.
+
+## Synergy 3 compatibility
+
+Synergy handshake, TLS, relative-motion, and Mac keycode regression tests run in
+the normal JVM suite. The optional `Synergy3LiveTest` is skipped unless explicitly
+configured; see [the Synergy 3 guide](synergy3-android.md#development-and-reproduction).
+The desktop registration helper uses Python's standard-library test runner:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/tests -v
+```

@@ -254,7 +254,8 @@ class InputLeapConnection(
 
     /**
      * Run the Input Leap handshake synchronously before returning.
-     * Matches schengen client: server hello → client hello → QINF → DINF → LSYN/CIAK/CROP/DSOP.
+     * Server hello → client hello → QINF → DINF → CIAK → CROP → DSOP.
+     * DSOP confirms acceptance; CIAK alone may still be followed by a refusal.
      */
     private fun runHandshake(
         rawSocket: Socket,
@@ -273,7 +274,7 @@ class InputLeapConnection(
 
         var helloSent = false
         var dinfSent = false
-        var sawPostDinf = false
+        var optionsReceived = false
         var bannerMajor = ProtocolConstants.PROTOCOL_MAJOR
         var bannerMinor = ProtocolConstants.PROTOCOL_MINOR
 
@@ -285,6 +286,13 @@ class InputLeapConnection(
                     is InputLeapEvent.Hello -> {
                         bannerMajor = event.majorVersion
                         bannerMinor = event.minorVersion
+                        if (event.majorVersion != ProtocolConstants.PROTOCOL_MAJOR) {
+                            close()
+                            return ConnectResult.Failed(
+                                ConnectResult.FailureReason.INCOMPATIBLE,
+                                "Unsupported server protocol ${event.majorVersion}.${event.minorVersion}",
+                            )
+                        }
                         if (!helloSent) {
                             val negotiatedProtocol = event.protocol
                             val negotiatedMinor =
@@ -310,12 +318,11 @@ class InputLeapConnection(
                     is InputLeapEvent.KeepAlive -> {
                         writer?.writeKeepAlive()
                     }
-                    is InputLeapEvent.ResetOptions -> {
-                        if (dinfSent) sawPostDinf = true
-                    }
                     is InputLeapEvent.Unhandled -> {
                         when (event.tag) {
-                            "CIAK", "CROP", "DSOP", "LSYN" -> if (dinfSent) sawPostDinf = true
+                            // CIAK only acknowledges dimensions. Synergy can still send
+                            // EUNK after it; DSOP is the server's session acceptance.
+                            "DSOP" -> if (dinfSent) optionsReceived = true
                         }
                     }
                     is InputLeapEvent.Incompatible -> {
@@ -331,9 +338,17 @@ class InputLeapConnection(
                         close()
                         return ConnectResult.Failed(ConnectResult.FailureReason.BUSY)
                     }
+                    is InputLeapEvent.Unknown -> {
+                        close()
+                        return ConnectResult.Failed(ConnectResult.FailureReason.UNKNOWN_SCREEN)
+                    }
+                    is InputLeapEvent.BadMessage -> {
+                        close()
+                        return ConnectResult.Failed(ConnectResult.FailureReason.PROTOCOL_ERROR)
+                    }
                     else -> Unit
                 }
-                if (helloSent && dinfSent && sawPostDinf) {
+                if (helloSent && dinfSent && optionsReceived) {
                     rawSocket.soTimeout = 0
                     readJob = readerScope.launch { readLoop(parser) }
                     logD("Handshake complete via $transport")
@@ -346,15 +361,7 @@ class InputLeapConnection(
             return ConnectResult.Failed(ConnectResult.FailureReason.HANDSHAKE, e.message)
         }
 
-        // Lenient: some servers omit LSYN/CIAK/CROP/DSOP but accept DINF.
-        if (helloSent && dinfSent) {
-            rawSocket.soTimeout = 0
-            readJob = readerScope.launch { readLoop(parser) }
-            logD("Handshake complete (lenient) via $transport")
-            return ConnectResult.Ok(ServerBanner(bannerMajor, bannerMinor), transport)
-        }
-
-        logE("Handshake incomplete hello=$helloSent dinf=$dinfSent post=$sawPostDinf")
+        logE("Handshake incomplete hello=$helloSent dinf=$dinfSent options=$optionsReceived")
         close()
         return ConnectResult.Failed(
             ConnectResult.FailureReason.HANDSHAKE,
@@ -424,6 +431,8 @@ class InputLeapConnection(
             ConnectResult.FailureReason.CERTIFICATE_MISMATCH,
             ConnectResult.FailureReason.CLIENT_CERT_REQUIRED,
             ConnectResult.FailureReason.INCOMPATIBLE,
+            ConnectResult.FailureReason.UNKNOWN_SCREEN,
+            ConnectResult.FailureReason.PROTOCOL_ERROR,
             ConnectResult.FailureReason.BUSY -> 4
             ConnectResult.FailureReason.NETWORK -> 3
             ConnectResult.FailureReason.HANDSHAKE -> 2
