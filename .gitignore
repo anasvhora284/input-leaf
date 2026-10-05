@@ -50,3 +50,5 @@ coverage/
 # Track GSD planning docs despite global *.md ignore
 !.planning/
 !.planning/**
+!.planning/*.md
+!.planning/**/*.md
