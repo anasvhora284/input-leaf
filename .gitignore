@@ -46,3 +46,7 @@ Codecov_files/
 coverage/
 *.exec
 *.ec
+
+# Track GSD planning docs despite global *.md ignore
+!.planning/
+!.planning/**
