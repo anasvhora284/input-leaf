@@ -33,7 +33,10 @@ coverage:
 ignore:
   - "app/src/main/java/com/inputleaf/android/ui/**"
   - "app/src/main/java/com/inputleaf/android/service/**"
-  - "app/src/main/java/com/inputleaf/android/shizuku/**"
+  - "app/src/main/java/com/inputleaf/android/shizuku/InputInjectorService.kt"
+  - "app/src/main/java/com/inputleaf/android/shizuku/ShizukuInputInjector.kt"
+  - "app/src/main/java/com/inputleaf/android/shizuku/InputInjectorProcess.kt"
+  - "app/src/main/java/com/inputleaf/android/shizuku/ShizukuAvailability.kt"
   - "app/src/main/java/com/inputleaf/android/InputLeafApplication.kt"
   - "app/src/main/java/com/inputleaf/android/inject/AccessibilityInputService.kt"
   - "app/src/main/java/com/inputleaf/android/inject/AccessibilityInputInjector.kt"

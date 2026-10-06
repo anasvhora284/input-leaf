@@ -44,7 +44,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v6.3.0
 
       - name: Run fast JVM tests and generate coverage
-        run: ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest :koverXmlReportDebugJvm
+        run: ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest :koverXmlReportDebugJvm :koverVerifyDebugJvm
 
       # Lines with no JaCoCo counters are Codecov skipped coverage (-1). See codecov.yml.
       - name: Skip JaCoCo lines with no instructions
