@@ -29,7 +29,7 @@ class UhidChannelReadinessTest {
 
         fun sleep(ms: Long) {
             nowNanos += TimeUnit.MILLISECONDS.toNanos(ms)
-            Thread.sleep(1) // let the real reader thread drain the pipe
+            Thread.yield() // let the real reader thread drain the pipe
         }
 
         fun elapsedMs(): Long = TimeUnit.NANOSECONDS.toMillis(nowNanos)
