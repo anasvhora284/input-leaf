@@ -7,9 +7,9 @@
 
 ### Kernel & UHID Stability
 
-- [ ] **UHID-01**: `UhidChannel.stopReader()` unblocks `readerThread` cleanly using bounded polling / timeout on `/dev/uhid`, ensuring `reader.join()` never times out and prevents zombie reader thread leaks (#48).
-- [ ] **UHID-02**: `UhidChannel.awaitReady()` exits the readiness window upon `sawStart || sawOpen`, eliminating 2-second device attachment latency penalties on OPEN-less OEM ROMs (#49).
-- [ ] **UHID-03**: Remove dead stream-model methods `waitForStart()` and `drainPayload()` from `UhidProtocol` and eliminate unreachable deferred INPUT2 queue from `UhidChannel` (#50).
+- [x] **UHID-01**: `UhidChannel.stopReader()` unblocks `readerThread` cleanly using bounded polling / timeout on `/dev/uhid`, ensuring `reader.join()` never times out and prevents zombie reader thread leaks (#48).
+- [x] **UHID-02**: `UhidChannel.awaitReady()` exits the readiness window upon `sawStart || sawOpen`, eliminating 2-second device attachment latency penalties on OPEN-less OEM ROMs (#49).
+- [x] **UHID-03**: Remove dead stream-model methods `waitForStart()` and `drainPayload()` from `UhidProtocol` and eliminate unreachable deferred INPUT2 queue from `UhidChannel` (#50).
 
 ### Deterministic Testing & CI Guardrails
 
@@ -59,9 +59,9 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| UHID-01 | Phase 1 | Pending |
-| UHID-02 | Phase 1 | Pending |
-| UHID-03 | Phase 1 | Pending |
+| UHID-01 | Phase 1 | Complete |
+| UHID-02 | Phase 1 | Complete |
+| UHID-03 | Phase 1 | Complete |
 | TEST-01 | Phase 2 | Pending |
 | TEST-02 | Phase 2 | Pending |
 | TEST-03 | Phase 2 | Pending |
