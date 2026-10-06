@@ -19,9 +19,9 @@
 
 ### IPC Lifecycle & Code Quality Follow-ups
 
-- [ ] **IPC-01**: `InputInjectorService.attachClient` assigns monotonic generation tokens so stale death notifications from replaced clients do not terminate active virtual devices (#52).
-- [ ] **IPC-02**: Fix `HidMouseEnterWarp` planning and logging to accurately record applied warp steps on partial writes without double-applying snaps (#52).
-- [ ] **IPC-03**: Append new AIDL methods strictly after `destroy()` in `IInputInjector.aidl` to maintain stable transaction codes (#52).
+- [x] **IPC-01**: `InputInjectorService.attachClient` assigns monotonic generation tokens so stale death notifications from replaced clients do not terminate active virtual devices (#52).
+- [x] **IPC-02**: Fix `HidMouseEnterWarp` planning and logging to accurately record applied warp steps on partial writes without double-applying snaps (#52).
+- [x] **IPC-03**: Append new AIDL methods strictly after `destroy()` in `IInputInjector.aidl` to maintain stable transaction codes (#52).
 
 ### Form-Factor & OEM Compatibility
 
@@ -38,7 +38,7 @@
 ### Architectural Modularity
 
 - [ ] **ARCH-01**: Extract `ConnectionCoordinator` out of `ConnectionService` to isolate connection generations, retry backoff, keepalive timeouts, and input routing into pure, JVM-testable domain logic (#12).
-- [ ] **ARCH-02**: Ensure zero emojis across all commit messages, files, and outputs in compliance with `CODE_QUALITY_STANDARDS.md`.
+- [x] **ARCH-02**: Ensure zero emojis across all commit messages, files, and outputs in compliance with `CODE_QUALITY_STANDARDS.md`.
 
 ## v2 Requirements
 
@@ -65,9 +65,9 @@
 | TEST-01 | Phase 2 | Complete |
 | TEST-02 | Phase 2 | Complete |
 | TEST-03 | Phase 2 | Complete |
-| IPC-01 | Phase 3 | Pending |
-| IPC-02 | Phase 3 | Pending |
-| IPC-03 | Phase 3 | Pending |
+| IPC-01 | Phase 3 | Complete |
+| IPC-02 | Phase 3 | Complete |
+| IPC-03 | Phase 3 | Complete |
 | OEM-01 | Phase 4 | Pending |
 | OEM-02 | Phase 4 | Pending |
 | OEM-03 | Phase 4 | Pending |

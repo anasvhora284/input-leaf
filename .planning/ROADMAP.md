@@ -7,8 +7,8 @@ Harden kernel-level input stability and testing determinism, resolve open collab
 ## Phases
 
 - [x] **Phase 1: Core Kernel UHID Fixes** - Resolve un-stoppable reader thread leaks, eliminate OPEN-less attach latency stalls, and purge dead stream-model UHID methods (#48, #49, #50) (completed 2026-10-06)
-- [ ] **Phase 2: Deterministic Testing & CI Guardrails** - Remove all wall-clock sleeps from JVM tests and establish Android smoke testing workflow with coverage guardrails (#51, #13)
-- [ ] **Phase 3: IPC Lifecycle & Review Follow-ups** - Prevent token death races from killing active devices, correct enter-warp snap reporting, and stabilize AIDL method order (#52)
+- [x] **Phase 2: Deterministic Testing & CI Guardrails** - Remove all wall-clock sleeps from JVM tests and establish Android smoke testing workflow with coverage guardrails (#51, #13) (completed 2026-10-06)
+- [x] **Phase 3: IPC Lifecycle & Review Follow-ups** - Prevent token death races from killing active devices, correct enter-warp snap reporting, and stabilize AIDL method order (#52) (completed 2026-10-06)
 - [ ] **Phase 4: Form-Factor & OEM Compatibility** - Fix Huawei MatePad SE 11 crash, add Android TV D-pad navigation with Leanback metadata, and wire user settings toggle for `HidPen` stylus (#54)
 - [ ] **Phase 5: Protocol Extensions & Server Persistence** - Integrate Synergy 3.7+ signed 16-bit deltas and Mac Carbon keycodes, and persist saved server addresses across app restarts (#47, #53)
 - [ ] **Phase 6: Architectural Modularity** - Extract `ConnectionCoordinator` out of `ConnectionService` to isolate state transitions and input routing into pure, JVM-testable domain logic (#12)
@@ -26,7 +26,8 @@ Harden kernel-level input stability and testing determinism, resolve open collab
   2. `createDevice()` exits the readiness window as soon as `sawStart || sawOpen` is true without burning the 2-second timeout on OPEN-less OEM ROMs.
   3. `waitForStart()`, `drainPayload()`, and the unreachable deferred INPUT2 queue are completely removed from the codebase.
 
-**Plans**: TBD
+**Plans**: 1 plan
+- 01-01: Core Kernel UHID Stability [complete]
 
 ### Phase 2: Deterministic Testing & CI Guardrails
 
@@ -54,7 +55,8 @@ Harden kernel-level input stability and testing determinism, resolve open collab
   3. AIDL methods in `IInputInjector.aidl` maintain stable transaction code numbering.
   4. Zero emojis exist in code, commit messages, or documentation.
 
-**Plans**: TBD
+**Plans**: 1 plan
+- 03-01: IPC Lifecycle & Review Follow-ups [complete]
 
 ### Phase 4: Form-Factor & OEM Compatibility
 
