@@ -38,9 +38,9 @@ created: "2026-10-06"
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 01-01-01 | 01 | 1 | UHID-01 | — | Clean reader thread termination without thread leaks | unit | `./gradlew :app:testDebugUnitTest --tests "com.inputleaf.android.shizuku.uhid.UhidChannelReadinessTest"` | ✅ | ⬜ pending |
-| 01-01-02 | 01 | 1 | UHID-02 | — | Readiness gate completes on either START or OPEN without stalling | unit | `./gradlew :app:testDebugUnitTest --tests "com.inputleaf.android.shizuku.uhid.UhidChannelReadinessTest"` | ✅ | ⬜ pending |
-| 01-01-03 | 01 | 1 | UHID-03 | — | Dead stream-model and deferred queue methods purged cleanly | unit | `./gradlew :app:testDebugUnitTest --tests "com.inputleaf.android.shizuku.uhid.UhidProtocolTest"` | ✅ | ⬜ pending |
+| 01-01-01 | 01 | 1 | UHID-01 | — | Clean reader thread termination without thread leaks | unit | `./gradlew :app:testDebugUnitTest --tests "com.inputleaf.android.shizuku.uhid.UhidChannelReadinessTest"` | ✅ | ✅ green |
+| 01-01-02 | 01 | 1 | UHID-02 | — | Readiness gate completes on either START or OPEN without stalling | unit | `./gradlew :app:testDebugUnitTest --tests "com.inputleaf.android.shizuku.uhid.UhidChannelReadinessTest"` | ✅ | ✅ green |
+| 01-01-03 | 01 | 1 | UHID-03 | — | Dead stream-model and deferred queue methods purged cleanly | unit | `./gradlew :app:testDebugUnitTest --tests "com.inputleaf.android.shizuku.uhid.UhidProtocolTest"` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
