@@ -64,6 +64,18 @@ class HidMouseTest {
     }
 
     @Test
+    fun `move clamps wheel between minus 127 and 127`() {
+        val sink = RecordingSink()
+        val mouse = HidMouse(sink)
+
+        mouse.move(dx = 0, dy = 0, buttons = 0, wheel = 500)
+        assertThat(sink.reports[0][5].toInt()).isEqualTo(127)
+
+        mouse.move(dx = 0, dy = 0, buttons = 0, wheel = -500)
+        assertThat(sink.reports[1][5].toInt()).isEqualTo(-127)
+    }
+
+    @Test
     fun `move returns false when sink write fails`() {
         val sink = RecordingSink()
         sink.failNext = true

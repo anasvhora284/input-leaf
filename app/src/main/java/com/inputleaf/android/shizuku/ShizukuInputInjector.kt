@@ -21,6 +21,7 @@ import com.inputleaf.android.model.InputLeapEvent
 import com.inputleaf.android.privilege.PrivilegeKind
 import com.inputleaf.android.privilege.PrivilegedUserServiceHost
 import com.inputleaf.android.privilege.ShizukuUserServiceHost
+import com.inputleaf.android.shizuku.uhid.HidMouse
 import com.inputleaf.android.shizuku.uhid.HidMouseState
 import com.inputleaf.android.shizuku.uhid.MouseEdgeAnchor
 import com.inputleaf.android.shizuku.uhid.WheelNotchAccumulator
@@ -182,6 +183,7 @@ class ShizukuInputInjector internal constructor(
                 runCatching { service?.releaseHidKeys() }
                 runCatching { service?.closeVirtualKeyboard() }
                 runCatching { service?.closeVirtualMouse() }
+                runCatching { service?.closeVirtualPen() }
                 hidMouse.detach()
                 service?.destroy()
                 host.unbind(serviceConnection, destroy = true)
@@ -191,7 +193,7 @@ class ShizukuInputInjector internal constructor(
             service = null
             isBound = false
             hidMouse.resetOnDisconnect()
-        wheelNotches.reset()
+            wheelNotches.reset()
             clientClosedMouse = true
             publishNativePointerState(NativePointerState.NONE)
         }
@@ -229,6 +231,8 @@ class ShizukuInputInjector internal constructor(
             remote("Failed to detach HID mouse", Unit) { s ->
                 runCatching { s.onHidMouseLeave() }
                 s.closeVirtualMouse()
+                runCatching { s.closeVirtualPen() }
+                penActive = false
                 hidMouse.detach()
                 wheelNotches.reset()
                 clientClosedMouse = true
@@ -241,7 +245,13 @@ class ShizukuInputInjector internal constructor(
         if (hidMouse.attached) {
             publishNativePointerState(NativePointerState.ACTIVE)
             remote("Failed to snap HID mouse", Unit) { s ->
-                finishPendingSnap(s, sendHid = true)
+                val target = hidMouse.peekPendingSnap()
+                if (penActive && target != null) {
+                    hidMouse.updatePointerTarget(target.first, target.second)
+                    sendPen(s, target.first, target.second, inRange = true)
+                } else {
+                    finishPendingSnap(s, sendHid = true)
+                }
             }
             return
         }
@@ -253,6 +263,16 @@ class ShizukuInputInjector internal constructor(
         hidMouse.beginAttach()
         publishNativePointerState(NativePointerState.PENDING)
         try {
+            if (absolutePointer && svc.openVirtualPen()) {
+                runCatching { svc.closeVirtualMouse() }
+                penActive = true
+                hidMouse.completeAttach(newDevice = newDevice)
+                clientClosedMouse = false
+                publishNativePointerState(NativePointerState.ACTIVE)
+                Log.i(TAG, "Absolute pen attached; relative mouse closed")
+                sendPen(svc, hidMouse.protocolX, hidMouse.protocolY, inRange = true)
+                return
+            }
             if (svc.openVirtualMouse()) {
                 hidMouse.completeAttach(newDevice = newDevice)
                 clientClosedMouse = false
@@ -302,13 +322,24 @@ class ShizukuInputInjector internal constructor(
         }
         if (hidMouse.attached) {
             remote("Failed to snap HID mouse", Unit) { s ->
-                finishPendingSnap(s, sendHid = true)
+                if (penActive) {
+                    hidMouse.updatePointerTarget(x, y)
+                    sendPen(s, x, y, inRange = true)
+                } else {
+                    finishPendingSnap(s, sendHid = true)
+                }
             }
         }
     }
 
     override fun onHidMouseLeave() {
+        if (penActive) {
+            penTip = false
+            penBarrel = false
+            remote("SPIKE pen leave", Unit) { sendPen(it, hidMouse.protocolX, hidMouse.protocolY, inRange = false) }
+        }
         hidMouse.markLeave()
+        wheelNotches.reset()
         remote("Failed to clear HID mouse enter on injector", Unit) { it.onHidMouseLeave() }
     }
 
@@ -367,6 +398,10 @@ class ShizukuInputInjector internal constructor(
         }
         if (!hidMouse.attached) return false
         val svc = service ?: return false
+        if (penActive) {
+            val handled = runCatching { tryPen(event, svc) }.getOrNull()
+            if (handled != null) return handled
+        }
         return try {
             when (event) {
                 is InputLeapEvent.MouseMoveAbs ->
@@ -402,6 +437,71 @@ class ShizukuInputInjector internal constructor(
             handleRemoteException(e, null)
             false
         }
+    }
+
+    /** User choice. The open device follows this the next time the pointer attaches. */
+    private var absolutePointer = false
+    private var penActive = false
+    private var penTip = false
+    private var penBarrel = false
+
+    override fun setAbsolutePointer(enabled: Boolean) {
+        if (absolutePointer == enabled) return
+        val live = hidMouse.attached || hidMouse.phase == HidMouseState.AttachPhase.ATTACHING
+        absolutePointer = enabled
+        if (!live) return
+        val x = hidMouse.protocolX
+        val y = hidMouse.protocolY
+        remote("Failed to swap pointer device", Unit) { svc ->
+            svc.onHidMouseEnter(x, y, pointerMaxX(), pointerMaxY(), pointerSpeed)
+            runCatching { svc.closeVirtualMouse() }
+            runCatching { svc.closeVirtualPen() }
+        }
+        penActive = false
+        penTip = false
+        penBarrel = false
+        hidMouse.detach()
+        clientClosedMouse = true
+        wheelNotches.reset()
+        publishNativePointerState(NativePointerState.NONE)
+        setHidMouseAttached(true)
+    }
+
+    private fun sendPen(svc: IInputInjector, x: Int, y: Int, inRange: Boolean): Boolean =
+        svc.injectHidPen(x, y, pointerMaxX(), pointerMaxY(), inRange, penTip, penBarrel)
+
+    private fun tryPen(event: InputLeapEvent, svc: IInputInjector): Boolean? {
+        val (tx, ty) = when (event) {
+            is InputLeapEvent.MouseMoveAbs -> hidMouse.clampX(event.x) to hidMouse.clampY(event.y)
+            is InputLeapEvent.MouseMoveRel ->
+                hidMouse.clampX(hidMouse.protocolX + event.dx) to hidMouse.clampY(hidMouse.protocolY + event.dy)
+            is InputLeapEvent.MouseDown -> return penButton(event.buttonId, down = true, svc)
+            is InputLeapEvent.MouseUp -> return penButton(event.buttonId, down = false, svc)
+            is InputLeapEvent.MouseWheel -> {
+                val notches = wheelNotches.accept(event.yDelta)
+                if (notches != 0) {
+                    svc.injectScrollEvent(
+                        hidMouse.protocolX.toFloat(),
+                        hidMouse.protocolY.toFloat(),
+                        0f,
+                        notches.toFloat(),
+                    )
+                }
+                return true
+            }
+            else -> return null
+        }
+        hidMouse.updatePointerTarget(tx, ty)
+        return sendPen(svc, tx, ty, inRange = true)
+    }
+
+    private fun penButton(buttonId: Int, down: Boolean, svc: IInputInjector): Boolean? {
+        when (inputLeapButtonToHid(buttonId)) {
+            HidMouse.BUTTON_LEFT -> penTip = down
+            HidMouse.BUTTON_RIGHT -> penBarrel = down
+            else -> return null
+        }
+        return sendPen(svc, hidMouse.protocolX, hidMouse.protocolY, inRange = true)
     }
 
     private fun moveHidToProtocolTarget(targetX: Int, targetY: Int, svc: IInputInjector): Boolean {
