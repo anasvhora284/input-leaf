@@ -40,7 +40,7 @@ Harden kernel-level input stability and testing determinism, resolve open collab
   3. Smoke testing workflow (`.github/workflows/android-smoke.yml`) and dependency fakes (`TestAppDependencies.kt`) verify `MainActivity` rendering in CI without hardware dependencies.
 
 **Plans**: 1 plan
-- 02-01: Deterministic Testing & CI Guardrails [pending]
+- 02-01: Deterministic Testing & CI Guardrails [complete]
 
 ### Phase 3: IPC Lifecycle & Review Follow-ups
 

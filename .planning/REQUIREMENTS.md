@@ -13,9 +13,9 @@
 
 ### Deterministic Testing & CI Guardrails
 
-- [ ] **TEST-01**: Replace all `Thread.sleep` and wall-clock assertions in JVM unit tests (`InputInjectorServiceEnterTest`, `HidAttachmentControllerTest`) with virtual clocks (`UhidReadinessConfig`) and coroutine test scopes (#51).
-- [ ] **TEST-02**: Add Android smoke test workflow (`.github/workflows/android-smoke.yml`) and dependency provider (`AppDependencies.kt`, `TestAppDependencies.kt`) executing without real hardware or network dependencies (#13).
-- [ ] **TEST-03**: Enforce 100% patch test coverage on core protocol and UHID modules via Kover and Codecov CI checks.
+- [x] **TEST-01**: Replace all `Thread.sleep` and wall-clock assertions in JVM unit tests (`InputInjectorServiceEnterTest`, `HidAttachmentControllerTest`) with virtual clocks (`UhidReadinessConfig`) and coroutine test scopes (#51).
+- [x] **TEST-02**: Add Android smoke test workflow (`.github/workflows/android-smoke.yml`) and dependency provider (`AppDependencies.kt`, `TestAppDependencies.kt`) executing without real hardware or network dependencies (#13).
+- [x] **TEST-03**: Enforce 100% patch test coverage on core protocol and UHID modules via Kover and Codecov CI checks.
 
 ### IPC Lifecycle & Code Quality Follow-ups
 
@@ -62,9 +62,9 @@
 | UHID-01 | Phase 1 | Complete |
 | UHID-02 | Phase 1 | Complete |
 | UHID-03 | Phase 1 | Complete |
-| TEST-01 | Phase 2 | Pending |
-| TEST-02 | Phase 2 | Pending |
-| TEST-03 | Phase 2 | Pending |
+| TEST-01 | Phase 2 | Complete |
+| TEST-02 | Phase 2 | Complete |
+| TEST-03 | Phase 2 | Complete |
 | IPC-01 | Phase 3 | Pending |
 | IPC-02 | Phase 3 | Pending |
 | IPC-03 | Phase 3 | Pending |
