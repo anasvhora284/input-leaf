@@ -4,6 +4,12 @@ package com.inputleaf.android.shizuku;
 /**
  * AIDL interface for injecting input events via Shizuku.
  * This service runs with shell (ADB) privileges and can call InputManager.injectInputEvent().
+ *
+ * TRANSACTION CODE STABILITY:
+ * All new methods MUST strictly be appended to the end of this interface.
+ * AIDL generates integer transaction codes sequentially based on method declaration order.
+ * Inserting methods in the middle breaks binary compatibility between a running injector
+ * service and an updated client app (Issue #52).
  */
 interface IInputInjector {
     /**
@@ -114,4 +120,13 @@ interface IInputInjector {
      * Destroy the service and release resources.
      */
     void destroy();
+
+    /** Register the absolute HID pen Android treats as a drawing tablet. */
+    boolean openVirtualPen();
+
+    /** Destroy the HID pen. */
+    void closeVirtualPen();
+
+    /** Send an absolute pen report in screen pixels. */
+    boolean injectHidPen(int x, int y, int maxX, int maxY, boolean inRange, boolean tip, boolean barrel);
 }

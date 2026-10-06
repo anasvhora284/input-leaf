@@ -38,7 +38,7 @@ internal object UhidProtocol {
     const val UHID_OPEN = 4
     const val UHID_CLOSE = 5
 
-    /** Device→host report. Carries `data[4096] + u16 size + u8 rtype`. */
+    /** Host→device report. Carries `data[4096] + u16 size + u8 rtype`. */
     const val UHID_OUTPUT = 6
     const val UHID_GET_REPORT = 9
     const val UHID_CREATE2 = 11

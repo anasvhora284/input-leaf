@@ -17,6 +17,7 @@ import android.util.Log
 import android.view.WindowManager
 import com.inputleaf.android.inject.AccessibilityInputService
 import com.inputleaf.android.inject.NativePointerState
+import com.inputleaf.android.inject.PointerDevice
 import com.inputleaf.android.model.ConnectionState
 import com.inputleaf.android.model.InputLeapEvent
 import com.inputleaf.android.network.ConnectResult
@@ -65,6 +66,7 @@ class ConnectionService : Service() {
     private var cursorOverlayEnabled = false
     private var mouseEnabled = true
     private var keyboardEnabled = true
+    @Volatile private var absolutePointer = false
     private var previousImeId: String? = null
     private var previousImeLabel: String? = null
     private var isUsingAccessibilityIme = false
@@ -78,8 +80,8 @@ class ConnectionService : Service() {
     private var activeServerIp: String? = null
     private var activeScreenName: String? = null
     private var shizukuRecoveryJob: Job? = null
-    private var leaveDebounceJob: Job? = null
-    private var hidMouseIdleJob: Job? = null
+    @Volatile private var leaveDebounceJob: Job? = null
+    @Volatile private var hidMouseIdleJob: Job? = null
     private val hidKeyboardGate = HidAttachmentController()
     private val hidMouseGate = HidAttachmentController()
     @Volatile private var pointerOnScreen = false
@@ -151,6 +153,13 @@ class ConnectionService : Service() {
             prefs.keyboardEnabled.collect { enabled ->
                 keyboardEnabled = enabled
                 setHidKeyboardAttached(enabled && stateMachine.state.value is ConnectionState.Active)
+            }
+        }
+
+        scope.launch {
+            prefs.pointerDevice.collect { device ->
+                absolutePointer = device == PointerDevice.STYLUS
+                injector?.setAbsolutePointer(absolutePointer)
             }
         }
 
@@ -582,6 +591,7 @@ class ConnectionService : Service() {
         // context while landscape on ColorOS).
         injector.updateScreenSize(screenWidth, screenHeight)
         injector.updatePointerSpeed(readPointerSpeed())
+        injector.setAbsolutePointer(absolutePointer)
         injector.setOnNativePointerStateChanged {
             scope.launch { applyCursorOverlay() }
         }

@@ -29,7 +29,7 @@ class InputInjectorServiceEnterTest {
 
         fun sleep(ms: Long) {
             nowNanos += TimeUnit.MILLISECONDS.toNanos(ms)
-            Thread.yield()
+            Thread.sleep(1)
         }
 
         fun elapsedMs(): Long = TimeUnit.NANOSECONDS.toMillis(nowNanos)

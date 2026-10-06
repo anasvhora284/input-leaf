@@ -158,7 +158,7 @@ object MarkdownParser {
      * branch was not.
      */
     internal fun isDispatchableUrl(url: String): Boolean =
-        url.startsWith("http://") || url.startsWith("https://")
+        (url.startsWith("http://") || url.startsWith("https://")) && !url.any { it.isWhitespace() }
 
     fun parseInline(
         text: String,
@@ -179,7 +179,8 @@ object MarkdownParser {
                 // Markdown link: [text](url)
                 token.startsWith("[") && token.contains("](") && token.endsWith(")") -> {
                     val label = token.substringAfter("[").substringBefore("](")
-                    val url = token.substringAfter("](").substringBeforeLast(")")
+                    val rawUrl = token.substringAfter("](").substringBeforeLast(")")
+                    val url = rawUrl.substringBefore(" ").trim()
                     if (isDispatchableUrl(url)) {
                         withLink(
                             LinkAnnotation.Url(
