@@ -4,12 +4,13 @@ verified: "2026-10-06T15:15:00Z"
 status: passed
 score: 4/4 must-haves verified
 covered_files:
+  - .planning/phases/01-core-kernel-uhid-fixes/01-01-PLAN.md
   - .planning/phases/01-core-kernel-uhid-fixes/01-01-SUMMARY.md
   - app/src/main/java/com/inputleaf/android/shizuku/uhid/UhidChannel.kt
   - app/src/main/java/com/inputleaf/android/shizuku/uhid/UhidProtocol.kt
   - app/src/test/java/com/inputleaf/android/shizuku/uhid/UhidChannelReadinessTest.kt
   - app/src/test/java/com/inputleaf/android/shizuku/uhid/UhidProtocolTest.kt
-covered_digest: "v1:sha256:492098ca0e9488b8460d077366b1812a049f6b9815a968576f617ec077dfadb0"
+covered_digest: "v1:sha256:a0773cbc867490f654022de09dea9c2d35d965bb0f7921bcfe9fcac135c552ea"
 behavior_unverified: 0
 ---
 
