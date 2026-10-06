@@ -39,7 +39,8 @@ Harden kernel-level input stability and testing determinism, resolve open collab
   2. `./gradlew testDebugUnitTest` runs 100% deterministically using virtual clocks (`UhidReadinessConfig`) and coroutine test scopes.
   3. Smoke testing workflow (`.github/workflows/android-smoke.yml`) and dependency fakes (`TestAppDependencies.kt`) verify `MainActivity` rendering in CI without hardware dependencies.
 
-**Plans**: TBD
+**Plans**: 1 plan
+- 02-01: Deterministic Testing & CI Guardrails [pending]
 
 ### Phase 3: IPC Lifecycle & Review Follow-ups
 
