@@ -69,7 +69,8 @@ Harden kernel-level input stability and testing determinism, resolve open collab
   2. Android TV launcher banner and Leanback intent category are declared, and arrow keys route to Android DPAD keycodes.
   3. Users can select Pointer Device in Settings (`Mouse`, `Pen/Stylus`, `Touch`), routing absolute digitizer reports via `HidPen` when pen mode is active.
 
-**Plans**: TBD
+**Plans**: 1 plan
+- 04-01: Form-Factor & OEM Compatibility [complete]
 
 ### Phase 5: Protocol Extensions & Server Persistence
 

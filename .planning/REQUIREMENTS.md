@@ -68,9 +68,9 @@
 | IPC-01 | Phase 3 | Complete |
 | IPC-02 | Phase 3 | Complete |
 | IPC-03 | Phase 3 | Complete |
-| OEM-01 | Phase 4 | Pending |
-| OEM-02 | Phase 4 | Pending |
-| OEM-03 | Phase 4 | Pending |
+| OEM-01 | Phase 4 | Complete |
+| OEM-02 | Phase 4 | Complete |
+| OEM-03 | Phase 4 | Complete |
 | PROT-01 | Phase 5 | Pending |
 | PROT-02 | Phase 5 | Pending |
 | PROT-03 | Phase 5 | Pending |
