@@ -45,7 +45,9 @@ Codecov.html
 Codecov_files/
 coverage/
 *.exec
-*.ec
+# Python cache
+__pycache__/
+*.pyc
 
 # Track GSD planning docs despite global *.md ignore
 !.planning/
