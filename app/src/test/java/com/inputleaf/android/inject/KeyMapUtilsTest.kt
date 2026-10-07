@@ -10,6 +10,18 @@ class KeyMapUtilsTest {
         assertThat(KeyMapUtils.scancodeToAndroidKeyCode(57)).isEqualTo(KeyEvent.KEYCODE_SPACE)
     }
 
+    @Test fun `scancode and keycode map desktop arrow keys to dpad codes for TV navigation`() {
+        assertThat(KeyMapUtils.scancodeToAndroidKeyCode(103)).isEqualTo(KeyEvent.KEYCODE_DPAD_UP)
+        assertThat(KeyMapUtils.scancodeToAndroidKeyCode(108)).isEqualTo(KeyEvent.KEYCODE_DPAD_DOWN)
+        assertThat(KeyMapUtils.scancodeToAndroidKeyCode(105)).isEqualTo(KeyEvent.KEYCODE_DPAD_LEFT)
+        assertThat(KeyMapUtils.scancodeToAndroidKeyCode(106)).isEqualTo(KeyEvent.KEYCODE_DPAD_RIGHT)
+
+        assertThat(KeyMapUtils.keycodeToScanCode(KeyEvent.KEYCODE_DPAD_UP)).isEqualTo(103)
+        assertThat(KeyMapUtils.keycodeToScanCode(KeyEvent.KEYCODE_DPAD_DOWN)).isEqualTo(108)
+        assertThat(KeyMapUtils.keycodeToScanCode(KeyEvent.KEYCODE_DPAD_LEFT)).isEqualTo(105)
+        assertThat(KeyMapUtils.keycodeToScanCode(KeyEvent.KEYCODE_DPAD_RIGHT)).isEqualTo(106)
+    }
+
     @Test fun `scancodeToAndroidKeyCode returns unknown for unmapped codes`() {
         assertThat(KeyMapUtils.scancodeToAndroidKeyCode(9999)).isEqualTo(KeyEvent.KEYCODE_UNKNOWN)
     }
