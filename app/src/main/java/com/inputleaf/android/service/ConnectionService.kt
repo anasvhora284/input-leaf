@@ -54,39 +54,23 @@ private const val HID_MOUSE_IDLE_DETACH_MS = 30_000L
 class ConnectionService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private val stateMachine = ConnectionStateMachine()
+    private val coordinator = ConnectionCoordinator()
     private var connection: InputLeapConnection? = null
     private var injector: com.inputleaf.android.inject.InputInjector? = null
     private var keepAliveJob: Job? = null
     private var connectJob: Job? = null
     private var eventLoopJob: Job? = null
     private var retryJob: Job? = null
-    private var retryAttempt = 0
-    private var connectGeneration = 0
-    private var infoAckPending = false
-    private var userInitiatedDisconnect = false
+    private var activePolicy = ConnectionTransportPolicy.AUTO
     private var cursorOverlayEnabled = false
-    private var mouseEnabled = true
-    private var keyboardEnabled = true
-    @Volatile private var absolutePointer = false
     private var previousImeId: String? = null
     private var previousImeLabel: String? = null
     private var isUsingAccessibilityIme = false
-    // Written on the main thread (rotation / DINF), read from the IO event loop. The
-    // HID path is published through HidMouseState.resizeDisplay, but the fallback touch
-    // path reads these directly and would otherwise clamp against stale bounds.
-    @Volatile private var screenWidth = 0
-    @Volatile private var screenHeight = 0
-    private var currentMouseX = 0f
-    private var currentMouseY = 0f
-    private var activeServerIp: String? = null
-    private var activeScreenName: String? = null
     private var shizukuRecoveryJob: Job? = null
     @Volatile private var leaveDebounceJob: Job? = null
     @Volatile private var hidMouseIdleJob: Job? = null
     private val hidKeyboardGate = HidAttachmentController()
     private val hidMouseGate = HidAttachmentController()
-    @Volatile private var pointerOnScreen = false
     private lateinit var prefs: AppPreferences
 
     private val pointerSpeedObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
@@ -109,7 +93,7 @@ class ConnectionService : Service() {
         handleShizukuDied()
     }
 
-    val state: StateFlow<ConnectionState> get() = stateMachine.state
+    val state: StateFlow<ConnectionState> get() = coordinator.state
 
     inner class LocalBinder : Binder() { fun getService() = this@ConnectionService }
     override fun onBind(intent: Intent): IBinder = LocalBinder()
@@ -128,8 +112,7 @@ class ConnectionService : Service() {
         }
 
         val bounds = getScreenBounds()
-        screenWidth = bounds.width()
-        screenHeight = bounds.height()
+        coordinator.updateScreenBounds(bounds.width(), bounds.height())
 
         scope.launch {
             cursorOverlayEnabled = prefs.showCursor.first()
@@ -142,26 +125,27 @@ class ConnectionService : Service() {
         }
 
         scope.launch {
-            mouseEnabled = prefs.mouseEnabled.first()
+            coordinator.mouseEnabled = prefs.mouseEnabled.first()
             prefs.mouseEnabled.collect { enabled ->
-                mouseEnabled = enabled
+                coordinator.mouseEnabled = enabled
                 applyCursorOverlay()
-                setHidMouseAttached(enabled && stateMachine.state.value is ConnectionState.Active)
+                setHidMouseAttached(enabled && coordinator.state.value is ConnectionState.Active)
             }
         }
 
         scope.launch {
-            keyboardEnabled = prefs.keyboardEnabled.first()
+            coordinator.keyboardEnabled = prefs.keyboardEnabled.first()
             prefs.keyboardEnabled.collect { enabled ->
-                keyboardEnabled = enabled
-                setHidKeyboardAttached(enabled && stateMachine.state.value is ConnectionState.Active)
+                coordinator.keyboardEnabled = enabled
+                setHidKeyboardAttached(enabled && coordinator.state.value is ConnectionState.Active)
             }
         }
 
         scope.launch {
             prefs.pointerDevice.collect { device ->
-                absolutePointer = device == PointerDevice.STYLUS
-                injector?.setAbsolutePointer(absolutePointer)
+                val isStylus = device == PointerDevice.STYLUS
+                coordinator.absolutePointer = isStylus
+                injector?.setAbsolutePointer(isStylus)
             }
         }
 
@@ -192,7 +176,7 @@ class ConnectionService : Service() {
     }
 
     private fun observeState() = scope.launch {
-        stateMachine.state.collect { state ->
+        coordinator.state.collect { state ->
             val notif = NotificationHelper.build(this@ConnectionService, state)
             getSystemService(android.app.NotificationManager::class.java)
                 .notify(NOTIF_ID, notif)
@@ -204,7 +188,7 @@ class ConnectionService : Service() {
     var onConnectionFailed: ((reason: ConnectResult.FailureReason, detail: String?) -> Unit)? = null
 
     fun connect(serverIp: String, screenName: String, force: Boolean = false) {
-        val currentState = stateMachine.state.value
+        val currentState = coordinator.state.value
         if (!force) {
             if (currentState is ConnectionState.Connecting && currentState.serverIp == serverIp) return
             if (currentState is ConnectionState.Handshaking && currentState.serverIp == serverIp) return
@@ -212,20 +196,16 @@ class ConnectionService : Service() {
             if (currentState is ConnectionState.Active && currentState.serverIp == serverIp) return
         }
 
-        userInitiatedDisconnect = false
-        infoAckPending = false
-        activeServerIp = serverIp
-        activeScreenName = screenName
-        val generation = ++connectGeneration
+        val plan = coordinator.startConnect(serverIp, screenName, forceReconnect = force)
         cancelPendingJobs(keepConnection = false)
         connection?.close()
         connection = null
 
         connectJob = scope.launch {
-            if (force) {
-                delay(150)
+            if (plan.initialDelayMs > 0) {
+                delay(plan.initialDelayMs)
             }
-            performConnect(serverIp, screenName, generation)
+            performConnect(serverIp, screenName, plan.generation)
         }
     }
 
@@ -234,14 +214,13 @@ class ConnectionService : Service() {
     }
 
     private suspend fun performConnect(serverIp: String, screenName: String, generation: Int) {
-        if (generation != connectGeneration) return
-        var activePolicy = ConnectionTransportPolicy.AUTO
+        if (!coordinator.isCurrentGeneration(generation)) return
         try {
             runCatching {
                 ServiceCompat.startForeground(
                     this@ConnectionService,
                     NOTIF_ID,
-                    NotificationHelper.build(this@ConnectionService, stateMachine.state.value),
+                    NotificationHelper.build(this@ConnectionService, coordinator.state.value),
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
                     } else {
@@ -251,7 +230,6 @@ class ConnectionService : Service() {
             }.onFailure { error ->
                 Log.w(TAG, "Failed to start foreground service: ${error.message}", error)
             }
-            stateMachine.onConnecting(serverIp)
 
             val storedFp = prefs.fingerprintFor(serverIp).first()
             activePolicy = prefs.connectionTransportPolicy.first()
@@ -302,6 +280,7 @@ class ConnectionService : Service() {
             }
 
             val bounds = getScreenBounds()
+            coordinator.updateScreenBounds(bounds.width(), bounds.height())
             val result = try {
                 conn.connect(
                     screenName = screenName,
@@ -311,18 +290,16 @@ class ConnectionService : Service() {
             } finally {
                 clientCertificate?.clear()
             }
-            if (generation != connectGeneration) {
+            if (!coordinator.isCurrentGeneration(generation)) {
                 conn.close()
                 return
             }
 
             when (result) {
                 is ConnectResult.Ok -> {
-                    retryAttempt = 0
                     connection = conn
                     prefs.saveTransport(serverIp, result.transport.name.lowercase())
-                    stateMachine.onHandshaking(serverIp)
-                    stateMachine.onIdle(serverIp, screenName)
+                    coordinator.onConnectOk(serverIp, screenName, generation)
                     conn.clearHandshakeTimeout()
                     startEventLoop(conn, serverIp, screenName, generation)
                     startKeepAliveMonitor(conn, generation)
@@ -330,39 +307,38 @@ class ConnectionService : Service() {
                 }
                 is ConnectResult.RejectedByUser -> {
                     conn.close()
-                    stateMachine.onDisconnected()
+                    coordinator.onConnectRejected(generation)
                     onConnectionRejected?.invoke()
-                    if (shouldClearActiveSession(ConnectAttemptOutcome.Rejected)) {
-                        clearActiveSession()
-                    }
                 }
                 is ConnectResult.Failed -> {
                     conn.close()
-                    stateMachine.onDisconnected()
-                    if (activePolicy.shouldRetry(result.reason)) {
-                        prefs.clearTransport(serverIp)
-                        scheduleRetry(serverIp, screenName, generation)
-                    } else {
-                        onConnectionFailed?.invoke(result.reason, result.detail)
-                        if (shouldClearActiveSession(ConnectAttemptOutcome.TerminalFailure)) {
-                            clearActiveSession()
+                    val action = coordinator.onConnectFailed(result.reason, result.detail, activePolicy, generation)
+                    when (action) {
+                        is ConnectFailureAction.Retry -> {
+                            prefs.clearTransport(serverIp)
+                            scheduleRetry(serverIp, screenName, action.delayMs, action.generation)
                         }
+                        is ConnectFailureAction.Terminal -> {
+                            onConnectionFailed?.invoke(action.reason, action.detail)
+                        }
+                        ConnectFailureAction.Ignore -> Unit
                     }
                 }
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            if (generation != connectGeneration) return
+            if (!coordinator.isCurrentGeneration(generation)) return
             Log.w(TAG, "Connection to $serverIp failed: ${e.javaClass.simpleName}: ${e.message}", e)
-            stateMachine.onDisconnected()
-            if (activePolicy.shouldRetry(ConnectResult.FailureReason.NETWORK)) {
-                scheduleRetry(serverIp, screenName, generation)
-            } else {
-                onConnectionFailed?.invoke(ConnectResult.FailureReason.NETWORK, e.message)
-                if (shouldClearActiveSession(ConnectAttemptOutcome.TerminalFailure)) {
-                    clearActiveSession()
+            val action = coordinator.onConnectFailed(ConnectResult.FailureReason.NETWORK, e.message, activePolicy, generation)
+            when (action) {
+                is ConnectFailureAction.Retry -> {
+                    scheduleRetry(serverIp, screenName, action.delayMs, action.generation)
                 }
+                is ConnectFailureAction.Terminal -> {
+                    onConnectionFailed?.invoke(action.reason, action.detail)
+                }
+                ConnectFailureAction.Ignore -> Unit
             }
         }
     }
@@ -376,89 +352,51 @@ class ConnectionService : Service() {
         eventLoopJob?.cancel()
         eventLoopJob = scope.launch(Dispatchers.IO) {
             conn.events.collect { event ->
-                if (generation != connectGeneration) return@collect
-                when (event) {
-                    is InputLeapEvent.Enter -> {
-                        // Also cancels a pending HID-mouse idle detach: the mouse is
-                        // usually still registered from the last visit, so this Enter is
-                        // an ordinary delta from a position we still know.
+                if (!coordinator.isCurrentGeneration(generation)) return@collect
+                when (val result = coordinator.processEvent(event, generation, activePolicy)) {
+                    is CoordinatorEventResult.Enter -> {
                         cancelLeaveDebounce()
-                        pointerOnScreen = true
-                        Log.i(TAG, "Enter ${event.x},${event.y}")
-                        stateMachine.onActive()
-                        stateMachine.onKeepAlive()
+                        Log.i(TAG, "Enter ${result.x},${result.y}")
                         injector?.updatePointerSpeed(readPointerSpeed())
-                        injector?.onHidMouseEnter(event.x, event.y)
-                        setHidKeyboardAttached(keyboardEnabled)
-                        setHidMouseAttached(mouseEnabled)
+                        injector?.onHidMouseEnter(result.x, result.y)
+                        setHidKeyboardAttached(coordinator.keyboardEnabled)
+                        setHidMouseAttached(coordinator.mouseEnabled)
                         applyCursorOverlay()
                     }
-                    is InputLeapEvent.Leave -> {
+                    is CoordinatorEventResult.Leave -> {
                         injector?.onHidMouseLeave()
                         scheduleLeave(generation)
                     }
-                    is InputLeapEvent.KeepAlive -> {
-                        stateMachine.onKeepAlive()
+                    is CoordinatorEventResult.KeepAlive -> {
                         conn.sendKeepAlive()
                     }
-                    is InputLeapEvent.InfoAck -> {
-                        infoAckPending = false
+                    is CoordinatorEventResult.InfoAck -> Unit
+                    is CoordinatorEventResult.QueryInfo -> {
+                        connection?.sendDataInfo(
+                            result.width,
+                            result.height,
+                            result.x,
+                            result.y,
+                        )
                     }
-                    is InputLeapEvent.QueryInfo -> {
-                        connection?.let {
-                            if (generation == connectGeneration) {
-                                it.sendDataInfo(
-                                    screenWidth,
-                                    screenHeight,
-                                    currentMouseX.toInt(),
-                                    currentMouseY.toInt(),
-                                )
-                            }
-                        }
+                    is CoordinatorEventResult.MouseMotion -> {
+                        updateCursorPosition(result.cursorX, result.cursorY)
+                        dispatchInput(result.event)
                     }
-                    is InputLeapEvent.MouseMoveAbs -> {
-                        if (!mouseEnabled) return@collect
-                        if (infoAckPending) return@collect
-                        stateMachine.onKeepAlive()
-                        currentMouseX = event.x.toFloat()
-                        currentMouseY = event.y.toFloat()
-                        updateCursorPosition(currentMouseX, currentMouseY)
-                        dispatchInput(event)
+                    is CoordinatorEventResult.Input -> {
+                        dispatchInput(result.event)
                     }
-                    is InputLeapEvent.MouseMoveRel -> {
-                        if (!mouseEnabled) return@collect
-                        if (infoAckPending) return@collect
-                        stateMachine.onKeepAlive()
-                        currentMouseX = (currentMouseX + event.dx).coerceIn(0f, screenWidth.toFloat())
-                        currentMouseY = (currentMouseY + event.dy).coerceIn(0f, screenHeight.toFloat())
-                        updateCursorPosition(currentMouseX, currentMouseY)
-                        dispatchInput(event)
-                    }
-                    is InputLeapEvent.MouseDown, is InputLeapEvent.MouseUp, is InputLeapEvent.MouseWheel -> {
-                        if (!mouseEnabled) return@collect
-                        stateMachine.onKeepAlive()
-                        dispatchInput(event)
-                    }
-                    is InputLeapEvent.KeyDown, is InputLeapEvent.KeyUp, is InputLeapEvent.KeyRepeat -> {
-                        if (!keyboardEnabled) return@collect
-                        stateMachine.onKeepAlive()
-                        dispatchInput(event)
-                    }
-                    is InputLeapEvent.Unhandled -> if (event.tag == "__DISCONNECTED__") {
-                        if (generation != connectGeneration || userInitiatedDisconnect) return@collect
+                    is CoordinatorEventResult.Disconnected -> {
                         cancelLeaveDebounce()
-                        pointerOnScreen = false
-                        stateMachine.onDisconnected()
                         applyCursorOverlay()
                         setHidKeyboardAttached(false)
                         setHidMouseAttached(false)
                         restorePreviousIme()
-                        scheduleRetry(ip, screenName, generation)
+                        if (result.retry != null) {
+                            scheduleRetry(ip, screenName, result.retry.delayMs, result.retry.generation)
+                        }
                     }
-                    else -> {
-                        stateMachine.onKeepAlive()
-                        dispatchInput(event)
-                    }
+                    CoordinatorEventResult.Ignored -> Unit
                 }
             }
         }
@@ -473,15 +411,15 @@ class ConnectionService : Service() {
         val inj = injector
         val show = CursorOverlayPolicy.shouldShowOverlay(
             cursorSettingEnabled = cursorOverlayEnabled,
-            onScreen = pointerOnScreen,
-            mouseEnabled = mouseEnabled,
+            onScreen = coordinator.isPointerOnScreen,
+            mouseEnabled = coordinator.mouseEnabled,
             native = inj?.nativePointerState() ?: NativePointerState.NONE,
             expectsNativePointer = inj?.expectsNativePointer() == true,
         )
         Log.i(
             TAG,
             "Cursor overlay show=$show native=${inj?.nativePointerState()} " +
-                "expectsNative=${inj?.expectsNativePointer() == true} onScreen=$pointerOnScreen",
+                "expectsNative=${inj?.expectsNativePointer() == true} onScreen=${coordinator.isPointerOnScreen}",
         )
         if (show) {
             showCursorOverlay()
@@ -528,10 +466,8 @@ class ConnectionService : Service() {
         leaveDebounceJob?.cancel()
         leaveDebounceJob = scope.launch {
             delay(LEAVE_DEBOUNCE_MS)
-            if (generation != connectGeneration) return@launch
+            if (!coordinator.onLeaveDebounceExpired(generation)) return@launch
             Log.i(TAG, "Leave")
-            pointerOnScreen = false
-            stateMachine.onLeave()
             applyCursorOverlay()
             // The keyboard must go: while it is registered Android believes a physical
             // keyboard is attached and keeps the soft keyboard suppressed.
@@ -558,7 +494,7 @@ class ConnectionService : Service() {
         hidMouseIdleJob?.cancel()
         hidMouseIdleJob = scope.launch {
             delay(HID_MOUSE_IDLE_DETACH_MS)
-            if (generation != connectGeneration || pointerOnScreen) return@launch
+            if (!coordinator.isCurrentGeneration(generation) || coordinator.isPointerOnScreen) return@launch
             Log.i(TAG, "HID mouse idle ${HID_MOUSE_IDLE_DETACH_MS}ms; detaching")
             setHidMouseAttached(false)
             hidMouseIdleJob = null
@@ -604,9 +540,9 @@ class ConnectionService : Service() {
         // The service's bounds are authoritative (proven by DINF); application-context
         // WindowManager metrics can disagree on some OEMs (seen: portrait from app
         // context while landscape on ColorOS).
-        injector.updateScreenSize(screenWidth, screenHeight)
+        injector.updateScreenSize(coordinator.screenWidth, coordinator.screenHeight)
         injector.updatePointerSpeed(readPointerSpeed())
-        injector.setAbsolutePointer(absolutePointer)
+        injector.setAbsolutePointer(coordinator.absolutePointer)
         injector.setOnNativePointerStateChanged {
             scope.launch { applyCursorOverlay() }
         }
@@ -615,9 +551,9 @@ class ConnectionService : Service() {
                 handlePrivilegedServiceDisconnected()
             }
         }
-        if (pointerOnScreen) {
-            setHidKeyboardAttached(keyboardEnabled)
-            setHidMouseAttached(mouseEnabled)
+        if (coordinator.isPointerOnScreen) {
+            setHidKeyboardAttached(coordinator.keyboardEnabled)
+            setHidMouseAttached(coordinator.mouseEnabled)
         }
         Log.i(TAG, "Input injector set to: ${injector.name}")
     }
@@ -631,15 +567,13 @@ class ConnectionService : Service() {
     private fun startKeepAliveMonitor(conn: InputLeapConnection, generation: Int) {
         keepAliveJob?.cancel()
         keepAliveJob = scope.launch {
-            while (generation == connectGeneration) {
+            while (coordinator.isCurrentGeneration(generation)) {
                 delay(KEEPALIVE_POLL_MS)
-                if (generation != connectGeneration) break
-                if (stateMachine.onKeepAliveMiss()) {
+                if (!coordinator.isCurrentGeneration(generation)) break
+                if (coordinator.onKeepAliveMiss(generation)) {
                     Log.w(TAG, "Keep-alive timeout — disconnecting")
                     conn.close()
                     cancelLeaveDebounce()
-                    pointerOnScreen = false
-                    stateMachine.onDisconnected()
                     applyCursorOverlay()
                     setHidKeyboardAttached(false)
                     setHidMouseAttached(false)
@@ -650,14 +584,12 @@ class ConnectionService : Service() {
         }
     }
 
-    private fun scheduleRetry(ip: String, screenName: String, generation: Int) {
-        if (userInitiatedDisconnect || generation != connectGeneration) return
+    private fun scheduleRetry(ip: String, screenName: String, delayMs: Long, generation: Int) {
+        if (coordinator.isUserInitiatedDisconnect || !coordinator.isCurrentGeneration(generation)) return
         retryJob?.cancel()
-        val delayMs = RetryDelayCalculator.getDelay(retryAttempt)
-        retryAttempt++
         retryJob = scope.launch {
             delay(delayMs)
-            if (userInitiatedDisconnect || generation != connectGeneration) return@launch
+            if (coordinator.isUserInitiatedDisconnect || !coordinator.isCurrentGeneration(generation)) return@launch
             connect(ip, screenName)
         }
     }
@@ -678,20 +610,11 @@ class ConnectionService : Service() {
         }
     }
 
-    private fun clearActiveSession() {
-        activeServerIp = null
-        activeScreenName = null
-    }
-
     fun disconnect() {
-        userInitiatedDisconnect = true
-        infoAckPending = false
-        clearActiveSession()
+        coordinator.disconnect()
         shizukuRecoveryJob?.cancel()
         shizukuRecoveryJob = null
-        connectGeneration++
         cancelPendingJobs(keepConnection = false)
-        pointerOnScreen = false
         setHidKeyboardAttached(false)
         setHidMouseAttached(false)
         injector?.setOnNativePointerStateChanged(null)
@@ -699,7 +622,6 @@ class ConnectionService : Service() {
         injector = null
         applyCursorOverlay()
         restorePreviousIme()
-        stateMachine.onDisconnected()
         runCatching {
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         }.onFailure { error ->
@@ -718,19 +640,14 @@ class ConnectionService : Service() {
         val bounds = getScreenBounds()
         val w = bounds.width()
         val h = bounds.height()
-        if (w == screenWidth && h == screenHeight) return
-        Log.i(TAG, "Screen bounds changed ${screenWidth}x$screenHeight -> ${w}x$h")
-        screenWidth = w
-        screenHeight = h
-        currentMouseX = currentMouseX.coerceIn(0f, w.toFloat())
-        currentMouseY = currentMouseY.coerceIn(0f, h.toFloat())
-        injector?.updateScreenSize(w, h)
-        val connected = connection != null && stateMachine.state.value.let {
-            it is ConnectionState.Idle || it is ConnectionState.Active
+        val plan = coordinator.updateScreenBounds(w, h)
+        if (plan is ScreenBoundsUpdatePlan.None && w == coordinator.screenWidth && h == coordinator.screenHeight) {
+            return
         }
-        if (connected) {
-            infoAckPending = true
-            connection?.sendDataInfo(w, h, currentMouseX.toInt(), currentMouseY.toInt())
+        Log.i(TAG, "Screen bounds changed -> ${w}x$h")
+        injector?.updateScreenSize(w, h)
+        if (plan is ScreenBoundsUpdatePlan.SendDinf) {
+            connection?.sendDataInfo(plan.width, plan.height, plan.x, plan.y)
             Log.i(TAG, "Sent DINF update ${w}x${h}")
         }
     }
@@ -815,9 +732,9 @@ class ConnectionService : Service() {
     }
 
     private fun triggerPrivilegedRecovery(delayMs: Long) {
-        val ip = activeServerIp ?: return
-        val name = activeScreenName ?: return
-        if (userInitiatedDisconnect) return
+        val ip = coordinator.serverIp ?: return
+        val name = coordinator.screenName ?: return
+        if (coordinator.isUserInitiatedDisconnect) return
 
         shizukuRecoveryJob?.cancel()
         shizukuRecoveryJob = scope.launch {
@@ -828,7 +745,7 @@ class ConnectionService : Service() {
             }
 
             delay(delayMs)
-            if (userInitiatedDisconnect || activeServerIp != ip) return@launch
+            if (coordinator.isUserInitiatedDisconnect || coordinator.serverIp != ip) return@launch
 
             Log.i(TAG, "Attempting auto-recovery of privileged session to $ip")
             val bounds = getScreenBounds()
@@ -867,12 +784,11 @@ class ConnectionService : Service() {
         }
         shizukuRecoveryJob?.cancel()
         shizukuRecoveryJob = null
-        connectGeneration++
+        coordinator.disconnect()
         cancelPendingJobs(keepConnection = false)
         scope.cancel()
         injector?.setOnNativePointerStateChanged(null)
         injector?.disconnect()
-        pointerOnScreen = false
         applyCursorOverlay()
         restorePreviousIme()
         stopService(Intent(this, CursorOverlayService::class.java))
