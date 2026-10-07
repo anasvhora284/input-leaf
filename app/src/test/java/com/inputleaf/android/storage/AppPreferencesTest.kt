@@ -85,6 +85,55 @@ class AppPreferencesTest {
         }
     }
 
+    @Test fun `ipv6 server addresses store and retrieve fingerprints and transport modes accurately`() = runBlocking {
+        val ipv6 = "2001:db8::1"
+        val fp = "ef".repeat(32)
+        withPreferences { prefs, _ ->
+            prefs.saveFingerprint(ipv6, fp)
+            prefs.saveTransport(ipv6, "tls")
+        }
+        withPreferences { prefs, _ ->
+            assertThat(prefs.savedServers.first()).contains(ipv6)
+            assertThat(prefs.fingerprintFor(ipv6).first()).isEqualTo(fp)
+            assertThat(prefs.transportFor(ipv6).first()).isEqualTo("tls")
+            assertThat(prefs.allFingerprints().first()).containsEntry(ipv6, fp)
+
+            prefs.removeFingerprint(ipv6)
+            prefs.clearTransport(ipv6)
+        }
+        withPreferences { prefs, _ ->
+            assertThat(prefs.savedServers.first()).contains(ipv6)
+            assertThat(prefs.fingerprintFor(ipv6).first()).isNull()
+            assertThat(prefs.transportFor(ipv6).first()).isNull()
+        }
+    }
+
+    @Test fun `legacy ipv6 records are recovered and migrated to v2 format on edit`() = runBlocking {
+        val ipv6 = "2001:db8::1"
+        val legacyFp = "12".repeat(32)
+        withPreferences { prefs, store ->
+            store.edit {
+                it[stringPreferencesKey("tls_fingerprints")] = "$ipv6:$legacyFp"
+                it[stringPreferencesKey("server_transport_modes")] = "$ipv6:tls"
+            }
+            assertThat(prefs.savedServers.first()).contains(ipv6)
+            assertThat(prefs.fingerprintFor(ipv6).first()).isEqualTo(legacyFp)
+            assertThat(prefs.transportFor(ipv6).first()).isEqualTo("tls")
+
+            val newFp = "34".repeat(32)
+            prefs.saveFingerprint(ipv6, newFp)
+            prefs.saveTransport(ipv6, "plain")
+        }
+        withPreferences { prefs, store ->
+            val rawFp = store.data.first()[stringPreferencesKey("tls_fingerprints")]
+            val rawMode = store.data.first()[stringPreferencesKey("server_transport_modes")]
+            assertThat(rawFp).startsWith("v2|")
+            assertThat(rawMode).startsWith("v2|")
+            assertThat(prefs.fingerprintFor(ipv6).first()).isEqualTo("34".repeat(32))
+            assertThat(prefs.transportFor(ipv6).first()).isEqualTo("plain")
+        }
+    }
+
     private suspend fun withPreferences(block: suspend (AppPreferences, DataStore<Preferences>) -> Unit) {
         val job = SupervisorJob()
         val store = PreferenceDataStoreFactory.create(scope = CoroutineScope(Dispatchers.IO + job)) {

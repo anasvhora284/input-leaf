@@ -130,7 +130,7 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
         prefs[KEY_LAST_SERVER_IP]?.trim()?.takeIf { it.isNotEmpty() }?.let { add(it) }
         for (key in listOf(KEY_FINGERPRINTS, KEY_TRANSPORT_MODES)) {
             prefs[key].orEmpty().lineSequence().forEach { line ->
-                line.substringBefore(":", "").trim().takeIf { it.isNotEmpty() }?.let { add(it) }
+                ServerRecordCodec.decode(line)?.first?.let { add(it) }
             }
         }
     }
@@ -211,53 +211,71 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
 
     fun fingerprintFor(ip: String): Flow<String?> =
         dataStore.data.map { prefs ->
-            prefs[KEY_FINGERPRINTS]?.lines()
-                ?.firstOrNull { it.startsWith("$ip:") }
-                ?.substringAfter(":")
+            prefs[KEY_FINGERPRINTS]?.lineSequence()
+                ?.mapNotNull { ServerRecordCodec.decode(it) }
+                ?.firstOrNull { it.first == ip }
+                ?.second
         }
 
     suspend fun saveFingerprint(ip: String, fingerprint: String) =
         dataStore.edit { prefs ->
-            val lines = prefs[KEY_FINGERPRINTS]?.lines()?.toMutableList() ?: mutableListOf()
-            lines.removeAll { it.startsWith("$ip:") }
-            lines.add("$ip:$fingerprint")
-            prefs[KEY_FINGERPRINTS] = lines.joinToString("\n")
+            val records = prefs[KEY_FINGERPRINTS]?.lines()
+                ?.mapNotNull { ServerRecordCodec.decode(it) }
+                ?.filterNot { it.first == ip }
+                ?.toMutableList() ?: mutableListOf()
+            records.add(ip to fingerprint)
+            prefs[KEY_FINGERPRINTS] = records.joinToString("\n") { (srv, value) ->
+                ServerRecordCodec.encode(srv, value)
+            }
         }
 
     suspend fun removeFingerprint(ip: String) = dataStore.edit { prefs ->
         // Forgetting trust should not remove the saved server itself.
         rememberServer(prefs, ip)
-        val lines = prefs[KEY_FINGERPRINTS]?.lines()?.toMutableList() ?: return@edit
-        lines.removeAll { it.startsWith("$ip:") }
-        prefs[KEY_FINGERPRINTS] = lines.joinToString("\n")
+        val raw = prefs[KEY_FINGERPRINTS] ?: return@edit
+        val records = raw.lines()
+            .mapNotNull { ServerRecordCodec.decode(it) }
+            .filterNot { it.first == ip }
+        prefs[KEY_FINGERPRINTS] = records.joinToString("\n") { (srv, value) ->
+            ServerRecordCodec.encode(srv, value)
+        }
     }
 
     fun allFingerprints(): Flow<Map<String, String>> =
         dataStore.data.map { prefs ->
-            prefs[KEY_FINGERPRINTS]?.lines()
-                ?.filter { it.contains(":") }
-                ?.associate { it.substringBefore(":") to it.substringAfter(":") }
+            prefs[KEY_FINGERPRINTS]?.lineSequence()
+                ?.mapNotNull { ServerRecordCodec.decode(it) }
+                ?.associate { it.first to it.second }
                 ?: emptyMap()
         }
 
     fun transportFor(ip: String): Flow<String?> =
         dataStore.data.map { prefs ->
-            prefs[KEY_TRANSPORT_MODES]?.lines()
-                ?.firstOrNull { it.startsWith("$ip:") }
-                ?.substringAfter(":")
+            prefs[KEY_TRANSPORT_MODES]?.lineSequence()
+                ?.mapNotNull { ServerRecordCodec.decode(it) }
+                ?.firstOrNull { it.first == ip }
+                ?.second
         }
 
     suspend fun saveTransport(ip: String, mode: String) = dataStore.edit { prefs ->
-        val lines = prefs[KEY_TRANSPORT_MODES]?.lines()?.toMutableList() ?: mutableListOf()
-        lines.removeAll { it.startsWith("$ip:") }
-        lines.add("$ip:$mode")
-        prefs[KEY_TRANSPORT_MODES] = lines.joinToString("\n")
+        val records = prefs[KEY_TRANSPORT_MODES]?.lines()
+            ?.mapNotNull { ServerRecordCodec.decode(it) }
+            ?.filterNot { it.first == ip }
+            ?.toMutableList() ?: mutableListOf()
+        records.add(ip to mode)
+        prefs[KEY_TRANSPORT_MODES] = records.joinToString("\n") { (srv, value) ->
+            ServerRecordCodec.encode(srv, value)
+        }
     }
 
     suspend fun clearTransport(ip: String) = dataStore.edit { prefs ->
-        val lines = prefs[KEY_TRANSPORT_MODES]?.lines()?.toMutableList() ?: return@edit
-        lines.removeAll { it.startsWith("$ip:") }
-        prefs[KEY_TRANSPORT_MODES] = lines.joinToString("\n")
+        val raw = prefs[KEY_TRANSPORT_MODES] ?: return@edit
+        val records = raw.lines()
+            .mapNotNull { ServerRecordCodec.decode(it) }
+            .filterNot { it.first == ip }
+        prefs[KEY_TRANSPORT_MODES] = records.joinToString("\n") { (srv, value) ->
+            ServerRecordCodec.encode(srv, value)
+        }
     }
 
     val lastSeenVersionCode: Flow<Int?> =
