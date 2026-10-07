@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Point
 import android.graphics.Rect
+import android.content.pm.ServiceInfo
 import android.database.ContentObserver
 import android.net.Uri
 import android.os.Binder
@@ -15,6 +16,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.WindowManager
+import androidx.core.app.ServiceCompat
 import com.inputleaf.android.inject.AccessibilityInputService
 import com.inputleaf.android.inject.NativePointerState
 import com.inputleaf.android.inject.PointerDevice
@@ -235,7 +237,20 @@ class ConnectionService : Service() {
         if (generation != connectGeneration) return
         var activePolicy = ConnectionTransportPolicy.AUTO
         try {
-            startForeground(NOTIF_ID, NotificationHelper.build(this@ConnectionService, stateMachine.state.value))
+            runCatching {
+                ServiceCompat.startForeground(
+                    this@ConnectionService,
+                    NOTIF_ID,
+                    NotificationHelper.build(this@ConnectionService, stateMachine.state.value),
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+                    } else {
+                        0
+                    },
+                )
+            }.onFailure { error ->
+                Log.w(TAG, "Failed to start foreground service: ${error.message}", error)
+            }
             stateMachine.onConnecting(serverIp)
 
             val storedFp = prefs.fingerprintFor(serverIp).first()
@@ -685,7 +700,11 @@ class ConnectionService : Service() {
         applyCursorOverlay()
         restorePreviousIme()
         stateMachine.onDisconnected()
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        runCatching {
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        }.onFailure { error ->
+            Log.w(TAG, "Failed to stop foreground service cleanly: ${error.message}", error)
+        }
         stopSelf()
     }
 
@@ -716,17 +735,7 @@ class ConnectionService : Service() {
         }
     }
 
-    @Suppress("DEPRECATION")
-    private fun getScreenBounds(): Rect {
-        val wm = getSystemService(WindowManager::class.java)
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            wm.currentWindowMetrics.bounds
-        } else {
-            val size = Point()
-            wm.defaultDisplay.getSize(size)
-            Rect(0, 0, size.x, size.y)
-        }
-    }
+    internal fun getScreenBounds(): Rect = ScreenBoundsResolver.resolveFromContext(this)
 
     private fun autoSwitchImeToOurs() {
         if (injector !is com.inputleaf.android.inject.AccessibilityInputInjector) {

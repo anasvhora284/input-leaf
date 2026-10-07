@@ -249,7 +249,7 @@ class CursorOverlayService : Service() {
             try {
                 windowManager?.updateViewLayout(view, params)
             } catch (e: Exception) {
-                // View might not be attached
+                Log.w(TAG, "Failed to update cursor layout: ${e.message}")
             }
         }
     }
@@ -259,6 +259,14 @@ class CursorOverlayService : Service() {
             scope.cancel()
         } catch (e: Exception) {}
         hideCursorInternal()
+        cursorView?.let { view ->
+            try {
+                windowManager?.removeView(view)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to remove cursor overlay view on destroy: ${e.message}")
+            }
+        }
+        cursorView = null
         instance = null
         super.onDestroy()
     }
