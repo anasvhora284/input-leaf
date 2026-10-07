@@ -98,4 +98,4 @@ Harden kernel-level input stability and testing determinism, resolve open collab
   3. `ConnectionService` is reduced to an Android lifecycle shell managing foreground notifications and window overlay display.
 
 **Plans**: 1 plan
-- 06-01: Architectural Modularity & Pure Domain Coordination [pending]
+- 06-01: Architectural Modularity & Pure Domain Coordination [complete]

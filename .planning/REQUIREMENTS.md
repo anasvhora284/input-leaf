@@ -37,7 +37,7 @@
 
 ### Architectural Modularity
 
-- [ ] **ARCH-01**: Extract `ConnectionCoordinator` out of `ConnectionService` to isolate connection generations, retry backoff, keepalive timeouts, and input routing into pure, JVM-testable domain logic (#12).
+- [x] **ARCH-01**: Extract `ConnectionCoordinator` out of `ConnectionService` to isolate connection generations, retry backoff, keepalive timeouts, and input routing into pure, JVM-testable domain logic (#12).
 - [x] **ARCH-02**: Ensure zero emojis across all commit messages, files, and outputs in compliance with `CODE_QUALITY_STANDARDS.md`.
 
 ## v2 Requirements
@@ -74,7 +74,7 @@
 | PROT-01 | Phase 5 | Complete |
 | PROT-02 | Phase 5 | Complete |
 | PROT-03 | Phase 5 | Complete |
-| ARCH-01 | Phase 6 | Pending |
+| ARCH-01 | Phase 6 | Complete |
 | ARCH-02 | Cross-Phase | Complete |
 
 ---
