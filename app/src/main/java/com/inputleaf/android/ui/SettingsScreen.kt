@@ -475,7 +475,7 @@ fun SettingsScreen(
             title = { Text("Regenerate certificate?") },
             text = {
                 Text(
-                    "Deskflow will ask you to trust this phone again. Only regenerate if you " +
+                    "Your server will ask you to trust this phone again. Only regenerate if you " +
                         "want a new identity."
                 )
             },
@@ -503,7 +503,7 @@ fun SettingsScreen(
             icon = Icons.Rounded.Lock,
             options = listOf(
                 Choice(ConnectionTransportPolicy.AUTO, "Auto (Recommended)", "Use the last working mode, with fallback"),
-                Choice(ConnectionTransportPolicy.TLS_ONLY, "TLS only", "Require an encrypted Deskflow connection"),
+                Choice(ConnectionTransportPolicy.TLS_ONLY, "TLS only", "Require an encrypted connection"),
                 Choice(ConnectionTransportPolicy.PLAIN_ONLY, "Plain only", "Never attempt TLS"),
             ),
             selected = connectionTransportPolicy,

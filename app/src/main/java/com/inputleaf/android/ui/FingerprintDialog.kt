@@ -21,7 +21,7 @@ fun FingerprintDialog(
                     "Old: ${formatFingerprintForDisplay(oldFingerprint)}\n\n" +
                     "New: ${formatFingerprintForDisplay(fingerprint)}")
             } else {
-                Text("Verify this fingerprint matches what Deskflow shows on your PC:\n\n" +
+                Text("Verify this fingerprint matches what your server shows on your PC:\n\n" +
                     formatFingerprintForDisplay(fingerprint), fontFamily = FontFamily.Monospace)
             }
         },
@@ -42,7 +42,7 @@ fun LocalFingerprintDialog(
         title = { Text("This device's fingerprint") },
         text = {
             Text(
-                "Compare this with Deskflow when it asks to trust a new client.\n\n" +
+                "Compare this with your server when registering this device as a trusted client.\n\n" +
                     formatFingerprintForDisplay(fingerprint),
                 fontFamily = FontFamily.Monospace,
             )

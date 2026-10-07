@@ -68,7 +68,7 @@ fun ServerListScreen(
                 }
             }
 
-            item { SectionHeader("Discovered Servers") }
+            item { SectionHeader("Other Servers") }
             itemsIndexed(others) { index, server ->
                 ServerListItem(
                     server = server,
@@ -95,7 +95,7 @@ fun ServerListScreen(
                             LoadingIndicator()
                         } else {
                             Text(
-                                text = "No servers found. Try scanning again.",
+                                text = "No servers yet. Add one manually or scan your network.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
