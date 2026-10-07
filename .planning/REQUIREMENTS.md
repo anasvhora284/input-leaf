@@ -25,15 +25,15 @@
 
 ### Form-Factor & OEM Compatibility
 
-- [ ] **OEM-01**: Resolve Huawei MatePad SE 11 connection crash (#54) by defensively guarding window metrics, display insets, and background service start constraints.
-- [ ] **OEM-02**: Add Android TV support by providing Leanback banner metadata in `AndroidManifest.xml`, declaring touchscreen non-mandatory, and mapping arrow keys to Android DPAD keycodes.
-- [ ] **OEM-03**: Expose a user settings toggle for Pointer Device (Relative Mouse, Absolute Stylus/Pen, Touch Fallback) and complete `HidPen` absolute digitizer report injection.
+- [x] **OEM-01**: Resolve Huawei MatePad SE 11 connection crash (#54) by defensively guarding window metrics, display insets, and background service start constraints.
+- [x] **OEM-02**: Add Android TV support by providing Leanback banner metadata in `AndroidManifest.xml`, declaring touchscreen non-mandatory, and mapping arrow keys to Android DPAD keycodes.
+- [x] **OEM-03**: Expose a user settings toggle for Pointer Device (Relative Mouse, Absolute Stylus/Pen, Touch Fallback) and complete `HidPen` absolute digitizer report injection.
 
 ### Protocol Extensions & Server Persistence
 
-- [ ] **PROT-01**: Support Synergy 3.7+ protocol negotiation, complete handshake on `DSOP`, and handle signed 16-bit `DMRM` relative delta packets (#47, #53).
-- [ ] **PROT-02**: Translate Mac Carbon keycodes to Linux evdev usages for cross-platform desktop server compatibility (#53).
-- [ ] **PROT-03**: Persist manually added, used, and favorited servers in DataStore so they survive app restarts and merge cleanly with local mDNS scans (#53).
+- [x] **PROT-01**: Support Synergy 3.7+ protocol negotiation, complete handshake on `DSOP`, and handle signed 16-bit `DMRM` relative delta packets (#47, #53).
+- [x] **PROT-02**: Translate Mac Carbon keycodes to Linux evdev usages for cross-platform desktop server compatibility (#53).
+- [x] **PROT-03**: Persist manually added, used, and favorited servers in DataStore so they survive app restarts and merge cleanly with local mDNS scans (#53).
 
 ### Architectural Modularity
 
@@ -71,11 +71,11 @@
 | OEM-01 | Phase 4 | Complete |
 | OEM-02 | Phase 4 | Complete |
 | OEM-03 | Phase 4 | Complete |
-| PROT-01 | Phase 5 | Pending |
-| PROT-02 | Phase 5 | Pending |
-| PROT-03 | Phase 5 | Pending |
+| PROT-01 | Phase 5 | Complete |
+| PROT-02 | Phase 5 | Complete |
+| PROT-03 | Phase 5 | Complete |
 | ARCH-01 | Phase 6 | Pending |
-| ARCH-02 | Phase 6 | Pending |
+| ARCH-02 | Cross-Phase | Complete |
 
 ---
 *Requirements defined: 2026-10-05*

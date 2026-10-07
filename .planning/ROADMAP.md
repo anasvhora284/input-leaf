@@ -9,8 +9,8 @@ Harden kernel-level input stability and testing determinism, resolve open collab
 - [x] **Phase 1: Core Kernel UHID Fixes** - Resolve un-stoppable reader thread leaks, eliminate OPEN-less attach latency stalls, and purge dead stream-model UHID methods (#48, #49, #50) (completed 2026-10-06)
 - [x] **Phase 2: Deterministic Testing & CI Guardrails** - Remove all wall-clock sleeps from JVM tests and establish Android smoke testing workflow with coverage guardrails (#51, #13) (completed 2026-10-06)
 - [x] **Phase 3: IPC Lifecycle & Review Follow-ups** - Prevent token death races from killing active devices, correct enter-warp snap reporting, and stabilize AIDL method order (#52) (completed 2026-10-06)
-- [ ] **Phase 4: Form-Factor & OEM Compatibility** - Fix Huawei MatePad SE 11 crash, add Android TV D-pad navigation with Leanback metadata, and wire user settings toggle for `HidPen` stylus (#54)
-- [ ] **Phase 5: Protocol Extensions & Server Persistence** - Integrate Synergy 3.7+ signed 16-bit deltas and Mac Carbon keycodes, and persist saved server addresses across app restarts (#47, #53)
+- [x] **Phase 4: Form-Factor & OEM Compatibility** - Fix Huawei MatePad SE 11 crash, add Android TV D-pad navigation with Leanback metadata, and wire user settings toggle for `HidPen` stylus (#54) (completed 2026-10-07)
+- [x] **Phase 5: Protocol Extensions & Server Persistence** - Integrate Synergy 3.7+ signed 16-bit deltas and Mac Carbon keycodes, and persist saved server addresses across app restarts (#47, #53) (completed 2026-10-07)
 - [ ] **Phase 6: Architectural Modularity** - Extract `ConnectionCoordinator` out of `ConnectionService` to isolate state transitions and input routing into pure, JVM-testable domain logic (#12)
 
 ## Phase Details
@@ -76,14 +76,15 @@ Harden kernel-level input stability and testing determinism, resolve open collab
 
 **Goal**: Add Synergy 3.7+ desktop server support and persist user server lists across app restarts.
 **Depends on**: Phase 4
-**Requirements**: PROT-01, PROT-02, PROT-03
+**Requirements**: PROT-01, PROT-02, PROT-03, ARCH-02
 **Success Criteria** (what must be TRUE):
 
   1. Client successfully completes handshakes with Synergy 3.7+ servers (`DSOP` completion) and decodes signed 16-bit relative deltas (`DMRM`).
   2. Mac Carbon keycodes are accurately mapped to Linux evdev keys for Android input.
   3. Manually added and favorited server addresses are persisted in DataStore and merged with mDNS scan results upon app launch.
 
-**Plans**: TBD
+**Plans**: 1 plan
+- 05-01: Protocol Extensions & Server Persistence [complete]
 
 ### Phase 6: Architectural Modularity
 
@@ -97,6 +98,3 @@ Harden kernel-level input stability and testing determinism, resolve open collab
   3. `ConnectionService` is reduced to an Android lifecycle shell managing foreground notifications and window overlay display.
 
 **Plans**: TBD
-
----
-*Roadmap generated: 2026-10-05*
