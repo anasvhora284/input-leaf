@@ -112,8 +112,14 @@ class ProtocolParser(input: DataInputStream) {
             InputLeapEvent.MouseMoveAbs(payload.u16(0), payload.u16(2))
         }
         ProtocolConstants.TAG_MOUSE_REL -> {
-            requireExact(payload.size, 8, tag)
-            InputLeapEvent.MouseMoveRel(payload.s32(0), payload.s32(4))
+            // Synergy (including 3.x), Input Leap and Deskflow use DMRM%2i%2i.
+            // Keep accepting the 32-bit variant supported by earlier Input Leaf builds.
+            if (payload.size == 4) {
+                InputLeapEvent.MouseMoveRel(payload.s16(0), payload.s16(2))
+            } else {
+                requireExact(payload.size, 8, tag)
+                InputLeapEvent.MouseMoveRel(payload.s32(0), payload.s32(4))
+            }
         }
         ProtocolConstants.TAG_MOUSE_DOWN -> {
             requireExact(payload.size, 1, tag)
