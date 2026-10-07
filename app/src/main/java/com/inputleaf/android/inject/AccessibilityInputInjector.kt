@@ -82,11 +82,13 @@ class AccessibilityInputInjector(
     }
 
     override fun disconnect() {
+        scanCodeDecoder.clearPressedKeys()
         Log.d(TAG, "disconnect called")
         hidKeyboard.disconnect()
     }
 
     override fun setHidKeyboardAttached(attached: Boolean) {
+        if (!attached) scanCodeDecoder.clearPressedKeys()
         hidKeyboard.setHidKeyboardAttached(attached)
     }
 
@@ -173,7 +175,7 @@ class AccessibilityInputInjector(
     }
 
     private fun handleKeyEvent(keysym: Int, mask: Int, button: Int, isDown: Boolean) {
-        val scancode = scanCodeDecoder.toEvdev(button, keysym)
+        val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown)
         if (hidKeyboard.tryHidKey(scancode, isDown)) {
             return
         }
@@ -217,7 +219,7 @@ class AccessibilityInputInjector(
     }
 
     private fun handleKeyRepeat(keysym: Int, mask: Int, button: Int, count: Int) {
-        val scancode = scanCodeDecoder.toEvdev(button, keysym)
+        val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown = true)
         if (hidKeyboard.tryHidKey(scancode, isDown = true)) {
             return
         }
