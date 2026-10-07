@@ -101,7 +101,7 @@ internal fun clientCertificateImportError(
         "Could not securely store the client certificate"
 }
 
-class MainViewModel(
+class MainViewModel @JvmOverloads constructor(
     app: Application,
     dependencies: AppDependencies = AppDependencies.from(app),
 ) : AndroidViewModel(app) {
