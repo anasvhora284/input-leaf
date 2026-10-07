@@ -90,11 +90,12 @@ Harden kernel-level input stability and testing determinism, resolve open collab
 
 **Goal**: Decompose `ConnectionService` by extracting pure domain coordination logic into `ConnectionCoordinator`.
 **Depends on**: Phase 5
-**Requirements**: ARCH-01
+**Requirements**: ARCH-01, ARCH-02
 **Success Criteria** (what must be TRUE):
 
   1. `ConnectionCoordinator` encapsulates connection generations, retry backoff, keepalive timeouts, and event routing decisions.
   2. All coordination and routing decisions are covered by fast JVM unit tests without Android Context or Mockito mocks.
   3. `ConnectionService` is reduced to an Android lifecycle shell managing foreground notifications and window overlay display.
 
-**Plans**: TBD
+**Plans**: 1 plan
+- 06-01: Architectural Modularity & Pure Domain Coordination [pending]
