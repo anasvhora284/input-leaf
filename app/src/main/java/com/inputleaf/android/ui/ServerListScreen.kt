@@ -4,10 +4,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Bookmark
-import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.*
@@ -19,7 +17,9 @@ import androidx.compose.ui.unit.dp
 import com.inputleaf.android.model.ConnectionState
 import com.inputleaf.android.model.ServerInfo
 import com.inputleaf.android.ui.components.CircularAvatar
+import com.inputleaf.android.ui.components.SavedServersSheet
 import com.inputleaf.android.ui.components.SectionHeader
+import com.inputleaf.android.ui.components.SettingsBadgeRow
 import com.inputleaf.android.ui.components.SettingsGroup
 import com.inputleaf.android.ui.components.SettingsRow
 
@@ -42,7 +42,6 @@ fun ServerListScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var manualIp by remember { mutableStateOf("") }
     var showSavedServersSheet by remember { mutableStateOf(false) }
-    var serverToDelete by remember { mutableStateOf<String?>(null) }
 
     val connectingIp = connectingServerIp(connectionState, pendingConnectIp)
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -208,7 +207,7 @@ fun ServerListScreen(
             item {
                 SettingsGroup(modifier = Modifier.padding(horizontal = 16.dp)) {
                     row { shapes ->
-                        SettingsRow(
+                        SettingsBadgeRow(
                             icon = Icons.Rounded.Bookmark,
                             title = "Saved & Favorite Servers",
                             subtitle = when (savedServerList.size) {
@@ -216,26 +215,9 @@ fun ServerListScreen(
                                 1 -> "1 saved server • Tap to manage"
                                 else -> "${savedServerList.size} saved servers • Tap to manage"
                             },
+                            count = savedServerList.size.takeIf { it > 0 },
                             shapes = shapes,
                             onClick = { showSavedServersSheet = true },
-                            trailingContent = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    if (savedServerList.isNotEmpty()) {
-                                        Badge(containerColor = MaterialTheme.colorScheme.secondaryContainer) {
-                                            Text(
-                                                text = "${savedServerList.size}",
-                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                            )
-                                        }
-                                        Spacer(Modifier.width(8.dp))
-                                    }
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                                        contentDescription = "View Saved Servers",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            },
                         )
                     }
                 }
@@ -243,135 +225,20 @@ fun ServerListScreen(
         }
     }
 
-    // Modal Bottom Sheet for Saved Servers
     if (showSavedServersSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showSavedServersSheet = false },
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    CircularAvatar(
-                        icon = Icons.Rounded.Bookmark,
-                        size = 44.dp,
-                        iconSize = 22.dp,
-                        backgroundColor = MaterialTheme.colorScheme.primaryContainer,
-                        iconTint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Saved Servers",
-                            style = MaterialTheme.typography.titleLargeEmphasized,
-                        )
-                        Text(
-                            text = "Manage saved host addresses, favorites, and quick connection targets.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                if (savedServerList.isNotEmpty()) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
-                    ) {
-                        savedServerList.forEachIndexed { index, server ->
-                            ServerListItem(
-                                server = server,
-                                isConnected = isServerConnected(connectionState, server),
-                                onServerClick = {
-                                    onConnect(server)
-                                    showSavedServersSheet = false
-                                },
-                                shapes = ListItemDefaults.segmentedShapes(index, savedServerList.size),
-                                isFavorite = favoriteServers.contains(server.ip),
-                                onToggleFavorite = { onToggleFavorite(server.ip) },
-                                onDelete = { serverToDelete = server.ip },
-                                isConnecting = connectingIp == server.ip,
-                                enabled = connectingIp == null,
-                            )
-                        }
-                    }
-                } else {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        shape = MaterialTheme.shapes.large,
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                        ),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(24.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = "No saved servers yet. Add one manually or star a discovered server.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                OutlinedButton(
-                    onClick = { showAddDialog = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Add,
-                        contentDescription = null,
-                        modifier = Modifier.size(ButtonDefaults.IconSize),
-                    )
-                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                    Text("Add Server Manually")
-                }
-            }
-        }
-    }
-
-    // Delete Saved Server Confirmation Dialog
-    serverToDelete?.let { ip ->
-        AlertDialog(
-            onDismissRequest = { serverToDelete = null },
-            icon = { Icon(Icons.Rounded.Delete, contentDescription = null) },
-            title = { Text("Remove Saved Server") },
-            text = { Text("Remove $ip from your saved servers list?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onRemoveSavedServer(ip)
-                    serverToDelete = null
-                }) {
-                    Text("Remove", color = MaterialTheme.colorScheme.error)
-                }
+        SavedServersSheet(
+            savedServers = savedServerList,
+            connectionState = connectionState,
+            favoriteServers = favoriteServers,
+            connectingIp = connectingIp,
+            onConnect = { server ->
+                onConnect(server)
+                showSavedServersSheet = false
             },
-            dismissButton = {
-                TextButton(onClick = { serverToDelete = null }) {
-                    Text("Cancel")
-                }
-            },
+            onToggleFavorite = onToggleFavorite,
+            onDeleteServer = onRemoveSavedServer,
+            onAddManualClick = { showAddDialog = true },
+            onDismiss = { showSavedServersSheet = false },
         )
     }
 
@@ -418,7 +285,7 @@ fun ServerListScreen(
     }
 }
 
-private fun isServerConnected(connectionState: ConnectionState, server: ServerInfo): Boolean {
+internal fun isServerConnected(connectionState: ConnectionState, server: ServerInfo): Boolean {
     return when (connectionState) {
         is ConnectionState.Idle -> connectionState.serverIp == server.ip
         is ConnectionState.Active -> connectionState.serverIp == server.ip

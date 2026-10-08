@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material3.Badge
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItemDefaults
@@ -17,6 +18,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -94,6 +96,48 @@ fun SettingsRow(
     subtitle = subtitle,
     onClick = onClick,
     trailingContent = trailingContent,
+)
+
+@Composable
+fun SettingsBadgeRow(
+    icon: ImageVector,
+    title: String,
+    shapes: ListItemShapes,
+    subtitle: String? = null,
+    count: Int? = null,
+    onClick: (() -> Unit)? = null,
+) = SettingsRow(
+    icon = icon,
+    title = title,
+    shapes = shapes,
+    subtitle = subtitle,
+    onClick = onClick,
+    trailingContent = {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (count != null) {
+                Badge(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                ) {
+                    Text(
+                        "$count",
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                    )
+                }
+            }
+            if (onClick != null) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    },
 )
 
 @Composable

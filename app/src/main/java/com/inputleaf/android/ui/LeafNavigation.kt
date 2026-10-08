@@ -346,6 +346,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     accessibilityAvailable = accessibilityAvailable,
                     canDrawOverlays = canDrawOverlays,
                     fingerprints = fingerprints,
+                    serverNames = serverNames,
                     clientCertificateSummary = clientCertificateSummary,
                     onScreenNameChange = { viewModel.saveScreenName(it) },
                     onAutoConnectChange = { viewModel.saveAutoConnect(it) },
