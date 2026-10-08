@@ -16,4 +16,10 @@ class ServerListPersistenceTest {
         assertThat(mergeServerLists(setOf("192.168.1.10", "macbook-b.local"), listOf(discovered, another)))
             .containsExactly(discovered, ServerInfo("macbook-b.local"), another).inOrder()
     }
+
+    @Test fun `mergeServerLists resolves saved server display names from names map`() {
+        val names = mapOf("192.168.1.10" to "Anas-MacBook")
+        assertThat(mergeServerLists(setOf("192.168.1.10"), emptyList(), names))
+            .containsExactly(ServerInfo("192.168.1.10", name = "Anas-MacBook"))
+    }
 }

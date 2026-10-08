@@ -298,6 +298,9 @@ class ConnectionService : Service() {
             when (result) {
                 is ConnectResult.Ok -> {
                     connection = conn
+                    if (result.banner.name.isNotBlank()) {
+                        prefs.saveServerName(serverIp, result.banner.name)
+                    }
                     prefs.saveTransport(serverIp, result.transport.name.lowercase())
                     coordinator.onConnectOk(serverIp, screenName, generation)
                     conn.clearHandshakeTimeout()

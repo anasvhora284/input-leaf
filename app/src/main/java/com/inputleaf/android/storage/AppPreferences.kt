@@ -38,6 +38,7 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
         private val KEY_INPUT_METHOD     = stringPreferencesKey("input_method")
         private val KEY_CURSOR_STYLE     = stringPreferencesKey("cursor_style")
         private val KEY_POINTER_DEVICE   = stringPreferencesKey("pointer_device")
+        private val KEY_SERVER_NAMES     = stringPreferencesKey("server_display_names")
         private val KEY_LAST_SEEN_VERSION_CODE = intPreferencesKey("last_seen_version_code")
 
         // Set once su has actually been granted. libsu cannot tell "granted" from
@@ -119,18 +120,27 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
 
     val savedServers: Flow<Set<String>> = dataStore.data.map(::savedServerAddresses)
 
+    val serverNames: Flow<Map<String, String>> = dataStore.data.map { prefs ->
+        prefs[KEY_SERVER_NAMES]?.lineSequence()
+            ?.mapNotNull { ServerRecordCodec.decode(it) }
+            ?.toMap() ?: emptyMap()
+    }
+
     private fun savedServerAddresses(prefs: Preferences): Set<String> = buildSet {
-        addAll(prefs[KEY_SAVED_SERVERS].orEmpty())
-        // Recover addresses stored by older builds, even before the first new write.
-        addAll(
-            prefs[KEY_FAVORITE_SERVERS].orEmpty().lineSequence()
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
-        )
-        prefs[KEY_LAST_SERVER_IP]?.trim()?.takeIf { it.isNotEmpty() }?.let { add(it) }
-        for (key in listOf(KEY_FINGERPRINTS, KEY_TRANSPORT_MODES)) {
-            prefs[key].orEmpty().lineSequence().forEach { line ->
-                ServerRecordCodec.decode(line)?.first?.let { add(it) }
+        if (prefs.contains(KEY_SAVED_SERVERS)) {
+            addAll(prefs[KEY_SAVED_SERVERS].orEmpty())
+        } else {
+            // Recover addresses stored by older builds, even before the first new write.
+            addAll(
+                prefs[KEY_FAVORITE_SERVERS].orEmpty().lineSequence()
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+            )
+            prefs[KEY_LAST_SERVER_IP]?.trim()?.takeIf { it.isNotEmpty() }?.let { add(it) }
+            for (key in listOf(KEY_FINGERPRINTS, KEY_TRANSPORT_MODES)) {
+                prefs[key].orEmpty().lineSequence().forEach { line ->
+                    ServerRecordCodec.decode(line)?.first?.let { add(it) }
+                }
             }
         }
     }
@@ -143,6 +153,45 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
     }
 
     suspend fun saveServer(address: String) = dataStore.edit { rememberServer(it, address) }
+
+    suspend fun removeServer(address: String) = dataStore.edit { prefs ->
+        val trimmed = address.trim()
+        val currentSaved = savedServerAddresses(prefs).toMutableSet()
+        currentSaved.remove(trimmed)
+        prefs[KEY_SAVED_SERVERS] = currentSaved
+
+        val favorites = prefs[KEY_FAVORITE_SERVERS]?.split("\n")?.filter { it.isNotBlank() }?.toMutableSet() ?: mutableSetOf()
+        if (favorites.remove(trimmed)) {
+            prefs[KEY_FAVORITE_SERVERS] = favorites.joinToString("\n")
+        }
+
+        if (prefs[KEY_LAST_SERVER_IP]?.trim() == trimmed) {
+            prefs.remove(KEY_LAST_SERVER_IP)
+        }
+
+        val currentNames = prefs[KEY_SERVER_NAMES]?.lineSequence()
+            ?.mapNotNull { ServerRecordCodec.decode(it) }
+            ?.toMap()?.toMutableMap() ?: mutableMapOf()
+        if (currentNames.remove(trimmed) != null) {
+            prefs[KEY_SERVER_NAMES] = currentNames.entries.joinToString("\n") { (k, v) ->
+                ServerRecordCodec.encode(k, v)
+            }
+        }
+    }
+
+    suspend fun saveServerName(ip: String, name: String) = dataStore.edit { prefs ->
+        val trimmedName = name.trim()
+        val trimmedIp = ip.trim()
+        if (trimmedName.isEmpty() || trimmedIp.isEmpty() || trimmedName == trimmedIp) return@edit
+        rememberServer(prefs, trimmedIp)
+        val current = prefs[KEY_SERVER_NAMES]?.lineSequence()
+            ?.mapNotNull { ServerRecordCodec.decode(it) }
+            ?.toMap()?.toMutableMap() ?: mutableMapOf()
+        current[trimmedIp] = trimmedName
+        prefs[KEY_SERVER_NAMES] = current.entries.joinToString("\n") { (k, v) ->
+            ServerRecordCodec.encode(k, v)
+        }
+    }
 
     suspend fun saveLastServer(ip: String) = dataStore.edit {
         rememberServer(it, ip)

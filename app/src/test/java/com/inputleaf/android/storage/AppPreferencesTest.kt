@@ -134,6 +134,36 @@ class AppPreferencesTest {
         }
     }
 
+    @Test fun `saveServerName persists server screen names across sessions`() = runBlocking {
+        withPreferences { prefs, _ ->
+            prefs.saveServerName("192.168.1.10", "Anas-MacBook")
+            prefs.saveServerName("192.168.1.20", "Workstation-Linux")
+        }
+        withPreferences { prefs, _ ->
+            val names = prefs.serverNames.first()
+            assertThat(names).containsEntry("192.168.1.10", "Anas-MacBook")
+            assertThat(names).containsEntry("192.168.1.20", "Workstation-Linux")
+            assertThat(prefs.savedServers.first()).contains("192.168.1.10")
+        }
+    }
+
+    @Test fun `removeServer deletes saved server and clears favorite and display name`() = runBlocking {
+        withPreferences { prefs, _ ->
+            prefs.saveServer("192.168.1.10")
+            prefs.saveServer("192.168.1.20")
+            prefs.toggleFavoriteServer("192.168.1.10")
+            prefs.saveServerName("192.168.1.10", "Old-Mac")
+        }
+        withPreferences { prefs, _ ->
+            prefs.removeServer("192.168.1.10")
+        }
+        withPreferences { prefs, _ ->
+            assertThat(prefs.savedServers.first()).containsExactly("192.168.1.20")
+            assertThat(prefs.favoriteServers.first()).isEmpty()
+            assertThat(prefs.serverNames.first()).doesNotContainKey("192.168.1.10")
+        }
+    }
+
     private suspend fun withPreferences(block: suspend (AppPreferences, DataStore<Preferences>) -> Unit) {
         val job = SupervisorJob()
         val store = PreferenceDataStoreFactory.create(scope = CoroutineScope(Dispatchers.IO + job)) {

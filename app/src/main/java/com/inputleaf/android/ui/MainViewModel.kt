@@ -52,9 +52,18 @@ enum class ThemeMode {
 
 private const val MAX_CLIENT_CERTIFICATE_BYTES = 16 * 1024 * 1024
 
-internal fun mergeServerLists(savedAddresses: Set<String>, discovered: List<ServerInfo>): List<ServerInfo> {
-    val servers = savedAddresses.sorted().associateWith { ServerInfo(ip = it) }.toMutableMap()
-    discovered.forEach { servers[it.ip] = it }
+internal fun mergeServerLists(
+    savedAddresses: Set<String>,
+    discovered: List<ServerInfo>,
+    serverNames: Map<String, String> = emptyMap(),
+): List<ServerInfo> {
+    val servers = savedAddresses.sorted().associateWith { ip ->
+        ServerInfo(ip = ip, name = serverNames[ip].orEmpty())
+    }.toMutableMap()
+    discovered.forEach {
+        val resolvedName = it.name.ifBlank { serverNames[it.ip].orEmpty() }
+        servers[it.ip] = it.copy(name = resolvedName)
+    }
     return servers.values.toList()
 }
 
@@ -117,8 +126,11 @@ class MainViewModel @JvmOverloads constructor(
     val pendingConnectIp: StateFlow<String?> = _pendingConnectIp
 
     private val _discoveredServers = MutableStateFlow<List<ServerInfo>>(emptyList())
+    val scannedServers: StateFlow<List<ServerInfo>> = _discoveredServers.asStateFlow()
+    val savedServers: Flow<Set<String>> = prefs.savedServers
+    val serverNames: Flow<Map<String, String>> = prefs.serverNames
     val discoveredServers: StateFlow<List<ServerInfo>> =
-        combine(prefs.savedServers, _discoveredServers, ::mergeServerLists)
+        combine(prefs.savedServers, _discoveredServers, prefs.serverNames, ::mergeServerLists)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _errorState = MutableStateFlow<String?>(null)
@@ -215,23 +227,16 @@ class MainViewModel @JvmOverloads constructor(
         viewModelScope.launch { 
             prefs.saveScreenName(name)
             // Reconnect with new screen name if currently connected
-            val currentState = _connectionState.value
-            if (currentState is ConnectionState.Idle || 
-                currentState is ConnectionState.Active ||
-                currentState is ConnectionState.Connecting ||
-                currentState is ConnectionState.Handshaking) {
-                // Get the current server IP and reconnect
-                val serverIp = when (currentState) {
-                    is ConnectionState.Idle -> currentState.serverIp
-                    is ConnectionState.Active -> currentState.serverIp
-                    is ConnectionState.Connecting -> currentState.serverIp
-                    is ConnectionState.Handshaking -> currentState.serverIp
-                    else -> null
-                }
-                if (serverIp != null) {
-                    Log.d("InputLeaf", "Screen name changed, reconnecting with new name: $name")
-                    service?.reconnect(serverIp, name.trim())
-                }
+            val serverIp = when (val currentState = _connectionState.value) {
+                is ConnectionState.Idle -> currentState.serverIp
+                is ConnectionState.Active -> currentState.serverIp
+                is ConnectionState.Connecting -> currentState.serverIp
+                is ConnectionState.Handshaking -> currentState.serverIp
+                else -> null
+            }
+            if (serverIp != null) {
+                Log.d("InputLeaf", "Screen name changed, reconnecting with new name: $name")
+                service?.reconnect(serverIp, name.trim())
             }
         } 
     }
@@ -242,6 +247,7 @@ class MainViewModel @JvmOverloads constructor(
     fun toggleMouseEnabled(enabled: Boolean) { viewModelScope.launch { prefs.saveMouseEnabled(enabled) } }
     fun toggleKeyboardEnabled(enabled: Boolean) { viewModelScope.launch { prefs.saveKeyboardEnabled(enabled) } }
     fun toggleFavoriteServer(ip: String) { viewModelScope.launch { prefs.toggleFavoriteServer(ip) } }
+    fun removeSavedServer(ip: String) { viewModelScope.launch { prefs.removeServer(ip) } }
     fun saveCursorStyle(style: String) { viewModelScope.launch { prefs.saveCursorStyle(style) } }
     fun savePointerDevice(device: PointerDevice) {
         viewModelScope.launch { prefs.savePointerDevice(device) }
@@ -512,6 +518,9 @@ class MainViewModel @JvmOverloads constructor(
             try {
                 if (ip != null) {
                     scanner.scan(ip) { server ->
+                        if (server.name.isNotBlank() && server.name != server.ip) {
+                            viewModelScope.launch { prefs.saveServerName(server.ip, server.name) }
+                        }
                         _discoveredServers.update { currentServers ->
                             val existingMap = currentServers.associateBy { it.ip }.toMutableMap()
                             existingMap[server.ip] = server

@@ -57,7 +57,7 @@ class InputLeapConnection(
     private val connectMutex = Mutex()
 
     /** Version advertised by the server before client-side minor-version negotiation. */
-    data class ServerBanner(val major: Int, val minor: Int)
+    data class ServerBanner(val major: Int, val minor: Int, val name: String = "")
 
     /**
      * Opens and handshakes a connection. Attempts are serialized, and calling this while the
@@ -277,6 +277,7 @@ class InputLeapConnection(
         var optionsReceived = false
         var bannerMajor = ProtocolConstants.PROTOCOL_MAJOR
         var bannerMinor = ProtocolConstants.PROTOCOL_MINOR
+        var bannerName = ""
 
         try {
             repeat(32) {
@@ -286,6 +287,7 @@ class InputLeapConnection(
                     is InputLeapEvent.Hello -> {
                         bannerMajor = event.majorVersion
                         bannerMinor = event.minorVersion
+                        bannerName = event.serverName
                         if (event.majorVersion != ProtocolConstants.PROTOCOL_MAJOR) {
                             close()
                             return ConnectResult.Failed(
@@ -352,7 +354,7 @@ class InputLeapConnection(
                     rawSocket.soTimeout = 0
                     readJob = readerScope.launch { readLoop(parser) }
                     logD("Handshake complete via $transport")
-                    return ConnectResult.Ok(ServerBanner(bannerMajor, bannerMinor), transport)
+                    return ConnectResult.Ok(ServerBanner(bannerMajor, bannerMinor, bannerName), transport)
                 }
             }
         } catch (e: Exception) {
