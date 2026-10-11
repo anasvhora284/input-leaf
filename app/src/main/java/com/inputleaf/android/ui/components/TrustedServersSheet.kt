@@ -29,7 +29,6 @@ fun TrustedServersSheet(
 ) {
     var serverToDelete by remember { mutableStateOf<String?>(null) }
     var selectedServerFp by remember { mutableStateOf<Pair<String, String>?>(null) }
-    @Suppress("DEPRECATION")
     val clipboardManager = LocalClipboardManager.current
     var copiedToClipboard by remember { mutableStateOf(false) }
 
@@ -105,7 +104,7 @@ fun TrustedServersSheet(
                             },
                         ) {
                             Text(
-                                text = displayName?.takeIf { hasName } ?: ip,
+                                text = if (hasName) displayName!! else ip,
                                 style = MaterialTheme.typography.bodyLarge,
                             )
                         }
