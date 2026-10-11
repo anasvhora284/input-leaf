@@ -95,8 +95,7 @@ class UhidChannelReadinessTest {
     }
 
     @Test
-    fun `no OPEN degrades within the bounded window instead of hanging`() {
-        // The ColorOS path: that OEM never emits OPEN, so creation must still finish.
+    fun `neither START nor OPEN degrades within the bounded window instead of hanging`() {
         val clock = TestClock()
         val kernel = PipedOutputStream()
         val input = PipedInputStream(kernel, 8192)
@@ -116,7 +115,7 @@ class UhidChannelReadinessTest {
 
         channel.createDevice("mouse", byteArrayOf(1), uniq = "inputleaf-mouse")
 
-        // Gave up on OPEN and never reached the presence stage.
+        // Gave up on START/OPEN and never reached the presence stage.
         assertThat(clock.elapsedMs()).isAtLeast(300)
         assertThat(presenceChecks).isEqualTo(0)
         channel.close()
@@ -124,8 +123,7 @@ class UhidChannelReadinessTest {
     }
 
     @Test
-    fun `a kernel START alone is not treated as readiness`() {
-        // START(2) means hid-core created the device, which is before EventHub attaches.
+    fun `START completes readiness without burning the whole timeout`() {
         val clock = TestClock()
         val kernel = PipedOutputStream()
         val input = PipedInputStream(kernel, 8192)
@@ -148,8 +146,31 @@ class UhidChannelReadinessTest {
 
         channel.createDevice("mouse", byteArrayOf(1), uniq = "inputleaf-mouse")
 
-        assertThat(clock.elapsedMs()).isAtLeast(300)
-        assertThat(presenceChecks).isEqualTo(0)
+        assertThat(clock.elapsedMs()).isLessThan(300)
+        assertThat(presenceChecks).isGreaterThan(0)
+        channel.close()
+        kernel.close()
+    }
+
+    @Test
+    fun `stopReader terminates reader thread promptly without leaking thread`() {
+        val kernel = PipedOutputStream()
+        val input = PipedInputStream(kernel, 8192)
+        val channel = UhidChannel.forTesting(
+            ByteArrayOutputStream(),
+            input,
+            UhidReadinessConfig(
+                openTimeoutMs = 50,
+                presenceTimeoutMs = 50,
+            ),
+        )
+
+        channel.createDevice("test", byteArrayOf(1))
+
+        val readerThreads = Thread.getAllStackTraces().keys.filter { it.name == "uhid-reader" }
+        for (thread in readerThreads) {
+            assertThat(thread.isAlive).isFalse()
+        }
         channel.close()
         kernel.close()
     }
