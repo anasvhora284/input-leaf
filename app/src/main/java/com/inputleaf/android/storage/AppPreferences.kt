@@ -34,6 +34,11 @@ class AppPreferences(private val context: Context) {
         private val KEY_CURSOR_STYLE     = stringPreferencesKey("cursor_style")
         private val KEY_LAST_SEEN_VERSION_CODE = intPreferencesKey("last_seen_version_code")
 
+        // Set once su has actually been granted. libsu cannot tell "granted" from
+        // "never asked" until a shell exists, so this is what lets the app re-probe
+        // silently at startup instead of showing a false "Setup Required".
+        private val KEY_ROOT_GRANT_REMEMBERED = booleanPreferencesKey("root_grant_remembered")
+
         /**
          * Get a sanitized device name suitable for use as screen name.
          * Removes trailing spaces and special characters that might cause issues.
@@ -81,6 +86,9 @@ class AppPreferences(private val context: Context) {
 
     val inputMethod: Flow<String> =
         context.dataStore.data.map { it[KEY_INPUT_METHOD] ?: "auto" }
+
+    val rootGrantRemembered: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_ROOT_GRANT_REMEMBERED] ?: false }
 
     val cursorStyle: Flow<String> =
         context.dataStore.data.map { it[KEY_CURSOR_STYLE] ?: "default" }
@@ -137,6 +145,10 @@ class AppPreferences(private val context: Context) {
 
     suspend fun saveInputMethod(method: String) = context.dataStore.edit {
         it[KEY_INPUT_METHOD] = method
+    }
+
+    suspend fun saveRootGrantRemembered(remembered: Boolean) = context.dataStore.edit {
+        it[KEY_ROOT_GRANT_REMEMBERED] = remembered
     }
 
     suspend fun saveCursorStyle(style: String) = context.dataStore.edit {

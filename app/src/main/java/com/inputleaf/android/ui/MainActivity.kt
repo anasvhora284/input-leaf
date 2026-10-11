@@ -2,6 +2,10 @@ package com.inputleaf.android.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Color
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.DisposableEffect
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -14,16 +18,12 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.Lifecycle
 import kotlinx.coroutines.launch
 import androidx.compose.material3.Surface
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
-import androidx.compose.runtime.*
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
+import com.inputleaf.android.ui.theme.InputLeafTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -59,47 +59,16 @@ class MainActivity : ComponentActivity() {
             val isDarkTheme = when (themeMode) {
                 "LIGHT" -> false
                 "DARK" -> true
-                else -> androidx.compose.foundation.isSystemInDarkTheme()
+                else -> isSystemInDarkTheme()
             }
 
-            val colorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                // Android 12+ Material You dynamic colors
-                if (isDarkTheme) {
-                    androidx.compose.material3.dynamicDarkColorScheme(this@MainActivity)
-                } else {
-                    dynamicLightColorScheme(this@MainActivity)
-                }
-            } else {
-                // Fallback for older Android versions
-                if (isDarkTheme) {
-                    androidx.compose.material3.darkColorScheme(
-                        primary = com.inputleaf.android.ui.theme.LeafBright,
-                        primaryContainer = com.inputleaf.android.ui.theme.LeafForest,
-                        onPrimary = androidx.compose.ui.graphics.Color.White,
-                        secondary = com.inputleaf.android.ui.theme.LeafLight,
-                        tertiary = com.inputleaf.android.ui.theme.Success400,
-                        background = com.inputleaf.android.ui.theme.TealDark,
-                        surface = com.inputleaf.android.ui.theme.TealDeep,
-                        onBackground = androidx.compose.ui.graphics.Color(0xFFE8F5E9),
-                        onSurface = androidx.compose.ui.graphics.Color(0xFFE8F5E9)
-                    )
-                } else {
-                    lightColorScheme(
-                        primary = com.inputleaf.android.ui.theme.LeafGreen,
-                        primaryContainer = com.inputleaf.android.ui.theme.Purple100,
-                        onPrimary = androidx.compose.ui.graphics.Color.White,
-                        secondary = com.inputleaf.android.ui.theme.LeafBright,
-                        tertiary = com.inputleaf.android.ui.theme.Success500,
-                        background = com.inputleaf.android.ui.theme.Background,
-                        surface = com.inputleaf.android.ui.theme.Surface
-                    )
-                }
+            DisposableEffect(isDarkTheme) {
+                val barStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { isDarkTheme }
+                enableEdgeToEdge(statusBarStyle = barStyle, navigationBarStyle = barStyle)
+                onDispose {}
             }
 
-            MaterialTheme(
-                colorScheme = colorScheme,
-                shapes = com.inputleaf.android.ui.theme.InputLeafShapes
-            ) {
+            InputLeafTheme(darkTheme = isDarkTheme) {
                 Surface(Modifier.fillMaxSize()) {
                     LeafNavigation(viewModel)
                 }
@@ -111,6 +80,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // Re-check Shizuku status when returning to app
         viewModel.checkShizukuStatus()
+        viewModel.checkRootStatus()
         // Re-check overlay permission (user may have granted it in settings)
         viewModel.checkOverlayPermission()
         // Re-check battery optimization

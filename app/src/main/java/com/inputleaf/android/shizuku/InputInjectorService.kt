@@ -10,11 +10,12 @@ import com.inputleaf.android.shizuku.uhid.HidMouseEnterWarp
 import com.inputleaf.android.shizuku.uhid.UhidChannel
 
 /**
- * Shizuku UserService that runs with shell (ADB) privileges.
+ * Privileged injector stub. Shizuku runs it as a UserService with shell privileges.
+ * [com.inputleaf.android.privilege.RootInputInjectorService] hosts the same stub at uid 0;
+ * root's only job is opening `/dev/uhid`, and enter/leave/HID reports stay these AIDL calls.
+ *
  * This service can call InputManager.injectInputEvent() because the shell user
  * has the INJECT_EVENTS permission.
- * 
- * This class is instantiated by Shizuku in a separate process with elevated privileges.
  */
 class InputInjectorService : IInputInjector.Stub {
 

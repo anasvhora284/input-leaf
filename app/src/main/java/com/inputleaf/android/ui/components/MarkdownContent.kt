@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -287,7 +286,7 @@ fun MarkdownContent(
     markdown: String,
     modifier: Modifier = Modifier,
     linkColor: Color = MaterialTheme.colorScheme.primary,
-    codeBackground: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+    codeBackground: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
 ) {
     val blocks = remember(markdown) { MarkdownParser.parseBlocks(markdown) }
 
@@ -299,14 +298,13 @@ fun MarkdownContent(
             when (block) {
                 is MarkdownBlock.Heading -> {
                     val (style, topPad) = when (block.level) {
-                        1 -> MaterialTheme.typography.titleMedium to 8.dp
-                        2 -> MaterialTheme.typography.titleSmall to 6.dp
-                        else -> MaterialTheme.typography.labelLarge to 4.dp
+                        1 -> MaterialTheme.typography.titleMediumEmphasized to 8.dp
+                        2 -> MaterialTheme.typography.titleSmallEmphasized to 6.dp
+                        else -> MaterialTheme.typography.labelLargeEmphasized to 4.dp
                     }
                     Text(
                         text = MarkdownParser.parseInline(block.text, linkColor, codeBackground),
                         style = style,
-                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(top = topPad)
                     )
@@ -323,8 +321,7 @@ fun MarkdownContent(
                         if (block.isOrdered) {
                             Text(
                                 text = block.marker,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.bodySmallEmphasized,
                                 color = MaterialTheme.colorScheme.primary,
                                 lineHeight = 18.sp
                             )
@@ -360,7 +357,7 @@ fun MarkdownContent(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(MaterialTheme.shapes.small)
                             .background(codeBackground)
                             .padding(8.dp)
                             .horizontalScroll(rememberScrollState())
@@ -379,8 +376,8 @@ fun MarkdownContent(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                            .clip(MaterialTheme.shapes.extraSmall)
+                            .background(MaterialTheme.colorScheme.surfaceContainer)
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically

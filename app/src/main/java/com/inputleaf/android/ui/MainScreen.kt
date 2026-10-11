@@ -1,14 +1,11 @@
 package com.inputleaf.android.ui
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -19,14 +16,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.inputleaf.android.R
 import com.inputleaf.android.model.ConnectionState
 import com.inputleaf.android.model.ServerInfo
+import com.inputleaf.android.ui.components.CircularAvatar
 import com.inputleaf.android.ui.components.FeatureToggleCard
-import com.inputleaf.android.ui.components.GradientCard
+import com.inputleaf.android.ui.components.SectionHeader
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,6 +32,7 @@ fun MainScreen(
     isScanning: Boolean,
     screenName: String,
     shizukuStatus: ShizukuStatus,
+    rootStatus: RootStatus,
     accessibilityAvailable: Boolean,
     mouseEnabled: Boolean,
     keyboardEnabled: Boolean,
@@ -45,6 +42,7 @@ fun MainScreen(
     onDisconnect: () -> Unit,
     onAddManual: (String) -> Unit,
     onRequestShizukuPermission: () -> Unit,
+    onRequestRootAccess: () -> Unit,
     onRequestAccessibilityService: () -> Unit,
     onScreenNameChange: (String) -> Unit,
     onToggleMouse: (Boolean) -> Unit,
@@ -57,13 +55,8 @@ fun MainScreen(
     if (showEditNameDialog) {
         AlertDialog(
             onDismissRequest = { showEditNameDialog = false },
-            title = {
-                Text(
-                    text = "Rename Device",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            },
+            icon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
+            title = { Text("Rename Device") },
             text = {
                 OutlinedTextField(
                     value = tempName,
@@ -150,118 +143,66 @@ fun MainScreen(
             val favorites = discoveredServers.filter { favoriteServers.contains(it.ip) }
             if (favorites.isNotEmpty()) {
                 item {
-                    Text(
-                        text = "Quick Connect",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                }
-                items(favorites) { server ->
+                    SectionHeader("Quick Connect")
                     val connectingIp = connectingServerIp(connectionState, pendingConnectIp)
-                    val isConnected = when (connectionState) {
-                        is ConnectionState.Idle -> connectionState.serverIp == server.ip
-                        is ConnectionState.Active -> connectionState.serverIp == server.ip
-                        else -> false
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
+                    ) {
+                        favorites.forEachIndexed { index, server ->
+                            val isConnected = when (connectionState) {
+                                is ConnectionState.Idle -> connectionState.serverIp == server.ip
+                                is ConnectionState.Active -> connectionState.serverIp == server.ip
+                                else -> false
+                            }
+                            ServerListItem(
+                                server = server,
+                                isConnected = isConnected,
+                                onServerClick = onConnect,
+                                shapes = ListItemDefaults.segmentedShapes(index, favorites.size),
+                                isConnecting = connectingIp == server.ip,
+                                enabled = connectingIp == null,
+                            )
+                        }
                     }
-                    ServerListItem(
-                        server = server,
-                        isConnected = isConnected,
-                        onServerClick = onConnect,
-                        isConnecting = connectingIp == server.ip,
-                        enabled = connectingIp == null,
-                    )
                 }
             }
 
             // Setup options section if neither Shizuku nor Accessibility is enabled/ready
-            val isInputInjectionReady = shizukuStatus == ShizukuStatus.READY || accessibilityAvailable
+            // AVAILABLE only means an su binary exists; nothing can inject until it is
+            // GRANTED, so treating it as ready hides the card the user needs to tap.
+            val rootUsable = rootStatus == RootStatus.GRANTED
+            val isInputInjectionReady =
+                shizukuStatus == ShizukuStatus.READY || rootUsable || accessibilityAvailable
             val isSessionActive = connectionState is ConnectionState.Active
 
             if (!isInputInjectionReady && !isSessionActive) {
+                item { SectionHeader("Setup Required") }
+
                 item {
-                    Text(
-                        text = "Setup Required",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    SetupActionCard(
+                        icon = Icons.Rounded.FlashOn,
+                        title = "Enable Shizuku or grant root",
+                        body = "Recommended for the system cursor and HID keyboard. Shizuku or su — you do not need both.",
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        onClick = {
+                            if (rootStatus == RootStatus.DENIED || rootStatus == RootStatus.AVAILABLE) {
+                                onRequestRootAccess()
+                            } else {
+                                onRequestShizukuPermission()
+                            }
+                        },
                     )
                 }
 
-                // Shizuku setup card
                 item {
-                    GradientCard(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
-                            .clickable { onRequestShizukuPermission() },
-                        backgroundColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
-                        cornerRadius = 20.dp,
-                        padding = 16.dp
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.FlashOn,
-                                contentDescription = "Shizuku",
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(28.dp)
-                            )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Enable Shizuku Mode",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onErrorContainer
-                                )
-                                Text(
-                                    text = "Recommended for precise mouse injection. Requires Shizuku background service.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Accessibility setup card
-                item {
-                    GradientCard(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
-                            .clickable { onRequestAccessibilityService() },
-                        backgroundColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
-                        cornerRadius = 20.dp,
-                        padding = 16.dp
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Accessibility,
-                                contentDescription = "Accessibility",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(28.dp)
-                            )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Enable Accessibility Mode",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Text(
-                                    text = "Easy rootless touch & keyboard simulation. Works out of the box on any device.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
+                    SetupActionCard(
+                        icon = Icons.Rounded.Accessibility,
+                        title = "Enable Accessibility Mode",
+                        body = "Easy rootless touch & keyboard simulation. Works out of the box on any device.",
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        onClick = onRequestAccessibilityService,
+                    )
                 }
             }
 
@@ -281,27 +222,16 @@ fun MainScreen(
                 val brandLogoRes = remember { com.inputleaf.android.util.DeviceIdentity.getBrandLogoRes() }
                 val brandColor = remember { com.inputleaf.android.util.DeviceIdentity.getBrandColor() }
 
-                GradientCard(
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    backgroundColor = brandColor.copy(alpha = 0.08f),
-                    cornerRadius = 24.dp,
-                    elevation = 0.dp,
-                    padding = 0.dp
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    ),
                 ) {
                     Box(modifier = Modifier.fillMaxWidth()) {
-                        // Brand watermark — large, subtle background logo
-                        Icon(
-                            painter = painterResource(id = brandLogoRes),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(120.dp)
-                                .align(Alignment.CenterEnd)
-                                .offset(x = 16.dp, y = 0.dp),
-                            tint = brandColor.copy(alpha = 0.06f)
-                        )
-
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -327,9 +257,7 @@ fun MainScreen(
                                     ) {
                                         Text(
                                             text = marketingName,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface,
+                                            style = MaterialTheme.typography.titleMediumEmphasized,
                                             maxLines = 1,
                                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                             modifier = Modifier.weight(1f, fill = false)
@@ -338,23 +266,20 @@ fun MainScreen(
                                             painter = painterResource(id = brandLogoRes),
                                             contentDescription = manufacturer,
                                             modifier = Modifier.size(16.dp),
-                                            tint = brandColor.copy(alpha = 0.8f)
+                                            tint = brandColor
                                         )
                                     }
 
-                                    // Internal model code (subtle)
                                     if (internalCode != marketingName && !marketingName.contains(internalCode, ignoreCase = true)) {
                                         Text(
                                             text = internalCode,
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                            letterSpacing = 0.5.sp
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
 
                                     Spacer(modifier = Modifier.height(6.dp))
 
-                                    // Screen name row
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -362,64 +287,31 @@ fun MainScreen(
                                         Text(
                                             text = "Screen: ",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                         Text(
                                             text = screenName,
                                             style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }
 
-                                IconButton(
-                                    onClick = { showEditNameDialog = true },
-                                    colors = IconButtonDefaults.iconButtonColors(
-                                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
-                                    )
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Edit,
-                                        contentDescription = "Edit Name",
-                                        modifier = Modifier.size(18.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                FilledTonalIconButton(onClick = { showEditNameDialog = true }) {
+                                    Icon(Icons.Rounded.Edit, contentDescription = "Edit Name")
                                 }
                             }
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // Info pills row
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                // Android version pill
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = brandColor.copy(alpha = 0.1f)
-                                ) {
-                                    Text(
-                                        text = androidVersion,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Medium,
-                                        color = brandColor.copy(alpha = 0.9f),
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                    )
-                                }
-                                // Manufacturer pill
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                ) {
-                                    Text(
-                                        text = manufacturer,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                    )
-                                }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                InfoPill(
+                                    text = androidVersion,
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                )
+                                InfoPill(
+                                    text = manufacturer,
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                )
                             }
                         }
                     }
@@ -432,116 +324,151 @@ fun MainScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ConnectionStatusCard(
     state: ConnectionState,
     screenName: String,
     onDisconnect: () -> Unit
 ) {
-    val (statusLabel, statusIcon, containerColor, contentColor, serverInfo) = when (state) {
+    val colors = MaterialTheme.colorScheme
+    val (statusLabel, statusIcon, roles, serverInfo) = when (state) {
         is ConnectionState.Active -> StatusInfo(
             "CONNECTED", Icons.Rounded.CheckCircle,
-            Color(0xFF1B5E20).copy(alpha = 0.15f), Color(0xFF4CAF50),
+            StatusRoles(colors.primaryContainer, colors.onPrimaryContainer, colors.primary, colors.onPrimary),
             "${state.serverName} • ${state.serverIp}"
         )
         is ConnectionState.Idle -> StatusInfo(
             "IDLE", Icons.Rounded.Pause,
-            Color(0xFF0D47A1).copy(alpha = 0.15f), Color(0xFF42A5F5),
+            StatusRoles(colors.secondaryContainer, colors.onSecondaryContainer, colors.secondary, colors.onSecondary),
             "${state.serverName} • ${state.serverIp}"
         )
         is ConnectionState.Connecting -> StatusInfo(
             "CONNECTING...", Icons.Rounded.Sync,
-            Color(0xFFF57F17).copy(alpha = 0.15f), Color(0xFFFFB300),
+            StatusRoles(colors.tertiaryContainer, colors.onTertiaryContainer, colors.tertiary, colors.onTertiary),
             state.serverIp
         )
         is ConnectionState.Handshaking -> StatusInfo(
             "HANDSHAKING...", Icons.Rounded.Sync,
-            Color(0xFFF57F17).copy(alpha = 0.15f), Color(0xFFFFB300),
+            StatusRoles(colors.tertiaryContainer, colors.onTertiaryContainer, colors.tertiary, colors.onTertiary),
             state.serverIp
         )
         is ConnectionState.Disconnected -> StatusInfo(
             "DISCONNECTED", Icons.Rounded.LinkOff,
-            Color(0xFFB71C1C).copy(alpha = 0.12f), Color(0xFFEF5350),
+            StatusRoles(colors.errorContainer, colors.onErrorContainer, colors.error, colors.onError),
             "No server connected"
         )
     }
 
-    val animatedColor by animateColorAsState(
-        targetValue = containerColor,
-        animationSpec = tween(500),
-        label = "status_color"
-    )
+    val colorSpec = MaterialTheme.motionScheme.slowEffectsSpec<Color>()
+    val containerColor by animateColorAsState(roles.container, colorSpec, label = "status_container")
+    val contentColor by animateColorAsState(roles.onContainer, colorSpec, label = "status_content")
+    val accentColor by animateColorAsState(roles.accent, colorSpec, label = "status_accent")
 
     val isConnected = state is ConnectionState.Active || state is ConnectionState.Idle
+    val isWorking = state is ConnectionState.Connecting || state is ConnectionState.Handshaking
 
-    GradientCard(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
-        backgroundColor = animatedColor,
-        cornerRadius = 24.dp,
-        elevation = 0.dp,
-        padding = 20.dp
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(containerColor = containerColor, contentColor = contentColor),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Surface(
-                modifier = Modifier.size(48.dp),
-                shape = RoundedCornerShape(14.dp),
-                color = contentColor.copy(alpha = 0.2f)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = statusIcon,
-                        contentDescription = statusLabel,
-                        modifier = Modifier.size(26.dp),
-                        tint = contentColor
-                    )
-                }
+            if (isWorking) {
+                ContainedLoadingIndicator(
+                    modifier = Modifier.size(48.dp),
+                    containerColor = accentColor,
+                    indicatorColor = roles.onAccent,
+                )
+            } else {
+                CircularAvatar(
+                    icon = statusIcon,
+                    size = 48.dp,
+                    iconSize = 26.dp,
+                    backgroundColor = accentColor,
+                    iconTint = roles.onAccent,
+                    shape = MaterialShapes.Cookie9Sided.toShape(),
+                )
             }
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = statusLabel,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    color = contentColor,
-                    letterSpacing = 1.sp
-                )
+                Text(text = statusLabel, style = MaterialTheme.typography.labelLargeEmphasized)
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = serverInfo,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
+                Text(text = serverInfo, style = MaterialTheme.typography.bodySmall)
             }
 
             if (isConnected) {
-                FilledTonalButton(
+                Button(
                     onClick = onDisconnect,
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = contentColor.copy(alpha = 0.2f),
-                        contentColor = contentColor
-                    ),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                    colors = ButtonDefaults.buttonColors(containerColor = accentColor, contentColor = roles.onAccent),
                 ) {
-                    Text("Disconnect", fontSize = 12.sp)
+                    Text("Disconnect")
                 }
             }
         }
     }
 }
 
+private data class StatusRoles(val container: Color, val onContainer: Color, val accent: Color, val onAccent: Color)
+
 private data class StatusInfo(
     val label: String,
     val icon: ImageVector,
-    val containerColor: Color,
-    val contentColor: Color,
+    val roles: StatusRoles,
     val serverInfo: String
 )
+
+@Composable
+private fun SetupActionCard(
+    icon: ImageVector,
+    title: String,
+    body: String,
+    containerColor: Color,
+    onClick: () -> Unit,
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = containerColor,
+            contentColor = contentColorFor(containerColor),
+        ),
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(28.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = title, style = MaterialTheme.typography.titleMediumEmphasized)
+                Text(text = body, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+@Composable
+private fun InfoPill(text: String, containerColor: Color) {
+    Surface(shape = MaterialTheme.shapes.small, color = containerColor) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+        )
+    }
+}
 
 @Composable
 private fun DeviceVisualRepresentation(

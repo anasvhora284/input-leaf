@@ -46,6 +46,14 @@ object UpdateService {
 
     private val RELEASES = listOf(
         VersionChangelog(
+            versionName = "1.4.3",
+            versionCode = 9,
+            highlights = listOf(
+                "Rooted devices can grant su and inject through a uid-0 HID service, without Shizuku.",
+                "New Material 3 Expressive design with dynamic color, edge-to-edge screens, and a refreshed settings layout.",
+            ),
+        ),
+        VersionChangelog(
             versionName = "1.4.2",
             versionCode = 8,
             highlights = listOf(
@@ -235,10 +243,10 @@ internal fun resolveInstallSource(installerPackage: String?): InstallSource {
 }
 
 internal fun versionNameFrom(packageInfo: PackageInfo?): String =
-    packageInfo?.versionName ?: "1.4.2"
+    packageInfo?.versionName ?: "1.4.3"
 
 internal fun versionCodeFrom(packageInfo: PackageInfo?, sdkInt: Int = Build.VERSION.SDK_INT): Long {
-    if (packageInfo == null) return 8L
+    if (packageInfo == null) return 9L
     return if (sdkInt >= Build.VERSION_CODES.P) {
         packageInfo.longVersionCode
     } else {

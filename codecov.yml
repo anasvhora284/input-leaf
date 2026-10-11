@@ -8,6 +8,16 @@ parsers:
   jacoco:
     # Kotlin inline/lambda line maps often show as partials even when the branch ran.
     partials_as_hits: true
+    # There is no Jacoco parser flag for a line with no probes. Codecov counts
+    # an added source line missing from the report as a patch miss, and the
+    # Android upload's miss wins when the JVM report has no counters for that
+    # line. fast-jvm uploads scripts/codecov_skip_unprobed.py next to the Kover
+    # XML: coverage -1 is skipped and leaves the patch denominator. The script
+    # emits -1 only for lines with no counters (absent from the report, or
+    # mi, ci, mb, and cb all zero). A missed instruction or a fully missed
+    # branch is not marked, so it still fails the 100% target.
+    # The Android job must not upload -1; a skip on either side would hide the
+    # other job's miss.
 
 coverage:
   status:

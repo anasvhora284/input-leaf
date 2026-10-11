@@ -1,18 +1,17 @@
 package com.inputleaf.android.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
@@ -24,34 +23,13 @@ fun CircularAvatar(
     modifier: Modifier = Modifier,
     size: Dp = 56.dp,
     iconSize: Dp = 28.dp,
-    background: Brush? = null,
-    backgroundColor: Color? = null,
-    iconTint: Color? = null,
-    elevation: Dp = 0.dp
+    backgroundColor: Color = MaterialTheme.colorScheme.surfaceContainerHighest,
+    iconTint: Color = contentColorFor(backgroundColor),
+    elevation: Dp = 0.dp,
+    shape: Shape = CircleShape,
 ) {
-    val bgColor = backgroundColor ?: MaterialTheme.colorScheme.surfaceContainerHighest
-    val fgColor = iconTint ?: MaterialTheme.colorScheme.onSurfaceVariant
-
-    Box(
-        modifier = modifier
-            .size(size)
-            .shadow(elevation, CircleShape)
-            .clip(CircleShape)
-            .then(
-                if (background != null) {
-                    Modifier.background(background)
-                } else {
-                    Modifier.background(bgColor)
-                }
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            modifier = Modifier.size(iconSize),
-            tint = fgColor
-        )
+    AvatarSurface(modifier, size, backgroundColor, iconTint, elevation, shape) {
+        Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(iconSize))
     }
 }
 
@@ -61,33 +39,33 @@ fun CircularAvatar(
     modifier: Modifier = Modifier,
     size: Dp = 56.dp,
     iconSize: Dp = 28.dp,
-    background: Brush? = null,
-    backgroundColor: Color? = null,
-    iconTint: Color? = null,
-    elevation: Dp = 0.dp
+    backgroundColor: Color = MaterialTheme.colorScheme.surfaceContainerHighest,
+    iconTint: Color = contentColorFor(backgroundColor),
+    elevation: Dp = 0.dp,
+    shape: Shape = CircleShape,
 ) {
-    val bgColor = backgroundColor ?: MaterialTheme.colorScheme.surfaceContainerHighest
-    val fgColor = iconTint ?: MaterialTheme.colorScheme.onSurfaceVariant
+    AvatarSurface(modifier, size, backgroundColor, iconTint, elevation, shape) {
+        Icon(painter = painter, contentDescription = null, modifier = Modifier.size(iconSize))
+    }
+}
 
-    Box(
-        modifier = modifier
-            .size(size)
-            .shadow(elevation, CircleShape)
-            .clip(CircleShape)
-            .then(
-                if (background != null) {
-                    Modifier.background(background)
-                } else {
-                    Modifier.background(bgColor)
-                }
-            ),
-        contentAlignment = Alignment.Center
+@Composable
+private fun AvatarSurface(
+    modifier: Modifier,
+    size: Dp,
+    backgroundColor: Color,
+    iconTint: Color,
+    elevation: Dp,
+    shape: Shape,
+    content: @Composable () -> Unit,
+) {
+    Surface(
+        modifier = modifier.size(size),
+        shape = shape,
+        color = backgroundColor,
+        contentColor = iconTint,
+        shadowElevation = elevation,
     ) {
-        Icon(
-            painter = painter,
-            contentDescription = null,
-            modifier = Modifier.size(iconSize),
-            tint = fgColor
-        )
+        Box(contentAlignment = Alignment.Center) { content() }
     }
 }

@@ -25,7 +25,7 @@ class UpdateServiceContextJvmTest {
 
     @Test
     fun getCurrentVersion_readsInstalledVersion() {
-        assertThat(UpdateService.getCurrentVersion(context)).isEqualTo("1.4.2")
+        assertThat(UpdateService.getCurrentVersion(context)).isEqualTo("1.4.3")
     }
 
     @Test
