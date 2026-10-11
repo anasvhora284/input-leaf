@@ -1,6 +1,5 @@
 package com.inputleaf.android.shizuku.uhid
 
-import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -39,7 +38,7 @@ internal object UhidProtocol {
     const val UHID_OPEN = 4
     const val UHID_CLOSE = 5
 
-    /** Device→host report. Carries `data[4096] + u16 size + u8 rtype`. */
+    /** Host→device report. Carries `data[4096] + u16 size + u8 rtype`. */
     const val UHID_OUTPUT = 6
     const val UHID_GET_REPORT = 9
     const val UHID_CREATE2 = 11
@@ -132,47 +131,6 @@ internal object UhidProtocol {
     }
 
     /**
-     * Waits briefly for [UHID_START], draining any other kernel event that arrives first.
-     * Returns whether START was seen; the caller proceeds either way, since some kernels
-     * deliver it late and the device still works.
-     */
-    fun waitForStart(input: InputStream, timeoutMs: Long, now: () -> Long = System::currentTimeMillis): Boolean {
-        val deadline = now() + timeoutMs
-        val header = ByteArray(4)
-        var offset = 0
-        while (now() < deadline) {
-            if (input.available() <= 0) {
-                try {
-                    Thread.sleep(POLL_INTERVAL_MS)
-                } catch (e: InterruptedException) {
-                    Thread.currentThread().interrupt()
-                    return false
-                }
-                continue
-            }
-            val read = input.read(header, offset, 4 - offset)
-            if (read < 0) return false
-            offset += read
-            if (offset < 4) continue
-
-            val type = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN).getInt(0)
-            if (type == UHID_START) return true
-            drainPayload(input, type)
-            offset = 0
-        }
-        return false
-    }
-
-    private fun drainPayload(input: InputStream, type: Int) {
-        var remaining = payloadSize(type)
-        while (remaining > 0) {
-            val skipped = input.skip(remaining.toLong())
-            if (skipped <= 0) return
-            remaining -= skipped.toInt()
-        }
-    }
-
-    /**
      * Payload bytes following the u32 type word, from the packed structs in `uhid.h`.
      * Used to step over an event whose body we do not care about, so a wrong size here
      * desynchronises every later read on the stream.
@@ -187,6 +145,4 @@ internal object UhidProtocol {
         UHID_CREATE2 -> CREATE2_HEADER_SIZE + HID_MAX_DESCRIPTOR_SIZE
         else -> UHID_DATA_MAX
     }
-
-    private const val POLL_INTERVAL_MS = 10L
 }

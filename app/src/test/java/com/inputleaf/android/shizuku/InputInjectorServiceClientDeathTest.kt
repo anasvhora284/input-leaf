@@ -79,6 +79,25 @@ class InputInjectorServiceClientDeathTest {
         assertThat(service.injectHidMouse(1, 0, 0, 0)).isFalse()
     }
 
+    @Test
+    fun `stale death notification from replaced client does not destroy newly attached devices`() {
+        val service = InputInjectorService { UhidChannel.forTesting(ByteArrayOutputStream()) }
+        val client1 = Binder()
+        service.attachClient(client1)
+        val recipient1 = service.deathRecipientForTest()
+
+        val client2 = Binder()
+        service.attachClient(client2)
+        assertThat(service.openVirtualMouse()).isTrue()
+        assertThat(service.injectHidMouse(1, 0, 0, 0)).isTrue()
+
+        // Death notification of client 1 arrives after client 2 has already attached
+        recipient1.binderDied()
+
+        // Virtual mouse must remain open and responsive for client 2
+        assertThat(service.injectHidMouse(1, 0, 0, 0)).isTrue()
+    }
+
     private fun typesIn(packet: ByteArray): List<Int> {
         val types = mutableListOf<Int>()
         var offset = 0

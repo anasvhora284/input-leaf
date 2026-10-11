@@ -9,7 +9,7 @@ package com.inputleaf.android.shizuku.uhid
  * only stores Enter until CREATE2 is START-ready, then emits the same snap.
  */
 internal class HidMouseEnterWarp(
-    private val nowMs: () -> Long = { System.currentTimeMillis() },
+    private val nowMs: () -> Long = { android.os.SystemClock.uptimeMillis() },
 ) {
     data class Pending(
         val x: Int,
@@ -54,14 +54,17 @@ internal class HidMouseEnterWarp(
         val now = nowMs()
         val input = state.plannerInput(now)
         val plans = MouseEdgeAnchor.planSnap(input, target.pointerSpeed)
+        val applied = mutableListOf<MouseEdgeAnchor.Plan>()
         for (plan in plans) {
             if (plan.isNoOp) continue
             if (!mouse.move(plan.hidX, plan.hidY, 0, 0)) {
-                return plans
+                pending = null
+                return applied
             }
+            applied += plan
             state.applySuccessfulPlan(plan, now)
         }
         pending = null
-        return plans
+        return applied
     }
 }

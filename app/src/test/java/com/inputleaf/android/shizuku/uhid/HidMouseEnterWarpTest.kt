@@ -31,7 +31,7 @@ class HidMouseEnterWarpTest {
     }
 
     @Test
-    fun `failed HID write keeps enter coords`() {
+    fun `failed HID write returns only applied plans and clears pending to prevent double snap`() {
         val warp = HidMouseEnterWarp { 1L }
         warp.onEnter(x = 1079, y = 0, maxX = 1079, maxY = 2413, pointerSpeed = 0)
         val mouse = HidMouse(object : HidReportSink {
@@ -39,9 +39,25 @@ class HidMouseEnterWarpTest {
         })
 
         val plans = warp.applyIfPending(mouse)
-        assertThat(plans.any { !it.isNoOp }).isTrue()
-        assertThat(warp.pending).isNotNull()
-        assertThat(warp.pending!!.x).isEqualTo(1079)
+        assertThat(plans).isEmpty()
+        assertThat(warp.pending).isNull()
+    }
+
+    @Test
+    fun `partial HID write returns only applied plans and clears pending`() {
+        val warp = HidMouseEnterWarp { 1L }
+        warp.onEnter(x = 1079, y = 0, maxX = 1079, maxY = 2413, pointerSpeed = 0)
+        var callCount = 0
+        val mouse = HidMouse(object : HidReportSink {
+            override fun sendReport(report: ByteArray): Boolean {
+                callCount++
+                return callCount == 1
+            }
+        })
+
+        val plans = warp.applyIfPending(mouse)
+        assertThat(plans).hasSize(1)
+        assertThat(warp.pending).isNull()
     }
 
     @Test

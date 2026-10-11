@@ -1,7 +1,6 @@
 package com.inputleaf.android.shizuku.uhid
 
 import com.google.common.truth.Truth.assertThat
-import java.io.ByteArrayInputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import org.junit.Test
@@ -164,27 +163,4 @@ class UhidProtocolTest {
             .isEqualTo(UhidProtocol.UHID_DESTROY)
         assertThat(packet.drop(4).all { it == 0.toByte() }).isTrue()
     }
-
-    @Test
-    fun `waitForStart recognises the START event`() {
-        val stream = ByteArrayInputStream(typeWord(UhidProtocol.UHID_START))
-
-        assertThat(UhidProtocol.waitForStart(stream, timeoutMs = 100)).isTrue()
-    }
-
-    @Test
-    fun `waitForStart gives up when START never arrives`() {
-        var clock = 0L
-        val stream = ByteArrayInputStream(ByteArray(0))
-
-        val started = UhidProtocol.waitForStart(stream, timeoutMs = 50) {
-            clock += 20
-            clock
-        }
-
-        assertThat(started).isFalse()
-    }
-
-    private fun typeWord(type: Int): ByteArray =
-        ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(type).array()
 }

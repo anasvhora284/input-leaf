@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import com.inputleaf.android.inject.PointerDevice
 import com.inputleaf.android.network.ConnectionTransportPolicy
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -32,6 +33,7 @@ class AppPreferences(private val context: Context) {
         private val KEY_LEGACY_TLS_ENABLED = booleanPreferencesKey("tls_enabled")
         private val KEY_INPUT_METHOD     = stringPreferencesKey("input_method")
         private val KEY_CURSOR_STYLE     = stringPreferencesKey("cursor_style")
+        private val KEY_POINTER_DEVICE   = stringPreferencesKey("pointer_device")
         private val KEY_LAST_SEEN_VERSION_CODE = intPreferencesKey("last_seen_version_code")
 
         // Set once su has actually been granted. libsu cannot tell "granted" from
@@ -93,6 +95,9 @@ class AppPreferences(private val context: Context) {
     val cursorStyle: Flow<String> =
         context.dataStore.data.map { it[KEY_CURSOR_STYLE] ?: "default" }
 
+    val pointerDevice: Flow<PointerDevice> =
+        context.dataStore.data.map { PointerDevice.fromStorage(it[KEY_POINTER_DEVICE]) }
+
     val connectionTransportPolicy: Flow<ConnectionTransportPolicy> =
         context.dataStore.data.map { prefs ->
             val storedPolicy = prefs[KEY_CONNECTION_TRANSPORT_POLICY]
@@ -153,6 +158,10 @@ class AppPreferences(private val context: Context) {
 
     suspend fun saveCursorStyle(style: String) = context.dataStore.edit {
         it[KEY_CURSOR_STYLE] = style
+    }
+
+    suspend fun savePointerDevice(device: PointerDevice) = context.dataStore.edit {
+        it[KEY_POINTER_DEVICE] = device.storageValue
     }
 
     suspend fun saveConnectionTransportPolicy(policy: ConnectionTransportPolicy) =

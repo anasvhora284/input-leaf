@@ -19,6 +19,12 @@ interface InputInjector {
     fun updateScreenSize(width: Int, height: Int) {}
     fun updatePointerSpeed(speed: Int) {}
 
+    /**
+     * Privileged HID only. [enabled] presents an absolute pen instead of the relative mouse.
+     * A live session closes the current device and opens the other one.
+     */
+    fun setAbsolutePointer(enabled: Boolean) {}
+
     /** Cursor entered at (x, y) in screen coords — snap the native pointer there. */
     fun onHidMouseEnter(x: Int, y: Int) {}
 

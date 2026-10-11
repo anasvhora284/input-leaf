@@ -1,5 +1,8 @@
 package com.inputleaf.android.shizuku.uhid
 
+import android.os.ParcelFileDescriptor
+import android.system.OsConstants
+import android.system.StructPollfd
 import com.google.common.truth.Truth.assertThat
 import java.io.ByteArrayOutputStream
 import java.io.PipedInputStream
@@ -7,6 +10,7 @@ import java.io.PipedOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -95,8 +99,7 @@ class UhidChannelReadinessTest {
     }
 
     @Test
-    fun `no OPEN degrades within the bounded window instead of hanging`() {
-        // The ColorOS path: that OEM never emits OPEN, so creation must still finish.
+    fun `neither START nor OPEN degrades within the bounded window instead of hanging`() {
         val clock = TestClock()
         val kernel = PipedOutputStream()
         val input = PipedInputStream(kernel, 8192)
@@ -116,7 +119,7 @@ class UhidChannelReadinessTest {
 
         channel.createDevice("mouse", byteArrayOf(1), uniq = "inputleaf-mouse")
 
-        // Gave up on OPEN and never reached the presence stage.
+        // Gave up on START/OPEN and never reached the presence stage.
         assertThat(clock.elapsedMs()).isAtLeast(300)
         assertThat(presenceChecks).isEqualTo(0)
         channel.close()
@@ -124,8 +127,7 @@ class UhidChannelReadinessTest {
     }
 
     @Test
-    fun `a kernel START alone is not treated as readiness`() {
-        // START(2) means hid-core created the device, which is before EventHub attaches.
+    fun `START completes readiness without burning the whole timeout`() {
         val clock = TestClock()
         val kernel = PipedOutputStream()
         val input = PipedInputStream(kernel, 8192)
@@ -148,9 +150,190 @@ class UhidChannelReadinessTest {
 
         channel.createDevice("mouse", byteArrayOf(1), uniq = "inputleaf-mouse")
 
-        assertThat(clock.elapsedMs()).isAtLeast(300)
-        assertThat(presenceChecks).isEqualTo(0)
+        assertThat(clock.elapsedMs()).isLessThan(300)
+        assertThat(presenceChecks).isGreaterThan(0)
         channel.close()
+        kernel.close()
+    }
+
+    @Test
+    fun `stopReader terminates reader thread promptly without leaking thread`() {
+        val kernel = PipedOutputStream()
+        val input = PipedInputStream(kernel, 8192)
+        val channel = UhidChannel.forTesting(
+            ByteArrayOutputStream(),
+            input,
+            UhidReadinessConfig(
+                openTimeoutMs = 50,
+                presenceTimeoutMs = 50,
+            ),
+        )
+
+        channel.createDevice("test", byteArrayOf(1))
+
+        val readerThreads = Thread.getAllStackTraces().keys.filter { it.name == "uhid-reader" }
+        for (thread in readerThreads) {
+            assertThat(thread.isAlive).isFalse()
+        }
+        channel.close()
+        kernel.close()
+    }
+
+    @Test
+    fun `poll with POLLIN reads START and finishes readiness`() {
+        val clock = TestClock()
+        val kernel = PipedOutputStream()
+        val input = PipedInputStream(kernel, 8192)
+        kernel.write(typeWord(UhidProtocol.UHID_START))
+        kernel.write(ByteArray(UhidProtocol.payloadSize(UhidProtocol.UHID_START)))
+        kernel.flush()
+        val polls = AtomicInteger()
+        val pipe = ParcelFileDescriptor.createPipe()
+
+        val channel = UhidChannel.forTesting(
+            ByteArrayOutputStream(),
+            input,
+            UhidReadinessConfig(
+                openTimeoutMs = 300,
+                presenceTimeoutMs = 50,
+                presence = { _, _ -> true },
+                sleeper = clock::sleep,
+                nanoTime = clock::nanoTime,
+            ),
+            readPfd = pipe[0],
+            poll = { fds, _ ->
+                polls.incrementAndGet()
+                fds[0].revents = OsConstants.POLLIN.toShort()
+                1
+            },
+        )
+
+        channel.createDevice("mouse", byteArrayOf(1), uniq = "inputleaf-mouse")
+
+        assertThat(polls.get()).isGreaterThan(0)
+        assertThat(clock.elapsedMs()).isLessThan(300)
+        channel.close()
+        pipe[1].close()
+        kernel.close()
+    }
+
+    @Test
+    fun `poll timeout keeps the reader looping until START arrives`() {
+        val clock = TestClock()
+        val kernel = PipedOutputStream()
+        val input = PipedInputStream(kernel, 8192)
+        kernel.write(typeWord(UhidProtocol.UHID_START))
+        kernel.write(ByteArray(UhidProtocol.payloadSize(UhidProtocol.UHID_START)))
+        kernel.flush()
+        val polls = AtomicInteger()
+        val pipe = ParcelFileDescriptor.createPipe()
+
+        val channel = UhidChannel.forTesting(
+            ByteArrayOutputStream(),
+            input,
+            UhidReadinessConfig(
+                openTimeoutMs = 300,
+                presenceTimeoutMs = 50,
+                presence = { _, _ -> true },
+                sleeper = clock::sleep,
+                nanoTime = clock::nanoTime,
+            ),
+            readPfd = pipe[0],
+            poll = { fds, _ ->
+                if (polls.incrementAndGet() == 1) {
+                    0
+                } else {
+                    fds[0].revents = OsConstants.POLLIN.toShort()
+                    1
+                }
+            },
+        )
+
+        channel.createDevice("mouse", byteArrayOf(1), uniq = "inputleaf-mouse")
+
+        assertThat(polls.get()).isGreaterThan(1)
+        assertThat(clock.elapsedMs()).isLessThan(300)
+        channel.close()
+        pipe[1].close()
+        kernel.close()
+    }
+
+    @Test
+    fun `poll without POLLIN stops the reader and the open window expires`() {
+        val clock = TestClock()
+        val kernel = PipedOutputStream()
+        val input = PipedInputStream(kernel, 8192)
+        val polls = AtomicInteger()
+        val pipe = ParcelFileDescriptor.createPipe()
+
+        val channel = UhidChannel.forTesting(
+            ByteArrayOutputStream(),
+            input,
+            UhidReadinessConfig(
+                openTimeoutMs = 40,
+                presenceTimeoutMs = 40,
+                sleeper = clock::sleep,
+                nanoTime = clock::nanoTime,
+            ),
+            readPfd = pipe[0],
+            poll = { fds, _ ->
+                polls.incrementAndGet()
+                fds[0].revents = OsConstants.POLLERR.toShort()
+                1
+            },
+        )
+
+        channel.createDevice("mouse", byteArrayOf(1), uniq = "inputleaf-mouse")
+
+        assertThat(polls.get()).isEqualTo(1)
+        assertThat(clock.elapsedMs()).isAtLeast(40)
+        channel.close()
+        pipe[1].close()
+        kernel.close()
+    }
+
+    @Test
+    fun `LinkageError falls back to the stream and sleeps while it is empty`() {
+        val clock = TestClock()
+        val kernel = PipedOutputStream()
+        val input = PipedInputStream(kernel, 8192)
+        kernel.write(typeWord(UhidProtocol.UHID_START))
+        kernel.write(ByteArray(UhidProtocol.payloadSize(UhidProtocol.UHID_START)))
+        kernel.flush()
+        val polls = AtomicInteger()
+        val pipe = ParcelFileDescriptor.createPipe()
+        var spins = 0
+
+        val channel = UhidChannel.forTesting(
+            ByteArrayOutputStream(),
+            input,
+            UhidReadinessConfig(
+                openTimeoutMs = 80,
+                presenceTimeoutMs = 20,
+                presence = { _, _ -> true },
+                sleeper = { ms ->
+                    spins++
+                    if (polls.get() < 2 && spins < 200) {
+                        Thread.sleep(1)
+                    } else {
+                        clock.sleep(ms)
+                    }
+                },
+                nanoTime = clock::nanoTime,
+            ),
+            readPfd = pipe[0],
+            poll = { _, _ ->
+                polls.incrementAndGet()
+                throw LinkageError("Os.poll unavailable")
+            },
+        )
+
+        channel.createDevice("mouse", byteArrayOf(1), uniq = "inputleaf-mouse")
+
+        assertThat(polls.get()).isAtLeast(2)
+        assertThat(clock.elapsedMs()).isLessThan(80)
+        channel.close()
+        pipe[1].close()
         kernel.close()
     }
 

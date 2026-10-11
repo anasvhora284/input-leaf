@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.inputleaf.android.R
+import com.inputleaf.android.inject.PointerDevice
 import com.inputleaf.android.network.ClientCertificateSummary
 import com.inputleaf.android.network.ConnectionTransportPolicy
 import com.inputleaf.android.network.TlsFingerprintManager
@@ -48,6 +49,7 @@ fun SettingsScreen(
     inputMethod: String,
     connectionTransportPolicy: ConnectionTransportPolicy,
     cursorStyle: String,
+    pointerDevice: PointerDevice,
     shizukuAvailable: Boolean,
     rootGranted: Boolean,
     rootUsable: Boolean,
@@ -62,6 +64,7 @@ fun SettingsScreen(
     onInputMethodChange: (String) -> Unit,
     onConnectionTransportPolicyChange: (ConnectionTransportPolicy) -> Unit,
     onCursorStyleChange: (String) -> Unit,
+    onPointerDeviceChange: (PointerDevice) -> Unit,
     onRequestOverlayPermission: () -> Unit,
     onDeleteFingerprint: (String) -> Unit,
     onImportClientCertificate: () -> Unit,
@@ -202,6 +205,32 @@ fun SettingsScreen(
                             shapes = shapes,
                             onClick = { showCursorStyleDialog = true }
                         )
+                    }
+                }
+                row { shapes ->
+                    SegmentedListItem(
+                        shapes = shapes,
+                        leadingContent = {
+                            CircularAvatar(
+                                icon = Icons.Rounded.Mouse,
+                                size = 40.dp,
+                                iconSize = 22.dp,
+                                backgroundColor = MaterialTheme.colorScheme.secondaryContainer,
+                            )
+                        },
+                        supportingContent = {
+                            ConnectedChoiceRow(
+                                options = listOf(
+                                    PointerDevice.MOUSE to "Mouse",
+                                    PointerDevice.STYLUS to "Stylus",
+                                ),
+                                selected = pointerDevice,
+                                onSelect = onPointerDeviceChange,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        },
+                    ) {
+                        Text("Pointer device")
                     }
                 }
                 row { shapes ->

@@ -1,5 +1,6 @@
 package com.inputleaf.android.ui
 
+import androidx.compose.ui.text.LinkAnnotation
 import com.google.common.truth.Truth.assertThat
 import com.inputleaf.android.ui.components.MarkdownBlock
 import com.inputleaf.android.ui.components.MarkdownParser
@@ -217,6 +218,16 @@ class MarkdownParserTest {
             assertThat(annotated.text).isEqualTo("Read notes here")
             assertThat(annotated.getLinkAnnotations(0, annotated.length)).isNotEmpty()
         }
+    }
+
+    @Test
+    fun parseInline_markdownLinkWithTitleStripsTitleAndKeepsUrlLinkified() {
+        val annotated = MarkdownParser.parseInline("""Read [notes](https://inputleaf.com "Release notes") here""")
+        assertThat(annotated.text).isEqualTo("Read notes here")
+        val links = annotated.getLinkAnnotations(0, annotated.length)
+        assertThat(links).hasSize(1)
+        val link = links.first().item as LinkAnnotation.Url
+        assertThat(link.url).isEqualTo("https://inputleaf.com")
     }
 
     @Test
