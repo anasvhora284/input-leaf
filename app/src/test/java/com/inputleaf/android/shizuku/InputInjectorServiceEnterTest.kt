@@ -12,7 +12,6 @@ import java.io.PipedOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.TimeUnit
-import kotlin.concurrent.thread
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -22,11 +21,29 @@ import org.robolectric.annotation.Config
 @Config(sdk = [Build.VERSION_CODES.UPSIDE_DOWN_CAKE])
 class InputInjectorServiceEnterTest {
 
+    private class TestClock {
+        var nowNanos = 0L
+            private set
+
+        fun nanoTime(): Long = nowNanos
+
+        fun sleep(ms: Long) {
+            nowNanos += TimeUnit.MILLISECONDS.toNanos(ms)
+            Thread.sleep(1)
+        }
+
+        fun elapsedMs(): Long = TimeUnit.NANOSECONDS.toMillis(nowNanos)
+    }
+
     @Test
     fun `enter then attach warps on the injector that owns the fd after OPEN`() {
+        val clock = TestClock()
         val kernel = PipedOutputStream()
         val input = PipedInputStream(kernel, 8192)
         val output = ByteArrayOutputStream()
+        kernel.write(typeWord(UhidProtocol.UHID_OPEN))
+        kernel.flush()
+
         val channel = UhidChannel.forTesting(
             output,
             input,
@@ -34,6 +51,8 @@ class InputInjectorServiceEnterTest {
                 openTimeoutMs = 400,
                 presenceTimeoutMs = 10,
                 presence = { _, _ -> true },
+                sleeper = clock::sleep,
+                nanoTime = clock::nanoTime,
             ),
         )
         val service = InputInjectorService { channel }
@@ -41,16 +60,8 @@ class InputInjectorServiceEnterTest {
         service.onHidMouseEnter(0, 100, 1079, 2413, 0)
         assertThat(service.injectHidMouse(1, 0, 0, 0)).isFalse()
 
-        thread(isDaemon = true) {
-            Thread.sleep(25)
-            kernel.write(typeWord(UhidProtocol.UHID_OPEN))
-            kernel.flush()
-        }
-
-        val startedAt = System.nanoTime()
         assertThat(service.openVirtualMouse()).isTrue()
-        val elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
-        assertThat(elapsedMs).isLessThan(800)
+        assertThat(clock.elapsedMs()).isLessThan(400)
 
         val packet = output.toByteArray()
         assertThat(typeAt(packet, 0)).isEqualTo(UhidProtocol.UHID_CREATE2)
