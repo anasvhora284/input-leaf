@@ -97,10 +97,11 @@ internal object MousePointerCompensation {
     }
 
     fun gainForSpeedMmPerS(speedMmPerS: Double, settingsSpeed: Int): Double {
+        if (speedMmPerS.isNaN() || speedMmPerS <= 0.0) {
+            return firstSegmentGain(settingsSpeed)
+        }
         val factor = commonFactorFromSettingsSpeed(settingsSpeed)
-        // The last segment is terminated by +Inf, so some segment always matches and
-        // there is no reachable fallback after this loop.
-        val segment = CURVE_SEGMENTS.first { speedMmPerS <= it.maxSpeedMmPerS }
+        val segment = CURVE_SEGMENTS.firstOrNull { speedMmPerS <= it.maxSpeedMmPerS } ?: CURVE_SEGMENTS.last()
         val base = factor * segment.baseGain
         val reciprocal = factor * segment.reciprocal
         return if (reciprocal == 0.0) base else base + reciprocal / speedMmPerS

@@ -30,7 +30,7 @@ internal class HidMouse(private val sink: HidReportSink) {
         report[2] = ((dx shr 8) and 0xFF).toByte()
         report[3] = (dy and 0xFF).toByte()
         report[4] = ((dy shr 8) and 0xFF).toByte()
-        report[5] = wheel.toByte()
+        report[5] = wheel.coerceIn(MIN_WHEEL, MAX_WHEEL).toByte()
         return sink.sendReport(report)
     }
 

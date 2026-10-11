@@ -7,6 +7,7 @@ import android.view.MotionEvent
 import com.inputleaf.android.shizuku.uhid.HidKeyboard
 import com.inputleaf.android.shizuku.uhid.HidMouse
 import com.inputleaf.android.shizuku.uhid.HidMouseEnterWarp
+import com.inputleaf.android.shizuku.uhid.HidPen
 import com.inputleaf.android.shizuku.uhid.UhidChannel
 
 /**
@@ -339,6 +340,8 @@ class InputInjectorService : IInputInjector.Stub {
 
     private val clientLock = Any()
     private var clientToken: android.os.IBinder? = null
+    private var clientGeneration = 0L
+    private var activeDeathRecipient: android.os.IBinder.DeathRecipient? = null
 
     /**
      * Destroy the UHID devices from inside the process that owns the `/dev/uhid` fds
@@ -349,37 +352,110 @@ class InputInjectorService : IInputInjector.Stub {
      * no UHID_DESTROY is ever written and the devices stay attached for as long as this
      * process lingers -- which on some OEM Shizuku builds is a long time.
      */
-    private val clientDeathRecipient = android.os.IBinder.DeathRecipient {
-        android.util.Log.w("InputInjectorService", "Client died; destroying UHID devices")
-        closeVirtualKeyboard()
-        closeVirtualMouse()
-    }
-
     override fun attachClient(token: android.os.IBinder?) {
         if (token == null) return
         synchronized(clientLock) {
-            runCatching { clientToken?.unlinkToDeath(clientDeathRecipient, 0) }
+            val oldToken = clientToken
+            val oldRecipient = activeDeathRecipient
+            if (oldToken != null && oldRecipient != null) {
+                runCatching { oldToken.unlinkToDeath(oldRecipient, 0) }
+            }
+            clientGeneration++
+            val currentGen = clientGeneration
             clientToken = token
+
+            val recipient = android.os.IBinder.DeathRecipient {
+                val shouldDestroy = synchronized(clientLock) {
+                    if (clientGeneration != currentGen || clientToken !== token) {
+                        android.util.Log.i(
+                            "InputInjectorService",
+                            "Ignoring stale client death notification (gen $currentGen vs $clientGeneration)",
+                        )
+                        false
+                    } else {
+                        clientGeneration++
+                        clientToken = null
+                        activeDeathRecipient = null
+                        true
+                    }
+                }
+                if (shouldDestroy) {
+                    android.util.Log.w("InputInjectorService", "Client died; destroying UHID devices")
+                    closeVirtualKeyboard()
+                    closeVirtualMouse()
+                    closeVirtualPen()
+                }
+            }
+            activeDeathRecipient = recipient
+
             // A token that is already dead throws here rather than calling back, so the
             // devices have to be torn down inline.
-            val linked = runCatching { token.linkToDeath(clientDeathRecipient, 0) }.isSuccess
+            val linked = runCatching { token.linkToDeath(recipient, 0) }.isSuccess
             if (!linked) {
                 clientToken = null
+                activeDeathRecipient = null
                 android.util.Log.w("InputInjectorService", "Client token already dead at attach")
                 closeVirtualKeyboard()
                 closeVirtualMouse()
+                closeVirtualPen()
             }
         }
     }
 
     override fun destroy() {
         synchronized(clientLock) {
-            runCatching { clientToken?.unlinkToDeath(clientDeathRecipient, 0) }
+            clientGeneration++
+            val oldToken = clientToken
+            val oldRecipient = activeDeathRecipient
+            if (oldToken != null && oldRecipient != null) {
+                runCatching { oldToken.unlinkToDeath(oldRecipient, 0) }
+            }
             clientToken = null
+            activeDeathRecipient = null
         }
         closeVirtualKeyboard()
         closeVirtualMouse()
+        closeVirtualPen()
     }
 
-    internal fun deathRecipientForTest(): android.os.IBinder.DeathRecipient = clientDeathRecipient
+    private val penLock = Any()
+    private var uhidPenChannel: UhidChannel? = null
+    private var pen: HidPen? = null
+
+    override fun openVirtualPen(): Boolean = synchronized(penLock) {
+        if (pen != null) return true
+        val channel = openChannel() ?: return false
+        return try {
+            channel.createDevice(
+                "Input Leaf Pen HID",
+                HidPen.descriptor(),
+                vendor = VENDOR_ID,
+                product = 0x0003,
+                uniq = "inputleaf-pen",
+            )
+            uhidPenChannel = channel
+            pen = HidPen(channel)
+            android.util.Log.i("InputInjectorService", "HID pen connected")
+            true
+        } catch (e: Exception) {
+            android.util.Log.w("InputInjectorService", "HID pen create failed", e)
+            runCatching { channel.close() }
+            false
+        }
+    }
+
+    override fun closeVirtualPen() {
+        synchronized(penLock) {
+            runCatching { uhidPenChannel?.close() }
+            uhidPenChannel = null
+            pen = null
+        }
+    }
+
+    override fun injectHidPen(
+        x: Int, y: Int, maxX: Int, maxY: Int, inRange: Boolean, tip: Boolean, barrel: Boolean,
+    ): Boolean = synchronized(penLock) { pen }?.report(x, y, maxX, maxY, inRange, tip, barrel) ?: false
+
+    internal fun deathRecipientForTest(): android.os.IBinder.DeathRecipient =
+        synchronized(clientLock) { activeDeathRecipient ?: android.os.IBinder.DeathRecipient {} }
 }

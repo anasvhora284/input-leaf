@@ -14,6 +14,7 @@ import android.provider.Settings
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.inputleaf.android.inject.PointerDevice
 import com.inputleaf.android.model.ConnectionState
 import com.inputleaf.android.model.ServerInfo
 import com.inputleaf.android.network.ClientCertificateSummary
@@ -140,6 +141,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val keyboardEnabled: Flow<Boolean> = prefs.keyboardEnabled
     val favoriteServers: Flow<Set<String>> = prefs.favoriteServers
     val inputMethod: Flow<String> = prefs.inputMethod
+    val pointerDevice: Flow<PointerDevice> = prefs.pointerDevice
     val connectionTransportPolicy: Flow<ConnectionTransportPolicy> =
         prefs.connectionTransportPolicy
 
@@ -226,6 +228,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleKeyboardEnabled(enabled: Boolean) { viewModelScope.launch { prefs.saveKeyboardEnabled(enabled) } }
     fun toggleFavoriteServer(ip: String) { viewModelScope.launch { prefs.toggleFavoriteServer(ip) } }
     fun saveCursorStyle(style: String) { viewModelScope.launch { prefs.saveCursorStyle(style) } }
+    fun savePointerDevice(device: PointerDevice) {
+        viewModelScope.launch { prefs.savePointerDevice(device) }
+    }
     fun saveInputMethod(method: String) {
         viewModelScope.launch {
             val oldMethod = prefs.inputMethod.first()

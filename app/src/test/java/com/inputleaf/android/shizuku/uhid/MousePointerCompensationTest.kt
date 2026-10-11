@@ -52,6 +52,17 @@ class MousePointerCompensationTest {
     }
 
     @Test
+    fun `gainForSpeedMmPerS with NaN or negative speed falls back to first segment gain`() {
+        val firstGain = MousePointerCompensation.firstSegmentGain(0)
+        assertThat(MousePointerCompensation.gainForSpeedMmPerS(Double.NaN, 0))
+            .isWithin(0.0001)
+            .of(firstGain)
+        assertThat(MousePointerCompensation.gainForSpeedMmPerS(-5.0, 0))
+            .isWithin(0.0001)
+            .of(firstGain)
+    }
+
+    @Test
     fun `planHidMove uses single gain for hid and cooked prediction`() {
         val plan = MousePointerCompensation.planHidMove(-100, 0, settingsSpeed = 0, dtMs = 0L)
         assertThat(plan.gain).isWithin(0.0001).of(2.0416)
