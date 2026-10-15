@@ -98,7 +98,7 @@ class UpdateServiceTest {
             versionCode = 42
         }
         assertThat(versionCodeFrom(packageInfo)).isEqualTo(42L)
-        assertThat(versionCodeFrom(null)).isEqualTo(10L)
+        assertThat(versionCodeFrom(null)).isEqualTo(11L)
     }
 
     @Test
