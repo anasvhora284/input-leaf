@@ -45,6 +45,14 @@ class ServerScannerTest {
             .isEqualTo(ServerInfo(ip = "192.168.1.10", name = "Anas-MacBook-Pro"))
     }
 
+    @Test fun `falls back to the version label when the name length is empty or overruns`() {
+        val fallback = ServerInfo(ip = "192.168.1.10", name = "InputLeap 1.8")
+        val emptyName = hello(WireProtocol.BARRIER, 1, 8) + byteArrayOf(0, 0, 0, 0)
+        val overrun = hello(WireProtocol.BARRIER, 1, 8) + byteArrayOf(0, 0, 0, 40) + "short".toByteArray()
+        assertThat(ServerScanner.parseHello("192.168.1.10", emptyName)).isEqualTo(fallback)
+        assertThat(ServerScanner.parseHello("192.168.1.10", overrun)).isEqualTo(fallback)
+    }
+
     @Test fun `rejects unknown and truncated server hello messages`() {
         assertThat(
             ServerScanner.parseHello(
