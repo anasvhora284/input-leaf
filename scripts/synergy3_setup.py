@@ -4,6 +4,8 @@
 Registration requires a stopped service to apply; --status reads the running
 service. Dry-run by default. Never reads or copies certificate private keys, and never
 prints the settings database (which also contains the Synergy license).
+
+Contributed by @joihn in https://github.com/anasvhora284/input-leaf/pull/53.
 """
 import argparse
 import copy

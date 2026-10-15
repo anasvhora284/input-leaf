@@ -55,6 +55,7 @@ object UpdateService {
                 "Saved servers now persist across restarts, with a redesigned servers page and trusted-servers manager.",
                 "Optional stylus mode injects a HID pen for apps that want absolute pen input.",
                 "Better macOS server key mapping and Android TV launcher support.",
+                "Experimental Synergy 3 support, contributed by @joihn.",
             ),
         ),
         VersionChangelog(

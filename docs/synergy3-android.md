@@ -1,5 +1,8 @@
 # Synergy 3 on macOS → Input Leaf on Android (experimental)
 
+> Synergy 3 support and this guide were contributed by [@joihn](https://github.com/joihn)
+> in [#53](https://github.com/anasvhora284/input-leaf/pull/53). Thank you!
+
 Compatibility has been tested with **Synergy 3.7.2 / core 1.21.4** on macOS and a
 **Pixel 10** using Shizuku. Input Leaf connects directly to Synergy's input core
 on TCP **24800**. Synergy's desktop management service is separate; Input Leaf
