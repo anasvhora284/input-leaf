@@ -1,5 +1,6 @@
 package com.inputleaf.android.inject
 
+import android.Manifest
 import android.content.Context
 import android.graphics.Rect
 import android.os.SystemClock
@@ -9,10 +10,12 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.rule.GrantPermissionRule
 import com.google.common.truth.Truth.assertThat
 import com.inputleaf.android.storage.dataStore
 import com.inputleaf.android.ui.MainActivity
 import kotlinx.coroutines.runBlocking
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -20,6 +23,11 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class AccessibilityTvClickTest {
     private val uiAutomation = InstrumentationRegistry.getInstrumentation().uiAutomation
+
+    // Phone system images show this dialog over MainActivity; TV images do not.
+    @get:Rule
+    val notificationPermissionRule: GrantPermissionRule =
+        GrantPermissionRule.grant(Manifest.permission.POST_NOTIFICATIONS)
 
     @Test
     fun nodeClickAtSoftwareCursorActivatesComposeButton() {
