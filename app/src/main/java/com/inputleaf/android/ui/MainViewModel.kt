@@ -29,6 +29,7 @@ import com.inputleaf.android.privilege.PrivilegeSnapshot
 import com.inputleaf.android.privilege.PrivilegedInjectorFactory
 import com.inputleaf.android.privilege.ResolvedInjector
 import com.inputleaf.android.service.ConnectionService
+import com.inputleaf.android.service.ScreenBoundsResolver
 import com.inputleaf.android.storage.AppPreferences
 import com.inputleaf.android.storage.ClientCertificateStore
 import com.inputleaf.android.update.UpdateCheckResult
@@ -543,8 +544,10 @@ class MainViewModel @JvmOverloads constructor(
 
     private suspend fun resolveInjector(preferredMethod: String? = null): com.inputleaf.android.inject.InputInjector? {
         val method = preferredMethod ?: prefs.inputMethod.first()
-        val wm = getApplication<Application>().getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
-        val bounds = wm.currentWindowMetrics.bounds
+        // WindowManager.currentWindowMetrics is API 30+, but minSdk is 26: calling it
+        // directly threw NoSuchMethodError on pre-Android-11 devices (issue #54, a
+        // HarmonyOS 2.0.0 / API 29 tablet) and killed the app on connect.
+        val bounds = ScreenBoundsResolver.resolveFromContext(getApplication())
         val snapshot = PrivilegeSnapshot(
             shizukuReady = permissionProvider.shizukuStatus.value == ShizukuStatus.READY,
             root = permissionProvider.rootAvailability(),

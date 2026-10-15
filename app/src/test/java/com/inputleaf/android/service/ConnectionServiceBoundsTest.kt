@@ -8,6 +8,7 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 class ConnectionServiceBoundsTest {
@@ -84,6 +85,18 @@ class ConnectionServiceBoundsTest {
 
     @Test
     fun `resolveFromContext succeeds on application context without crashing`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val bounds = ScreenBoundsResolver.resolveFromContext(context)
+        assertThat(bounds.width()).isGreaterThan(0)
+        assertThat(bounds.height()).isGreaterThan(0)
+    }
+
+    @Test
+    @Config(sdk = [29])
+    fun `resolveFromContext works below API 30 where currentWindowMetrics does not exist`() {
+        // Regression guard for issue #54: WindowManager.getCurrentWindowMetrics() is
+        // API 30+, so on API 29 and below a direct call throws NoSuchMethodError.
+        // Tier 1 must be skipped entirely and a lower tier must supply the bounds.
         val context = ApplicationProvider.getApplicationContext<Context>()
         val bounds = ScreenBoundsResolver.resolveFromContext(context)
         assertThat(bounds.width()).isGreaterThan(0)
