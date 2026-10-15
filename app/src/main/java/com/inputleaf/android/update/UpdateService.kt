@@ -46,6 +46,15 @@ object UpdateService {
 
     private val RELEASES = listOf(
         VersionChangelog(
+            versionName = "1.4.4",
+            versionCode = 10,
+            highlights = listOf(
+                "Fixed Accessibility mouse clicks on Android TV devices without touch or fake-touch support.",
+                "Left click now activates the accessibility element beneath the software cursor.",
+                "Right click now performs Android Back on non-touch Accessibility devices.",
+            ),
+        ),
+        VersionChangelog(
             versionName = "1.4.3",
             versionCode = 9,
             highlights = listOf(
@@ -248,10 +257,10 @@ internal fun resolveInstallSource(installerPackage: String?): InstallSource {
 }
 
 internal fun versionNameFrom(packageInfo: PackageInfo?): String =
-    packageInfo?.versionName ?: "1.4.3"
+    packageInfo?.versionName ?: "1.4.4"
 
 internal fun versionCodeFrom(packageInfo: PackageInfo?, sdkInt: Int = Build.VERSION.SDK_INT): Long {
-    if (packageInfo == null) return 9L
+    if (packageInfo == null) return 10L
     return if (sdkInt >= Build.VERSION_CODES.P) {
         packageInfo.longVersionCode
     } else {
