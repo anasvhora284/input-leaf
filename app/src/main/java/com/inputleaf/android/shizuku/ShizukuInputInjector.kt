@@ -177,17 +177,28 @@ class ShizukuInputInjector internal constructor(
         }
     }
 
-    override fun disconnect() {
+    override fun disconnect() = disconnect(stopService = true)
+
+    /**
+     * [stopService] is false when another injector for the same host is taking over.
+     * The injector service is one per process and the successor binds before this one
+     * is released, so destroying it here also killed the successor's connection and
+     * cleared its client token: the first connect after any reconnect came up with no
+     * mouse or keyboard until the app restarted.
+     */
+    fun disconnect(stopService: Boolean) {
         scanCodeDecoder.clearPressedKeys()
         if (isBound || service != null) {
             try {
                 runCatching { service?.releaseHidKeys() }
-                runCatching { service?.closeVirtualKeyboard() }
-                runCatching { service?.closeVirtualMouse() }
-                runCatching { service?.closeVirtualPen() }
+                if (stopService) {
+                    runCatching { service?.closeVirtualKeyboard() }
+                    runCatching { service?.closeVirtualMouse() }
+                    runCatching { service?.closeVirtualPen() }
+                }
                 hidMouse.detach()
-                service?.destroy()
-                host.unbind(serviceConnection, destroy = true)
+                if (stopService) service?.destroy()
+                host.unbind(serviceConnection, destroy = stopService)
             } catch (e: Exception) {
                 Log.w(TAG, "Error unbinding ${host.kind} service", e)
             }

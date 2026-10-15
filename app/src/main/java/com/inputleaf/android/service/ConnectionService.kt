@@ -528,9 +528,15 @@ class ConnectionService : Service() {
     }
 
     fun setInjector(injector: com.inputleaf.android.inject.InputInjector) {
-        if (this.injector != null && this.injector != injector) {
-            this.injector?.setOnNativePointerStateChanged(null)
-            this.injector?.disconnect()
+        val previous = this.injector
+        if (previous != null && previous != injector) {
+            previous.setOnNativePointerStateChanged(null)
+            if (previous is ShizukuInputInjector) {
+                previous.onServiceDisconnectedCallback = null
+                previous.disconnect(stopService = !sharesPrivilegedService(previous, injector))
+            } else {
+                previous.disconnect()
+            }
             if (this.injector is com.inputleaf.android.inject.AccessibilityInputInjector &&
                 injector !is com.inputleaf.android.inject.AccessibilityInputInjector
             ) {
@@ -650,8 +656,16 @@ class ConnectionService : Service() {
         Log.i(TAG, "Screen bounds changed -> ${w}x$h")
         injector?.updateScreenSize(w, h)
         if (plan is ScreenBoundsUpdatePlan.SendDinf) {
-            connection?.sendDataInfo(plan.width, plan.height, plan.x, plan.y)
-            Log.i(TAG, "Sent DINF update ${w}x${h}")
+            // onConfigurationChanged runs on the main thread, and a socket write there
+            // throws NetworkOnMainThreadException (rotating while connected over TLS
+            // crashed the app). ProtocolWriter locks each frame, so writing from IO is
+            // safe alongside the event loop's own writes.
+            val conn = connection ?: return
+            scope.launch(Dispatchers.IO) {
+                runCatching { conn.sendDataInfo(plan.width, plan.height, plan.x, plan.y) }
+                    .onSuccess { Log.i(TAG, "Sent DINF update ${w}x${h}") }
+                    .onFailure { Log.w(TAG, "DINF update failed; the session will reconnect", it) }
+            }
         }
     }
 
@@ -807,6 +821,13 @@ internal enum class ConnectAttemptOutcome {
 }
 
 /** True only for the root host itself. Accessibility reports that host's kind too. */
+/** True when [next] talks to the same per-process injector service as [previous]. */
+internal fun sharesPrivilegedService(
+    previous: com.inputleaf.android.inject.InputInjector,
+    next: com.inputleaf.android.inject.InputInjector,
+): Boolean = previous is ShizukuInputInjector && next is ShizukuInputInjector &&
+    previous.privilegeKind() == next.privilegeKind()
+
 internal fun shouldIgnoreShizukuRestart(injector: com.inputleaf.android.inject.InputInjector?): Boolean {
     return injector is ShizukuInputInjector && injector.privilegeKind() == PrivilegeKind.ROOT
 }
