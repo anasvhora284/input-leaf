@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"/>
@@ -38,10 +39,13 @@
             android:name=".service.ConnectionService"
             android:foregroundServiceType="connectedDevice"
             android:exported="false"/>
-        <!-- libsu RootService: no android:process; the library starts uid 0 itself. -->
+        <!-- libsu RootService: no android:process; the library starts uid 0 itself.
+             It extends ContextWrapper, not Service, by design: the framework never
+             instantiates it, libsu does, so Lint's Instantiatable check does not apply. -->
         <service
             android:name=".privilege.RootInputInjectorService"
-            android:exported="false"/>
+            android:exported="false"
+            tools:ignore="Instantiatable"/>
         <service
             android:name=".service.CursorOverlayService"
             android:exported="false"/>
