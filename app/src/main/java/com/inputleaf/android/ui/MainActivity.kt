@@ -27,7 +27,9 @@ import com.inputleaf.android.ui.theme.InputLeafTheme
 
 class MainActivity : ComponentActivity() {
 
-    private val viewModel: MainViewModel by viewModels()
+    private val viewModel: MainViewModel by viewModels {
+        MainViewModelFactory(application)
+    }
 
     private val notifPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()) {}

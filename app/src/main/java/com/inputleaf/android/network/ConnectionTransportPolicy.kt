@@ -47,6 +47,8 @@ enum class ConnectionTransportPolicy(val storageValue: String) {
             ConnectResult.FailureReason.CERTIFICATE_MISMATCH,
             ConnectResult.FailureReason.CLIENT_CERT_REQUIRED,
             ConnectResult.FailureReason.INCOMPATIBLE,
+            ConnectResult.FailureReason.UNKNOWN_SCREEN,
+            ConnectResult.FailureReason.PROTOCOL_ERROR,
             ConnectResult.FailureReason.BUSY -> false
         }
 
@@ -60,6 +62,8 @@ enum class ConnectionTransportPolicy(val storageValue: String) {
             ConnectResult.FailureReason.CERTIFICATE_MISMATCH,
             ConnectResult.FailureReason.CLIENT_CERT_REQUIRED,
             ConnectResult.FailureReason.INCOMPATIBLE,
+            ConnectResult.FailureReason.UNKNOWN_SCREEN,
+            ConnectResult.FailureReason.PROTOCOL_ERROR,
             ConnectResult.FailureReason.BUSY -> false
         }
 }

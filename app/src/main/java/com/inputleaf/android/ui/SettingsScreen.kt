@@ -33,9 +33,11 @@ import com.inputleaf.android.network.TlsFingerprintManager
 import com.inputleaf.android.ui.components.CircularAvatar
 import com.inputleaf.android.ui.components.ConnectedChoiceRow
 import com.inputleaf.android.ui.components.SectionHeader
+import com.inputleaf.android.ui.components.SettingsBadgeRow
 import com.inputleaf.android.ui.components.SettingsGroup
 import com.inputleaf.android.ui.components.SettingsRow
 import com.inputleaf.android.ui.components.SettingsSwitchRow
+import com.inputleaf.android.ui.components.TrustedServersSheet
 import com.inputleaf.android.update.InstallSource
 import com.inputleaf.android.update.UpdateService
 
@@ -56,6 +58,7 @@ fun SettingsScreen(
     accessibilityAvailable: Boolean,
     canDrawOverlays: Boolean,
     fingerprints: Map<String, String>,
+    serverNames: Map<String, String> = emptyMap(),
     clientCertificateSummary: ClientCertificateSummary?,
     onScreenNameChange: (String) -> Unit,
     onAutoConnectChange: (Boolean) -> Unit,
@@ -97,6 +100,7 @@ fun SettingsScreen(
     var showCursorStyleDialog by remember { mutableStateOf(false) }
     var showLocalFingerprint by remember { mutableStateOf(false) }
     var showRegenerateConfirm by remember { mutableStateOf(false) }
+    var showTrustedServersSheet by remember { mutableStateOf(false) }
     var showAuthorDialog by remember { mutableStateOf(false) }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -301,27 +305,18 @@ fun SettingsScreen(
                     )
                 }
                 row { shapes ->
-                    SettingsRow(
+                    SettingsBadgeRow(
                         icon = Icons.Rounded.Lock,
                         title = "Trusted servers",
-                        subtitle = "${fingerprints.size} server${if (fingerprints.size != 1) "s" else ""}",
+                        subtitle = if (fingerprints.isEmpty()) {
+                            "No trusted servers"
+                        } else {
+                            "${fingerprints.size} trusted server${if (fingerprints.size != 1) "s" else ""}"
+                        },
+                        count = fingerprints.size.takeIf { it > 0 },
                         shapes = shapes,
+                        onClick = { showTrustedServersSheet = true },
                     )
-                }
-                fingerprints.forEach { (ip, fp) ->
-                    row { shapes ->
-                        SegmentedListItem(
-                            shapes = shapes,
-                            supportingContent = { Text(fp.take(16) + "...") },
-                            trailingContent = {
-                                IconButton(onClick = { onDeleteFingerprint(ip) }) {
-                                    Icon(Icons.Rounded.Delete, contentDescription = "Remove")
-                                }
-                            },
-                        ) {
-                            Text(ip)
-                        }
-                    }
                 }
             }
 
@@ -475,7 +470,7 @@ fun SettingsScreen(
             title = { Text("Regenerate certificate?") },
             text = {
                 Text(
-                    "Deskflow will ask you to trust this phone again. Only regenerate if you " +
+                    "Your server will ask you to trust this phone again. Only regenerate if you " +
                         "want a new identity."
                 )
             },
@@ -503,7 +498,7 @@ fun SettingsScreen(
             icon = Icons.Rounded.Lock,
             options = listOf(
                 Choice(ConnectionTransportPolicy.AUTO, "Auto (Recommended)", "Use the last working mode, with fallback"),
-                Choice(ConnectionTransportPolicy.TLS_ONLY, "TLS only", "Require an encrypted Deskflow connection"),
+                Choice(ConnectionTransportPolicy.TLS_ONLY, "TLS only", "Require an encrypted connection"),
                 Choice(ConnectionTransportPolicy.PLAIN_ONLY, "Plain only", "Never attempt TLS"),
             ),
             selected = connectionTransportPolicy,
@@ -692,6 +687,15 @@ fun SettingsScreen(
                     Text("Close")
                 }
             }
+        )
+    }
+
+    if (showTrustedServersSheet) {
+        TrustedServersSheet(
+            fingerprints = fingerprints,
+            serverNames = serverNames,
+            onDeleteFingerprint = onDeleteFingerprint,
+            onDismiss = { showTrustedServersSheet = false },
         )
     }
 }

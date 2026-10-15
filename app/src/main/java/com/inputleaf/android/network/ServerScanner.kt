@@ -32,7 +32,17 @@ class ServerScanner {
             if (WireProtocol.entries.none { it.magic == magic }) return null
             val major = ((body[7].toInt() and 0xFF) shl 8) or (body[8].toInt() and 0xFF)
             val minor = ((body[9].toInt() and 0xFF) shl 8) or (body[10].toInt() and 0xFF)
-            return ServerInfo(ip = host, name = "InputLeap $major.$minor")
+            val serverName = if (body.size >= 15) {
+                val nameLength = ((body[11].toInt() and 0xFF) shl 24) or
+                    ((body[12].toInt() and 0xFF) shl 16) or
+                    ((body[13].toInt() and 0xFF) shl 8) or
+                    (body[14].toInt() and 0xFF)
+                if (nameLength > 0 && 15 + nameLength <= body.size) {
+                    String(body, 15, nameLength, Charsets.UTF_8).trim()
+                } else ""
+            } else ""
+            val displayName = serverName.ifBlank { "InputLeap $major.$minor" }
+            return ServerInfo(ip = host, name = displayName)
         }
 
         private val trustAllManager: X509TrustManager = object : X509TrustManager {
@@ -163,7 +173,7 @@ class ServerScanner {
         if (len < 11 || len > 256) {
             null
         } else {
-            val body = ByteArray(minOf(len, 11))
+            val body = ByteArray(len)
             din.readFully(body)
             parseHello(host, body)
         }

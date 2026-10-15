@@ -21,6 +21,8 @@ sealed class ConnectResult {
         HANDSHAKE,
         INCOMPATIBLE,
         BUSY,
+        UNKNOWN_SCREEN,
+        PROTOCOL_ERROR,
     }
 }
 

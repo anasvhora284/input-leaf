@@ -20,6 +20,13 @@ kover {
             xml {
                 xmlFile = layout.buildDirectory.file("reports/kover/coverage-debug-jvm.xml").get().asFile
             }
+            verify {
+                rule("JVM Baseline Coverage") {
+                    bound {
+                        minValue = 42
+                    }
+                }
+            }
         }
     }
 }

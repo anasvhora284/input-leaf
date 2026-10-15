@@ -36,6 +36,23 @@ class ServerScannerTest {
         }
     }
 
+    @Test fun `parses server screen name when present in hello message`() {
+        val nameBytes = "Anas-MacBook-Pro".toByteArray(Charsets.UTF_8)
+        val body = hello(WireProtocol.BARRIER, 1, 8) +
+            byteArrayOf(0, 0, 0, nameBytes.size.toByte()) +
+            nameBytes
+        assertThat(ServerScanner.parseHello("192.168.1.10", body))
+            .isEqualTo(ServerInfo(ip = "192.168.1.10", name = "Anas-MacBook-Pro"))
+    }
+
+    @Test fun `falls back to the version label when the name length is empty or overruns`() {
+        val fallback = ServerInfo(ip = "192.168.1.10", name = "InputLeap 1.8")
+        val emptyName = hello(WireProtocol.BARRIER, 1, 8) + byteArrayOf(0, 0, 0, 0)
+        val overrun = hello(WireProtocol.BARRIER, 1, 8) + byteArrayOf(0, 0, 0, 40) + "short".toByteArray()
+        assertThat(ServerScanner.parseHello("192.168.1.10", emptyName)).isEqualTo(fallback)
+        assertThat(ServerScanner.parseHello("192.168.1.10", overrun)).isEqualTo(fallback)
+    }
+
     @Test fun `rejects unknown and truncated server hello messages`() {
         assertThat(
             ServerScanner.parseHello(
@@ -112,6 +129,23 @@ class ServerScannerTest {
 
         val emptyStream = java.io.DataInputStream(java.io.ByteArrayInputStream(byteArrayOf()))
         assertThat(scanner.readHello("127.0.0.1", emptyStream)).isNull()
+    }
+
+    @Test fun `readHello parses full packet with server screen name`() {
+        val scanner = ServerScanner()
+        val nameBytes = "Workstation-PC".toByteArray(Charsets.UTF_8)
+        val body = hello(WireProtocol.SYNERGY, 1, 8) +
+            byteArrayOf(0, 0, 0, nameBytes.size.toByte()) +
+            nameBytes
+        val stream = java.io.DataInputStream(
+            java.io.ByteArrayInputStream(
+                byteArrayOf(0, 0, 0, body.size.toByte()) + body
+            )
+        )
+        val result = scanner.readHello("192.168.1.50", stream)
+        assertThat(result).isNotNull()
+        assertThat(result?.name).isEqualTo("Workstation-PC")
+        assertThat(result?.ip).isEqualTo("192.168.1.50")
     }
 
     @Test fun `isClientCertificateRejection identifies client auth errors`() {

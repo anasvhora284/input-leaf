@@ -51,6 +51,10 @@ object UpdateService {
             highlights = listOf(
                 "Rooted devices can grant su and inject through a uid-0 HID service, without Shizuku.",
                 "New Material 3 Expressive design with dynamic color, edge-to-edge screens, and a refreshed settings layout.",
+                "Fixed a crash when connecting on Android 10 and older (including Huawei HarmonyOS tablets).",
+                "Saved servers now persist across restarts, with a redesigned servers page and trusted-servers manager.",
+                "Optional stylus mode injects a HID pen for apps that want absolute pen input.",
+                "Better macOS server key mapping and Android TV launcher support.",
             ),
         ),
         VersionChangelog(

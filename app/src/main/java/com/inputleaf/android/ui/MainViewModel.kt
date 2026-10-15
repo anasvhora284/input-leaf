@@ -29,6 +29,7 @@ import com.inputleaf.android.privilege.PrivilegeSnapshot
 import com.inputleaf.android.privilege.PrivilegedInjectorFactory
 import com.inputleaf.android.privilege.ResolvedInjector
 import com.inputleaf.android.service.ConnectionService
+import com.inputleaf.android.service.ScreenBoundsResolver
 import com.inputleaf.android.storage.AppPreferences
 import com.inputleaf.android.storage.ClientCertificateStore
 import com.inputleaf.android.update.UpdateCheckResult
@@ -52,23 +53,42 @@ enum class ThemeMode {
 
 private const val MAX_CLIENT_CERTIFICATE_BYTES = 16 * 1024 * 1024
 
+internal fun mergeServerLists(
+    savedAddresses: Set<String>,
+    discovered: List<ServerInfo>,
+    serverNames: Map<String, String> = emptyMap(),
+): List<ServerInfo> {
+    val servers = savedAddresses.sorted().associateWith { ip ->
+        ServerInfo(ip = ip, name = serverNames[ip].orEmpty())
+    }.toMutableMap()
+    discovered.forEach {
+        val resolvedName = it.name.ifBlank { serverNames[it.ip].orEmpty() }
+        servers[it.ip] = it.copy(name = resolvedName)
+    }
+    return servers.values.toList()
+}
+
 internal fun connectionFailureMessage(
     reason: ConnectResult.FailureReason,
     detail: String? = null,
 ): String = when (reason) {
-    ConnectResult.FailureReason.NETWORK -> "Could not reach the Deskflow server"
+    ConnectResult.FailureReason.NETWORK -> "Could not reach the server"
     ConnectResult.FailureReason.TLS_AGAINST_PLAIN_SERVER ->
-        "Server is not using TLS. Select Auto or Plain only, or enable TLS in Deskflow."
+        "Server is not using TLS. Select Auto or Plain only, or enable TLS on the server."
     ConnectResult.FailureReason.CERTIFICATE_MISMATCH ->
-        "Deskflow's TLS certificate changed. Remove the trusted server only if you expect this."
+        "The server's TLS certificate changed. Remove the trusted server only if you expect this."
     ConnectResult.FailureReason.CLIENT_CERT_REQUIRED ->
-        "Deskflow is asking to trust this phone. Open Settings, compare the fingerprint, and accept it in Deskflow."
+        "The server requires a trusted client certificate. Compare this device’s fingerprint in Settings with the server’s trusted clients."
     ConnectResult.FailureReason.HANDSHAKE ->
-        "Deskflow handshake failed on the selected transport"
+        "Server handshake failed on the selected transport"
     ConnectResult.FailureReason.INCOMPATIBLE ->
-        detail ?: "Deskflow rejected this client's protocol version"
+        detail ?: "The server rejected this client's protocol version"
     ConnectResult.FailureReason.BUSY ->
-        "This screen name is already connected to Deskflow"
+        "This screen name is already connected to the server"
+    ConnectResult.FailureReason.UNKNOWN_SCREEN ->
+        "Screen name is not registered on the server. For Synergy 3, use the core screen name shown by the setup helper."
+    ConnectResult.FailureReason.PROTOCOL_ERROR ->
+        "The server rejected a protocol message"
 }
 
 internal fun clientCertificateImportError(
@@ -91,11 +111,14 @@ internal fun clientCertificateImportError(
         "Could not securely store the client certificate"
 }
 
-class MainViewModel(app: Application) : AndroidViewModel(app) {
+class MainViewModel @JvmOverloads constructor(
+    app: Application,
+    dependencies: AppDependencies = AppDependencies.from(app),
+) : AndroidViewModel(app) {
 
-    private val prefs = AppPreferences(app)
-    private val clientCertificateStore = ClientCertificateStore(app)
-    private val scanner = ServerScanner()
+    private val prefs = dependencies.preferences
+    private val clientCertificateStore = dependencies.certificateStore
+    private val scanner = dependencies.serverScanner
     private var service: ConnectionService? = null
 
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
@@ -104,7 +127,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val pendingConnectIp: StateFlow<String?> = _pendingConnectIp
 
     private val _discoveredServers = MutableStateFlow<List<ServerInfo>>(emptyList())
-    val discoveredServers: StateFlow<List<ServerInfo>> = _discoveredServers
+    val scannedServers: StateFlow<List<ServerInfo>> = _discoveredServers.asStateFlow()
+    val savedServers: Flow<Set<String>> = prefs.savedServers
+    val serverNames: Flow<Map<String, String>> = prefs.serverNames
+    val discoveredServers: StateFlow<List<ServerInfo>> =
+        combine(prefs.savedServers, _discoveredServers, prefs.serverNames, ::mergeServerLists)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _errorState = MutableStateFlow<String?>(null)
     val errorState: StateFlow<String?> = _errorState
@@ -116,7 +144,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning
     private var scanJob: Job? = null
-    private val permissionProvider = PermissionStatusProvider(app)
+    private val permissionProvider = dependencies.permissionProvider
     
     // Shizuku status
     val shizukuStatus: StateFlow<ShizukuStatus> = permissionProvider.shizukuStatus
@@ -200,23 +228,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { 
             prefs.saveScreenName(name)
             // Reconnect with new screen name if currently connected
-            val currentState = _connectionState.value
-            if (currentState is ConnectionState.Idle || 
-                currentState is ConnectionState.Active ||
-                currentState is ConnectionState.Connecting ||
-                currentState is ConnectionState.Handshaking) {
-                // Get the current server IP and reconnect
-                val serverIp = when (currentState) {
-                    is ConnectionState.Idle -> currentState.serverIp
-                    is ConnectionState.Active -> currentState.serverIp
-                    is ConnectionState.Connecting -> currentState.serverIp
-                    is ConnectionState.Handshaking -> currentState.serverIp
-                    else -> null
-                }
-                if (serverIp != null) {
-                    Log.d("InputLeaf", "Screen name changed, reconnecting with new name: $name")
-                    service?.reconnect(serverIp, name.trim())
-                }
+            val serverIp = when (val currentState = _connectionState.value) {
+                is ConnectionState.Idle -> currentState.serverIp
+                is ConnectionState.Active -> currentState.serverIp
+                is ConnectionState.Connecting -> currentState.serverIp
+                is ConnectionState.Handshaking -> currentState.serverIp
+                else -> null
+            }
+            if (serverIp != null) {
+                Log.d("InputLeaf", "Screen name changed, reconnecting with new name: $name")
+                service?.reconnect(serverIp, name.trim())
             }
         } 
     }
@@ -227,6 +248,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleMouseEnabled(enabled: Boolean) { viewModelScope.launch { prefs.saveMouseEnabled(enabled) } }
     fun toggleKeyboardEnabled(enabled: Boolean) { viewModelScope.launch { prefs.saveKeyboardEnabled(enabled) } }
     fun toggleFavoriteServer(ip: String) { viewModelScope.launch { prefs.toggleFavoriteServer(ip) } }
+    fun removeSavedServer(ip: String) { viewModelScope.launch { prefs.removeServer(ip) } }
     fun saveCursorStyle(style: String) { viewModelScope.launch { prefs.saveCursorStyle(style) } }
     fun savePointerDevice(device: PointerDevice) {
         viewModelScope.launch { prefs.savePointerDevice(device) }
@@ -497,6 +519,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 if (ip != null) {
                     scanner.scan(ip) { server ->
+                        if (server.name.isNotBlank() && server.name != server.ip) {
+                            viewModelScope.launch { prefs.saveServerName(server.ip, server.name) }
+                        }
                         _discoveredServers.update { currentServers ->
                             val existingMap = currentServers.associateBy { it.ip }.toMutableMap()
                             existingMap[server.ip] = server
@@ -519,8 +544,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun resolveInjector(preferredMethod: String? = null): com.inputleaf.android.inject.InputInjector? {
         val method = preferredMethod ?: prefs.inputMethod.first()
-        val wm = getApplication<Application>().getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
-        val bounds = wm.currentWindowMetrics.bounds
+        // WindowManager.currentWindowMetrics is API 30+, but minSdk is 26: calling it
+        // directly threw NoSuchMethodError on pre-Android-11 devices (issue #54, a
+        // HarmonyOS 2.0.0 / API 29 tablet) and killed the app on connect.
+        val bounds = ScreenBoundsResolver.resolveFromContext(getApplication())
         val snapshot = PrivilegeSnapshot(
             shizukuReady = permissionProvider.shizukuStatus.value == ShizukuStatus.READY,
             root = permissionProvider.rootAvailability(),
@@ -620,10 +647,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun addManualServer(ip: String) {
         val trimmed = ip.trim()
         if (isValidServerAddress(trimmed)) {
-            _discoveredServers.update { currentServers ->
-                val existing = currentServers.filter { it.ip != trimmed }
-                existing + ServerInfo(ip = trimmed)
-            }
+            viewModelScope.launch { prefs.saveServer(trimmed) }
         }
     }
 

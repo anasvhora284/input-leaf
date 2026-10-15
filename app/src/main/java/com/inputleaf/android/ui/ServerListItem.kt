@@ -5,11 +5,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Computer
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.ListItemShapes
@@ -46,10 +48,19 @@ fun ServerListItem(
     modifier: Modifier = Modifier,
     isFavorite: Boolean = false,
     onToggleFavorite: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
     isConnecting: Boolean = false,
     enabled: Boolean = true,
 ) {
     val colors = MaterialTheme.colorScheme
+    val hasCustomName = server.name.isNotBlank() && server.name != server.ip
+    val headline = if (hasCustomName) server.name else server.ip
+    val subtitle = when {
+        isConnecting -> if (hasCustomName) "${server.ip} • Connecting…" else "Connecting… • Port ${server.port}"
+        isConnected -> if (hasCustomName) "${server.ip} • Connected" else "Connected • Port ${server.port}"
+        else -> if (hasCustomName) server.ip else "Port ${server.port}"
+    }
+
     SegmentedListItem(
         onClick = { onServerClick(server) },
         shapes = shapes,
@@ -79,13 +90,7 @@ fun ServerListItem(
             )
         },
         supportingContent = {
-            Text(
-                when {
-                    isConnecting -> "Connecting…"
-                    isConnected -> "${server.ip} • Connected"
-                    else -> server.ip
-                },
-            )
+            Text(subtitle)
         },
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -98,18 +103,31 @@ fun ServerListItem(
                         Icon(
                             imageVector = if (isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
                             contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                            tint = if (isFavorite) colors.primary else colors.onSurfaceVariant,
+                        )
+                    }
+                }
+                if (onDelete != null) {
+                    IconButton(
+                        onClick = onDelete,
+                        enabled = enabled && !isConnected,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Delete,
+                            contentDescription = "Remove server",
+                            tint = colors.error,
                         )
                     }
                 }
                 when {
                     isConnecting -> LoadingIndicator(Modifier.size(32.dp))
                     isConnected -> Badge(containerColor = colors.primary)
-                    onToggleFavorite == null ->
-                        Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = "Navigate")
+                    onToggleFavorite == null && onDelete == null ->
+                        Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = "Connect")
                 }
             }
         },
     ) {
-        Text(server.name.ifBlank { server.ip })
+        Text(headline)
     }
 }

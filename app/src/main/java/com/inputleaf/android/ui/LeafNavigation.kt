@@ -59,6 +59,9 @@ fun LeafNavigation(viewModel: MainViewModel) {
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val pendingConnectIp by viewModel.pendingConnectIp.collectAsStateWithLifecycle()
     val discoveredServers by viewModel.discoveredServers.collectAsStateWithLifecycle()
+    val scannedServers by viewModel.scannedServers.collectAsStateWithLifecycle()
+    val savedServers by viewModel.savedServers.collectAsState(initial = emptySet())
+    val serverNames by viewModel.serverNames.collectAsState(initial = emptyMap())
     val isScanning by viewModel.isScanning.collectAsStateWithLifecycle()
     val screenName by viewModel.screenName.collectAsState(initial = "android-phone")
     val autoConnect by viewModel.autoConnect.collectAsState(initial = true)
@@ -294,13 +297,16 @@ fun LeafNavigation(viewModel: MainViewModel) {
                 )
                 LeafRoute.Servers.key -> ServerListScreen(
                     connectionState = connectionState,
-                    discoveredServers = discoveredServers,
+                    scannedServers = scannedServers,
                     isScanning = isScanning,
                     favoriteServers = favoriteServers,
                     onScan = { viewModel.scan() },
                     onConnect = { viewModel.connect(it) },
                     onAddManual = { viewModel.addManualServer(it) },
                     onToggleFavorite = { viewModel.toggleFavoriteServer(it) },
+                    savedServerIps = savedServers,
+                    serverNames = serverNames,
+                    onRemoveSavedServer = { viewModel.removeSavedServer(it) },
                     pendingConnectIp = pendingConnectIp,
                 )
                 LeafRoute.Setup.key -> SetupScreen(
@@ -340,6 +346,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     accessibilityAvailable = accessibilityAvailable,
                     canDrawOverlays = canDrawOverlays,
                     fingerprints = fingerprints,
+                    serverNames = serverNames,
                     clientCertificateSummary = clientCertificateSummary,
                     onScreenNameChange = { viewModel.saveScreenName(it) },
                     onAutoConnectChange = { viewModel.saveAutoConnect(it) },

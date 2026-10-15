@@ -30,7 +30,7 @@ internal class HidAttachmentController {
         generation++
     }
 
-    suspend fun applyLatest(apply: (Boolean) -> Unit) {
+    suspend fun applyLatest(apply: suspend (Boolean) -> Unit) {
         mutex.withLock {
             while (true) {
                 val seen = generation
