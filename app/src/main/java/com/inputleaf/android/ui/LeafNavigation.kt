@@ -36,6 +36,7 @@ import com.inputleaf.android.inject.PointerDevice
 import com.inputleaf.android.network.ConnectionTransportPolicy
 import com.inputleaf.android.ui.components.UpdateAvailableDialog
 import com.inputleaf.android.ui.components.WhatsNewDialog
+import com.inputleaf.android.update.UpdateChannel
 import com.inputleaf.android.update.UpdateCheckResult
 import com.inputleaf.android.util.BatteryOptimizationHelper
 
@@ -91,6 +92,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
     val imeEnabledAndSelected by viewModel.imeEnabledAndSelected.collectAsStateWithLifecycle(initialValue = false)
     val updateCheckResult by viewModel.updateCheckResult.collectAsStateWithLifecycle()
     val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsStateWithLifecycle()
+    val updateChannel by viewModel.updateChannel.collectAsState(initial = UpdateChannel.STABLE)
     val whatsNewChangelog by viewModel.whatsNewChangelog.collectAsStateWithLifecycle()
 
     var pendingClientCertificateUri by remember { mutableStateOf<Uri?>(null) }
@@ -379,6 +381,10 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     onRegenerateClientCertificate = { viewModel.regenerateClientCertificate() },
                     isCheckingUpdate = isCheckingUpdate,
                     onCheckForUpdates = { viewModel.checkForUpdates(manual = true) },
+                    receivePrereleases = updateChannel == UpdateChannel.PRERELEASE,
+                    onReceivePrereleasesChange = { on ->
+                        viewModel.saveUpdateChannel(if (on) UpdateChannel.PRERELEASE else UpdateChannel.STABLE)
+                    },
                     onBack = { screen = LeafRoute.Home.key },
                 )
             }

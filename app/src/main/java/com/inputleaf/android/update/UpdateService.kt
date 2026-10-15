@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.net.HttpURLConnection
@@ -30,6 +31,19 @@ sealed interface UpdateCheckResult {
     data class Error(val message: String) : UpdateCheckResult
 }
 
+/**
+ * Which GitHub releases the in-app updater offers. Pre-release also offers stable
+ * releases, so a beta user is moved onto the final build once it ships.
+ */
+enum class UpdateChannel(val storageValue: String) {
+    STABLE("stable"),
+    PRERELEASE("prerelease");
+
+    companion object {
+        fun fromStorage(value: String?): UpdateChannel? = entries.firstOrNull { it.storageValue == value }
+    }
+}
+
 data class VersionChangelog(
     val versionName: String,
     val versionCode: Int,
@@ -40,6 +54,9 @@ object UpdateService {
 
     internal const val GITHUB_API_LATEST_RELEASE =
         "https://api.github.com/repos/anasvhora284/input-leaf/releases/latest"
+    /** /releases/latest never returns a pre-release, so that channel reads the list. */
+    internal const val GITHUB_API_RELEASES =
+        "https://api.github.com/repos/anasvhora284/input-leaf/releases?per_page=20"
     internal const val FDROID_MARKET_URI = "market://details?id=com.inputleaf.android"
     internal const val GITHUB_RELEASES_WEB_URL =
         "https://github.com/anasvhora284/input-leaf/releases/latest"
@@ -52,6 +69,7 @@ object UpdateService {
                 "Fixed Accessibility mouse clicks on Android TV devices without touch or fake-touch support.",
                 "Left click now activates the accessibility element beneath the software cursor.",
                 "Right click now performs Android Back on non-touch Accessibility devices.",
+                "Settings can opt in to pre-release updates, and a pre-release install is offered the final release when it ships.",
             ),
         ),
         VersionChangelog(
@@ -97,7 +115,7 @@ object UpdateService {
     )
 
     fun getChangelog(versionName: String): VersionChangelog {
-        val clean = versionName.removePrefix("v").removePrefix("V")
+        val clean = versionName.removePrefix("v").removePrefix("V").substringBefore('-')
         return RELEASES.firstOrNull { it.versionName == clean } ?: RELEASES.first()
     }
 
@@ -117,19 +135,27 @@ object UpdateService {
     suspend fun checkUpdate(
         context: Context,
         openConnection: (URL) -> HttpURLConnection = defaultConnectionOpener,
+        channel: UpdateChannel = UpdateChannel.STABLE,
     ): UpdateCheckResult {
         val currentVersion = getCurrentVersion(context)
         val isFdroid = getInstallSource(context) == InstallSource.FDROID
-        return checkUpdate(currentVersion, isFdroid, openConnection)
+        return checkUpdate(currentVersion, isFdroid, openConnection, channel)
     }
+
+    /** A pre-release build stays on the pre-release channel until the user opts out. */
+    fun defaultChannel(currentVersion: String): UpdateChannel =
+        if ('-' in currentVersion) UpdateChannel.PRERELEASE else UpdateChannel.STABLE
 
     internal suspend fun checkUpdate(
         currentVersion: String,
         isFdroid: Boolean,
         openConnection: (URL) -> HttpURLConnection,
+        channel: UpdateChannel = UpdateChannel.STABLE,
     ): UpdateCheckResult = withContext(Dispatchers.IO) {
+        // F-Droid only ships stable builds, so its users are never pointed at a pre-release.
+        val prerelease = channel == UpdateChannel.PRERELEASE && !isFdroid
         try {
-            val connection = openConnection(URL(GITHUB_API_LATEST_RELEASE))
+            val connection = openConnection(URL(if (prerelease) GITHUB_API_RELEASES else GITHUB_API_LATEST_RELEASE))
             connection.useAndDisconnect {
                 val responseCode = responseCode
                 if (responseCode != HttpURLConnection.HTTP_OK) {
@@ -137,7 +163,11 @@ object UpdateService {
                 }
 
                 val responseBody = inputStream.bufferedReader().use(BufferedReader::readText)
-                parseLatestReleaseResponse(responseBody, currentVersion, isFdroid)
+                if (prerelease) {
+                    parseReleaseListResponse(responseBody, currentVersion, isFdroid)
+                } else {
+                    parseLatestReleaseResponse(responseBody, currentVersion, isFdroid)
+                }
             }
         } catch (e: Exception) {
             UpdateCheckResult.Error(e.message ?: "Failed to check for updates")
@@ -154,26 +184,47 @@ object UpdateService {
         }
     }
 
-    /**
-     * Compare two semantic version strings (e.g. "1.4.2" vs "1.4.1").
-     * Returns true if candidate > current.
-     */
+    /** True when [candidate] has higher SemVer precedence than [current]. */
     fun isNewerVersion(candidate: String, current: String): Boolean {
         if (candidate.isBlank() || current.isBlank()) return false
-        val cleanCandidate = candidate.removePrefix("v").removePrefix("V").split("-")[0]
-        val cleanCurrent = current.removePrefix("v").removePrefix("V").split("-")[0]
+        return compareVersions(candidate, current) > 0
+    }
 
-        val candidateParts = cleanCandidate.split(".").mapNotNull { it.toIntOrNull() }
-        val currentParts = cleanCurrent.split(".").mapNotNull { it.toIntOrNull() }
-
-        val maxLength = maxOf(candidateParts.size, currentParts.size)
-        for (i in 0 until maxLength) {
-            val candPart = candidateParts.getOrNull(i) ?: 0
-            val currPart = currentParts.getOrNull(i) ?: 0
-            if (candPart > currPart) return true
-            if (candPart < currPart) return false
+    /**
+     * SemVer precedence: the numeric core first, then a pre-release sorts below its
+     * release (1.4.4-beta.1 < 1.4.4-beta.2 < 1.4.4-rc.1 < 1.4.4). Comparing the suffix
+     * is what lets a pre-release install be offered the final release of the same version.
+     */
+    fun compareVersions(a: String, b: String): Int {
+        val (coreA, preA) = splitVersion(a)
+        val (coreB, preB) = splitVersion(b)
+        for (i in 0 until maxOf(coreA.size, coreB.size)) {
+            val diff = (coreA.getOrNull(i) ?: 0).compareTo(coreB.getOrNull(i) ?: 0)
+            if (diff != 0) return diff
         }
-        return false
+        if (preA == null) return if (preB == null) 0 else 1
+        if (preB == null) return -1
+        for (i in 0 until maxOf(preA.size, preB.size)) {
+            val x = preA.getOrNull(i) ?: return -1
+            val y = preB.getOrNull(i) ?: return 1
+            val xNum = x.toIntOrNull()
+            val yNum = y.toIntOrNull()
+            val diff = when {
+                xNum != null && yNum != null -> xNum.compareTo(yNum)
+                xNum != null -> -1
+                yNum != null -> 1
+                else -> x.compareTo(y)
+            }
+            if (diff != 0) return diff
+        }
+        return 0
+    }
+
+    private fun splitVersion(version: String): Pair<List<Int>, List<String>?> {
+        val clean = version.trim().removePrefix("v").removePrefix("V").substringBefore('+')
+        val core = clean.substringBefore('-').split('.').mapNotNull { it.toIntOrNull() }
+        val pre = clean.substringAfter('-', "").takeIf { it.isNotEmpty() }?.split('.')
+        return core to pre
     }
 
     private fun readInstallerPackageName(context: Context): String? =
@@ -277,8 +328,29 @@ internal fun parseLatestReleaseResponse(
     currentVersion: String,
     isFdroid: Boolean,
 ): UpdateCheckResult {
-    val json = JSONObject(responseBody)
+    return releaseResult(JSONObject(responseBody), currentVersion, isFdroid)
+}
 
+/** Picks the highest-precedence published release, pre-releases included. */
+internal fun parseReleaseListResponse(
+    responseBody: String,
+    currentVersion: String,
+    isFdroid: Boolean,
+): UpdateCheckResult {
+    val releases = JSONArray(responseBody)
+    val newest = (0 until releases.length())
+        .map(releases::getJSONObject)
+        .filter { !it.optBoolean("draft") && it.optString("tag_name").isNotBlank() }
+        .maxWithOrNull { a, b -> UpdateService.compareVersions(a.optString("tag_name"), b.optString("tag_name")) }
+        ?: return UpdateCheckResult.UpToDate(currentVersion)
+    return releaseResult(newest, currentVersion, isFdroid)
+}
+
+private fun releaseResult(
+    json: JSONObject,
+    currentVersion: String,
+    isFdroid: Boolean,
+): UpdateCheckResult {
     val rawTagName = json.optString("tag_name", "").trim()
     val latestVersion = rawTagName.removePrefix("v").removePrefix("V")
     val releaseNotes = json.optString("body", "").trim()

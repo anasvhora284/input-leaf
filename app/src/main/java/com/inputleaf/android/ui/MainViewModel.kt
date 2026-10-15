@@ -32,6 +32,7 @@ import com.inputleaf.android.service.ConnectionService
 import com.inputleaf.android.service.ScreenBoundsResolver
 import com.inputleaf.android.storage.AppPreferences
 import com.inputleaf.android.storage.ClientCertificateStore
+import com.inputleaf.android.update.UpdateChannel
 import com.inputleaf.android.update.UpdateCheckResult
 import com.inputleaf.android.update.UpdateService
 import com.inputleaf.android.update.VersionChangelog
@@ -156,6 +157,9 @@ class MainViewModel @JvmOverloads constructor(
     val batteryOptimizationExempt: StateFlow<Boolean> = permissionProvider.batteryOptimizationExempt
     
     val showCursor: Flow<Boolean> = prefs.showCursor
+    val updateChannel: Flow<UpdateChannel> = prefs.updateChannel.map {
+        it ?: UpdateService.defaultChannel(UpdateService.getCurrentVersion(getApplication()))
+    }
 
     val screenName: Flow<String> = prefs.screenName
     val autoConnect: Flow<Boolean> = prefs.autoConnect
@@ -200,7 +204,7 @@ class MainViewModel @JvmOverloads constructor(
     fun checkForUpdates(manual: Boolean = true) {
         viewModelScope.launch {
             _isCheckingUpdate.value = true
-            val result = UpdateService.checkUpdate(getApplication())
+            val result = UpdateService.checkUpdate(getApplication(), channel = updateChannel.first())
             _isCheckingUpdate.value = false
             if (manual || result is UpdateCheckResult.UpdateAvailable) {
                 _updateCheckResult.value = result
@@ -496,6 +500,10 @@ class MainViewModel @JvmOverloads constructor(
     fun checkOverlayPermission() = permissionProvider.checkOverlayPermission()
     fun checkBatteryOptimization() = permissionProvider.checkBatteryOptimization()
     
+    fun saveUpdateChannel(channel: UpdateChannel) {
+        viewModelScope.launch { prefs.saveUpdateChannel(channel) }
+    }
+
     fun saveShowCursor(enabled: Boolean) {
         viewModelScope.launch { 
             prefs.saveShowCursor(enabled)

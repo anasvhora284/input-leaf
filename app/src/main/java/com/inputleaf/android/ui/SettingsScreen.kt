@@ -74,6 +74,8 @@ fun SettingsScreen(
     onRegenerateClientCertificate: () -> Unit,
     isCheckingUpdate: Boolean = false,
     onCheckForUpdates: () -> Unit = {},
+    receivePrereleases: Boolean = false,
+    onReceivePrereleasesChange: (Boolean) -> Unit = {},
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -362,6 +364,19 @@ fun SettingsScreen(
                             { LoadingIndicator(Modifier.size(32.dp)) }
                         } else null
                     )
+                }
+                // F-Droid builds are stable-only, so the choice would do nothing there.
+                if (installSource != InstallSource.FDROID) {
+                    row { shapes ->
+                        SettingsSwitchRow(
+                            icon = Icons.Rounded.Sync,
+                            title = "Get pre-release updates",
+                            subtitle = "Try new builds early. You'll still get the stable release when it ships.",
+                            checked = receivePrereleases,
+                            onCheckedChange = onReceivePrereleasesChange,
+                            shapes = shapes,
+                        )
+                    }
                 }
                 row { shapes ->
                     SettingsRow(
