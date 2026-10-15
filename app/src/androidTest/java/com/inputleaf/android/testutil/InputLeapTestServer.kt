@@ -58,7 +58,7 @@ internal fun tagFrame(tag: String, payload: ByteArray = ByteArray(0)): ByteArray
     tag.toByteArray(Charsets.US_ASCII) + payload
 
 /**
- * Plays the server half of the Input Leap handshake: server hello, QINF, CIAK. The client's
+ * Plays the server half of the Input Leap handshake: server hello, QINF, CIAK, DSOP. The client's
  * HELO and DINF frames are validated only for their magic so the fixture works with any
  * device screen size and screen name.
  */
@@ -76,6 +76,9 @@ internal fun performServerHandshake(socket: Socket) {
         "Expected client DINF"
     }
     writeFrame(output, tagFrame(ProtocolConstants.TAG_INFO_ACK))
+    // DSOP (an empty option list) is the server's session acceptance; the client stays in
+    // Connecting until it arrives, because CIAK alone can still be followed by a refusal.
+    writeFrame(output, tagFrame("DSOP", ByteArray(4)))
 }
 
 /** Enter payload per parser: x(2) y(2) sequence(4) flags(2). */
