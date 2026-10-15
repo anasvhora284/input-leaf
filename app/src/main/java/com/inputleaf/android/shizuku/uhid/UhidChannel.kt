@@ -45,6 +45,7 @@ internal class UhidChannel private constructor(
     private val underlying: Closeable?,
     private val readinessConfig: UhidReadinessConfig,
     private val readPfd: ParcelFileDescriptor?,
+    private val poll: (Array<StructPollfd>, Int) -> Int = Os::poll,
 ) : HidReportSink, Closeable {
 
     private val closed = AtomicBoolean(false)
@@ -183,7 +184,7 @@ internal class UhidChannel private constructor(
                                 fd = readPfd.fileDescriptor
                                 events = OsConstants.POLLIN.toShort()
                             }
-                            val pollRet = Os.poll(arrayOf(pollFd), POLL_TIMEOUT_MS)
+                            val pollRet = poll(arrayOf(pollFd), POLL_TIMEOUT_MS)
                             if (pollRet == 0) continue
                             if ((pollFd.revents.toInt() and OsConstants.POLLIN) == 0) break
                         } catch (_: ErrnoException) {
@@ -315,6 +316,8 @@ internal class UhidChannel private constructor(
             readinessConfig: UhidReadinessConfig = UhidReadinessConfig(
                 presence = { _, _ -> false },
             ),
-        ): UhidChannel = UhidChannel(output, input, null, readinessConfig, readPfd = null)
+            readPfd: ParcelFileDescriptor? = null,
+            poll: (Array<StructPollfd>, Int) -> Int = Os::poll,
+        ): UhidChannel = UhidChannel(output, input, null, readinessConfig, readPfd, poll)
     }
 }

@@ -24,6 +24,7 @@ class InputInjectorTest {
         injector.setOnNativePointerStateChanged(null)
         injector.updateScreenSize(1080, 2400)
         injector.updatePointerSpeed(2)
+        injector.setAbsolutePointer(true)
         injector.onHidMouseEnter(100, 200)
         injector.onHidMouseLeave()
         assertThat(injector.privilegeKind()).isEqualTo(PrivilegeKind.NONE)
