@@ -393,10 +393,39 @@ Check out our [Issue Tracker](https://github.com/anasvhora284/input-leaf/issues)
 
 ---
 
+## Contributors
+
+Input Leaf is better because of these people. Thank you!
+
+### [@guaje](https://github.com/guaje) (Javier Guaje)
+
+- **Test suite and CI:** proposed and built the project's testing plan ([#8](https://github.com/anasvhora284/input-leaf/issues/8)):
+  - Fast JVM test foundation and CI pipeline ([#14](https://github.com/anasvhora284/input-leaf/pull/14))
+  - Protocol and UHID behaviour tests ([#15](https://github.com/anasvhora284/input-leaf/pull/15))
+  - Connection, transport and TLS tests ([#21](https://github.com/anasvhora284/input-leaf/pull/21))
+  - Coverage reporting with Kover and Codecov ([#33](https://github.com/anasvhora284/input-leaf/pull/33))
+  - Android coverage smoke tests ([#38](https://github.com/anasvhora284/input-leaf/pull/38))
+  - On-device `ConnectionService` lifecycle tests ([#32](https://github.com/anasvhora284/input-leaf/pull/32), shipped in 1.4.3 via [#57](https://github.com/anasvhora284/input-leaf/pull/57))
+- **Build:** upgraded to AGP 9.4, Kotlin 2.4.10 and compileSdk 37, and introduced the Gradle version catalog ([#40](https://github.com/anasvhora284/input-leaf/pull/40)).
+- **License:** added the Apache-2.0 license ([#7](https://github.com/anasvhora284/input-leaf/pull/7)).
+- **Reviews:** reviewed the 1.4.2 release ([#44](https://github.com/anasvhora284/input-leaf/pull/44)) and reported the UHID issues fixed in 1.4.3 ([#48](https://github.com/anasvhora284/input-leaf/issues/48)–[#52](https://github.com/anasvhora284/input-leaf/issues/52)).
+
+### [@joihn](https://github.com/joihn)
+
+- **Synergy 3 support (experimental):** made Input Leaf work with Synergy 3.7.2 on macOS: the handshake fix, Mac keycode mapping, signed mouse deltas, and the `synergy3_setup.py` script with its [setup guide](docs/synergy3-android.md) ([#53](https://github.com/anasvhora284/input-leaf/pull/53), [#58](https://github.com/anasvhora284/input-leaf/pull/58); requested in [#47](https://github.com/anasvhora284/input-leaf/issues/47)). Shipped in 1.4.3.
+
+### [@EphraimShikanga](https://github.com/EphraimShikanga)
+
+- **Android 10 and older:** fixed the crash on devices below Android 11 and made unreachable servers retry instead of crashing the app ([#4](https://github.com/anasvhora284/input-leaf/pull/4)).
+
+Want to see your name here? Check out [Contributing](#contributing).
+
+---
+
 ## Author & Acknowledgments
 
 - **Author:** [Anas Vhora](https://anasvhora.tech) ([@anasvhora284](https://github.com/anasvhora284))
-- Thanks to all **[Input Leaf contributors](https://github.com/anasvhora284/input-leaf/graphs/contributors)** for their valuable support and code contributions.
+- Thanks to everyone listed under [Contributors](#contributors) and all **[Input Leaf contributors](https://github.com/anasvhora284/input-leaf/graphs/contributors)** for their valuable support and code contributions.
 - Thanks to the upstream developers and contributors of [Input Leap](https://github.com/input-leap/input-leap), [Deskflow](https://github.com/deskflow/deskflow), [Barrier](https://github.com/debauchee/barrier), and [Shizuku](https://shizuku.rikka.app/).
 
 ---
