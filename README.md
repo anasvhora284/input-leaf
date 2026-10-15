@@ -72,7 +72,7 @@ Input Leaf acts as the **client** on your Android device. You will need a compat
 │   Shizuku or root       Accessibility    │
 │  (System Injection)     (Stock Fallback) │
 │  • Lowest latency     • Zero extra apps  │
-│  • Full shortcuts     • Touch emulation  │
+│  • Full shortcuts     • Touch/node input │
 └──────────────────────────────────────────┘
 ```
 
@@ -132,7 +132,7 @@ Input Leaf offers two distinct input engines to match your device and preference
 | **External Setup** | One-time Shizuku setup (Wireless Debugging) | None (Enable in Android Settings) |
 | **Input Latency** | **Ultra-Low (< 5ms)** | Low (~15–25ms) |
 | **Mouse Precision** | Native Absolute Cursor Mapping | Gesture / Pointer Emulation |
-| **Mouse Buttons** | Left, Right, Middle Click | Left Click, Context Menus |
+| **Mouse Buttons** | Left, Right, Middle Click | Left Click; Right Click = Back on non-touch devices |
 | **Scroll Wheel** | Smooth, continuous scrolling | Step scrolling |
 | **Modifier Keys** | `Ctrl`, `Alt`, `Shift`, `Meta` (Super/Win) | Standard typing + Basic Modifiers |
 | **System Shortcuts** | Full (`Alt+Tab`, `Meta+Enter`, Home, Back) | Limited by Android Accessibility APIs |

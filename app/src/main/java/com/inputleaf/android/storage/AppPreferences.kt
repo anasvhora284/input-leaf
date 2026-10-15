@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import com.inputleaf.android.inject.PointerDevice
 import com.inputleaf.android.network.ConnectionTransportPolicy
+import com.inputleaf.android.update.UpdateChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -24,6 +25,7 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
         private val KEY_SCREEN_NAME      = stringPreferencesKey("screen_name")
         private val KEY_AUTO_CONNECT     = booleanPreferencesKey("auto_connect")
         private val KEY_SHOW_CURSOR      = booleanPreferencesKey("show_cursor")
+        private val KEY_UPDATE_CHANNEL   = stringPreferencesKey("update_channel")
         private val KEY_THEME_MODE       = stringPreferencesKey("theme_mode")
         private val KEY_ONBOARDING_DONE  = booleanPreferencesKey("onboarding_complete")
         private val KEY_MOUSE_ENABLED    = booleanPreferencesKey("mouse_enabled")
@@ -72,6 +74,10 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
     
     val showCursor: Flow<Boolean> =
         dataStore.data.map { it[KEY_SHOW_CURSOR] ?: true }
+
+    /** Null until the user picks one; callers fall back to UpdateService.defaultChannel. */
+    val updateChannel: Flow<UpdateChannel?> =
+        dataStore.data.map { UpdateChannel.fromStorage(it[KEY_UPDATE_CHANNEL]) }
 
     val themeMode: Flow<String> =
         dataStore.data.map { it[KEY_THEME_MODE] ?: "SYSTEM" }
@@ -206,6 +212,10 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
         it[KEY_AUTO_CONNECT] = enabled
     }
     
+    suspend fun saveUpdateChannel(channel: UpdateChannel) = dataStore.edit {
+        it[KEY_UPDATE_CHANNEL] = channel.storageValue
+    }
+
     suspend fun saveShowCursor(enabled: Boolean) = dataStore.edit {
         it[KEY_SHOW_CURSOR] = enabled
     }

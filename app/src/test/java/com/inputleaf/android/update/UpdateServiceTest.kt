@@ -88,7 +88,7 @@ class UpdateServiceTest {
     @Test
     fun versionNameFrom_usesPackageInfoOrFallback() {
         assertThat(versionNameFrom(PackageInfo().apply { versionName = "2.0.0" })).isEqualTo("2.0.0")
-        assertThat(versionNameFrom(null)).isEqualTo("1.4.3")
+        assertThat(versionNameFrom(null)).isEqualTo("1.4.4")
     }
 
     @Test
@@ -98,7 +98,7 @@ class UpdateServiceTest {
             versionCode = 42
         }
         assertThat(versionCodeFrom(packageInfo)).isEqualTo(42L)
-        assertThat(versionCodeFrom(null)).isEqualTo(9L)
+        assertThat(versionCodeFrom(null)).isEqualTo(10L)
     }
 
     @Test
@@ -430,7 +430,7 @@ class UpdateServiceTest {
     @Test
     fun changelogProvider_fallsBackToLatestKnownRelease() {
         val changelog = UpdateService.getChangelog("9.9.9")
-        assertThat(changelog.versionName).isEqualTo("1.4.3")
+        assertThat(changelog.versionName).isEqualTo("1.4.4")
     }
 
     @Test
@@ -446,6 +446,107 @@ class UpdateServiceTest {
         assertThat(connection.requestMethod).isEqualTo("GET")
         assertThat(connection.getRequestProperty("Accept")).isEqualTo("application/vnd.github.v3+json")
         assertThat(connection.getRequestProperty("User-Agent")).isEqualTo("InputLeaf-Android")
+    }
+
+    @Test
+    fun isNewerVersion_offersTheFinalReleaseToAPreReleaseOfTheSameVersion() {
+        // The 1.4.3 problem: a pre-release install could never see its own final release.
+        assertThat(UpdateService.isNewerVersion("1.4.4", "1.4.4-beta.1")).isTrue()
+        assertThat(UpdateService.isNewerVersion("v1.4.4", "1.4.4-rc.1")).isTrue()
+        assertThat(UpdateService.isNewerVersion("1.4.4-beta.1", "1.4.4")).isFalse()
+        assertThat(UpdateService.isNewerVersion("1.4.4-beta.1", "1.4.3")).isTrue()
+    }
+
+    @Test
+    fun compareVersions_ordersPreReleaseIdentifiersBySemVer() {
+        val ordered = listOf(
+            "1.4.4-alpha", "1.4.4-alpha.1", "1.4.4-beta", "1.4.4-beta.2",
+            "1.4.4-beta.10", "1.4.4-rc.1", "1.4.4", "1.4.5-beta.1", "1.5.0",
+        )
+        for ((lower, higher) in ordered.zipWithNext()) {
+            assertThat(UpdateService.compareVersions(lower, higher)).isLessThan(0)
+            assertThat(UpdateService.compareVersions(higher, lower)).isGreaterThan(0)
+        }
+        assertThat(UpdateService.compareVersions("v1.4.4-beta.1", "1.4.4-beta.1")).isEqualTo(0)
+        assertThat(UpdateService.compareVersions("1.4.4+build.7", "1.4.4")).isEqualTo(0)
+        // A numeric identifier sorts below an alphanumeric one.
+        assertThat(UpdateService.compareVersions("1.4.4-1", "1.4.4-beta")).isLessThan(0)
+        assertThat(UpdateService.compareVersions("1.4.4-beta", "1.4.4-1")).isGreaterThan(0)
+    }
+
+    @Test
+    fun defaultChannel_followsTheInstalledBuild() {
+        assertThat(UpdateService.defaultChannel("1.4.4-beta.1")).isEqualTo(UpdateChannel.PRERELEASE)
+        assertThat(UpdateService.defaultChannel("1.4.4")).isEqualTo(UpdateChannel.STABLE)
+    }
+
+    @Test
+    fun updateChannel_roundTripsThroughStorage() {
+        for (channel in UpdateChannel.entries) {
+            assertThat(UpdateChannel.fromStorage(channel.storageValue)).isEqualTo(channel)
+        }
+        assertThat(UpdateChannel.fromStorage(null)).isNull()
+        assertThat(UpdateChannel.fromStorage("nightly")).isNull()
+    }
+
+    @Test
+    fun getChangelog_matchesAPreReleaseToItsVersionEntry() {
+        val stable = UpdateService.getChangelog("1.4.3")
+        assertThat(UpdateService.getChangelog("1.4.3-beta.2")).isEqualTo(stable)
+    }
+
+    @Test
+    fun parseReleaseListResponse_picksTheNewestReleaseAndSkipsDrafts() {
+        val body = """
+            [
+              {"tag_name": "v1.4.5-beta.1", "draft": true, "body": "draft", "html_url": "https://x/draft"},
+              {"tag_name": "v1.4.4", "prerelease": false, "body": "stable", "html_url": "https://x/stable"},
+              {"tag_name": "v1.4.4-beta.2", "prerelease": true, "body": "beta", "html_url": "https://x/beta"},
+              {"tag_name": "", "body": "untagged"}
+            ]
+        """.trimIndent()
+
+        val fromBeta = parseReleaseListResponse(body, "1.4.4-beta.2", isFdroid = false)
+        assertThat(fromBeta).isEqualTo(
+            UpdateCheckResult.UpdateAvailable("1.4.4", "stable", "https://x/stable", isFdroid = false),
+        )
+        assertThat(parseReleaseListResponse(body, "1.4.4", isFdroid = false))
+            .isEqualTo(UpdateCheckResult.UpToDate("1.4.4"))
+    }
+
+    @Test
+    fun parseReleaseListResponse_offersANewerPreReleaseToAStableInstall() {
+        val body = """[{"tag_name": "v1.4.5-beta.1", "prerelease": true, "body": "b", "html_url": "https://x/b"}]"""
+        assertThat(parseReleaseListResponse(body, "1.4.4", isFdroid = false)).isEqualTo(
+            UpdateCheckResult.UpdateAvailable("1.4.5-beta.1", "b", "https://x/b", isFdroid = false),
+        )
+    }
+
+    @Test
+    fun parseReleaseListResponse_isUpToDateWhenNothingIsPublished() {
+        assertThat(parseReleaseListResponse("[]", "1.4.4", isFdroid = false))
+            .isEqualTo(UpdateCheckResult.UpToDate("1.4.4"))
+    }
+
+    @Test
+    fun checkUpdate_readsTheReleaseListOnlyOnThePreReleaseChannel() = runTest {
+        val requested = mutableListOf<String>()
+        val opener: (URL) -> HttpURLConnection = { url ->
+            requested += url.toString()
+            val body = if (url.toString() == UpdateService.GITHUB_API_RELEASES) "[]" else """{"tag_name": "v1.0.0"}"""
+            TestHttpURLConnection(url, responseBody = body)
+        }
+
+        UpdateService.checkUpdate("1.0.0", isFdroid = false, openConnection = opener, channel = UpdateChannel.PRERELEASE)
+        UpdateService.checkUpdate("1.0.0", isFdroid = false, openConnection = opener, channel = UpdateChannel.STABLE)
+        // F-Droid ships stable builds only, so the channel is ignored there.
+        UpdateService.checkUpdate("1.0.0", isFdroid = true, openConnection = opener, channel = UpdateChannel.PRERELEASE)
+
+        assertThat(requested).containsExactly(
+            UpdateService.GITHUB_API_RELEASES,
+            UpdateService.GITHUB_API_LATEST_RELEASE,
+            UpdateService.GITHUB_API_LATEST_RELEASE,
+        ).inOrder()
     }
 
     private class TestHttpURLConnection(

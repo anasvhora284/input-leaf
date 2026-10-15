@@ -1,6 +1,7 @@
 package com.inputleaf.android.inject
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
@@ -43,6 +44,12 @@ class AccessibilityInputInjector(
     private var mouseY = 0f
     private var metaState = 0
     private val scanCodeDecoder = ProtocolScanCodeDecoder()
+    private val supportsTouchGestures = runCatching {
+        context.packageManager.run {
+            hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN) ||
+                hasSystemFeature(PackageManager.FEATURE_FAKETOUCH)
+        }
+    }.getOrDefault(true)
 
     override fun isAvailable(): Boolean {
         return try {
@@ -137,13 +144,21 @@ class AccessibilityInputInjector(
 
                 is InputLeapEvent.MouseDown -> {
                     if (!hidKeyboard.tryHidMouse(event)) {
-                        svc.injectTouchDown(mouseX, mouseY)
+                        when (AccessibilityMousePolicy.onButtonDown(supportsTouchGestures)) {
+                            AccessibilityMouseAction.TOUCH_DOWN -> svc.injectTouchDown(mouseX, mouseY)
+                            else -> Unit
+                        }
                     }
                 }
 
                 is InputLeapEvent.MouseUp -> {
                     if (!hidKeyboard.tryHidMouse(event)) {
-                        svc.injectTouchUp(mouseX, mouseY)
+                        when (AccessibilityMousePolicy.onButtonUp(event.buttonId, supportsTouchGestures)) {
+                            AccessibilityMouseAction.TOUCH_UP -> svc.injectTouchUp(mouseX, mouseY)
+                            AccessibilityMouseAction.CLICK_NODE -> svc.clickNodeAt(mouseX, mouseY)
+                            AccessibilityMouseAction.GLOBAL_BACK -> svc.performGlobalBack()
+                            else -> Unit
+                        }
                     }
                 }
 

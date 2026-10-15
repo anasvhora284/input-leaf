@@ -8,6 +8,7 @@ import android.os.Build
 import android.util.Log
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import kotlinx.coroutines.*
 
 private const val TAG = "AccessibilityInputService"
@@ -179,6 +180,27 @@ class AccessibilityInputService : AccessibilityService() {
         val stroke = GestureDescription.StrokeDescription(path, 0, 50)
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
         return dispatchGesture(gesture, null, null)
+    }
+
+    /**
+     * Android rejects accessibility gestures on devices without touch or fake-touch support.
+     * Activate the deepest clickable node beneath the software cursor instead.
+     */
+    fun clickNodeAt(x: Float, y: Float): Boolean {
+        val roots = accessibilityRoots()
+        val clicked = AccessibilityNodeClicker.clickAt(roots, x, y)
+        Log.d(TAG, "Clicked accessibility node at $x, $y: $clicked")
+        return clicked
+    }
+
+    fun performGlobalBack(): Boolean = performGlobalAction(GLOBAL_ACTION_BACK)
+
+    private fun accessibilityRoots(): List<AccessibilityNodeInfo> = buildList {
+        rootInActiveWindow?.let(::add)
+        for (window in windows) {
+            val root = window.root ?: continue
+            if (none { it == root }) add(root)
+        }
     }
 
     fun injectTouchDown(x: Float, y: Float): Boolean {
