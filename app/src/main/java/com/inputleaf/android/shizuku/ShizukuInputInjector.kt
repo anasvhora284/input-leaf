@@ -168,6 +168,7 @@ class ShizukuInputInjector internal constructor(
             withTimeout(host.bindTimeoutMs) { deferred.await() }
         } catch (e: TimeoutCancellationException) {
             Log.e(TAG, "${host.kind} service bind timeout")
+            runCatching { host.onBindTimeout(serviceConnection) }
             false
         } catch (e: Exception) {
             Log.e(TAG, "Failed to bind ${host.kind} service", e)

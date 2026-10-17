@@ -61,6 +61,41 @@ class ShizukuInjectorHandoverTest {
         assertThat(sharesPrivilegedService(root, shizuku)).isFalse()
     }
 
+    @Test
+    fun `a bind that never connects reports the timeout before each retry`() = runBlocking {
+        val host = SilentHost()
+        val injector = ShizukuInputInjector(100, 100, host)
+
+        assertThat(injector.connect()).isFalse()
+
+        assertThat(host.events).containsExactly(
+            "bind", "timeout", "unbind",
+            "bind", "timeout", "unbind",
+            "unbind",
+        ).inOrder()
+    }
+
+    /** Accepts every bind and never connects, like a UserService that dies at startup. */
+    private class SilentHost : PrivilegedUserServiceHost {
+        val events = mutableListOf<String>()
+
+        override val kind: PrivilegeKind = PrivilegeKind.SHIZUKU
+        override val displayName: String = "silent"
+        override val bindTimeoutMs: Long = 50L
+        override val bindAttempts: Int = 2
+        override fun isAvailable(): Boolean = true
+        override fun bind(connection: ServiceConnection): Boolean {
+            events += "bind"
+            return true
+        }
+        override fun unbind(connection: ServiceConnection, destroy: Boolean) {
+            events += "unbind"
+        }
+        override fun onBindTimeout(connection: ServiceConnection) {
+            events += "timeout"
+        }
+    }
+
     /** Connects synchronously and records the destroy flag of every unbind. */
     private class RecordingHost(override val kind: PrivilegeKind) : PrivilegedUserServiceHost {
         val service: IInputInjector = mock(IInputInjector::class.java)

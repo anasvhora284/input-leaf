@@ -17,7 +17,10 @@ import com.topjohnwu.superuser.ipc.RootService
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.anyBoolean
+import org.mockito.ArgumentMatchers.eq
 import org.mockito.Mockito.mockStatic
+import org.mockito.Mockito.never
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
@@ -102,6 +105,61 @@ class PrivilegedUserServiceHostTest {
                 )
             }.thenThrow(IllegalStateException("bind"))
             assertThat(host.bind(connection)).isFalse()
+        }
+    }
+
+    @Test
+    fun `shizuku host stops using the UserService after a bind timeout`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        mockStatic(Shizuku::class.java).use { shizuku ->
+            try {
+                val host = PrivilegedInjectorFactory.hostFor(context, PrivilegeKind.SHIZUKU)
+                assertThat(host.bind(connection)).isTrue()
+                shizuku.verify {
+                    Shizuku.bindUserService(
+                        any(Shizuku.UserServiceArgs::class.java),
+                        any(ServiceConnection::class.java),
+                    )
+                }
+
+                host.onBindTimeout(connection)
+
+                // The dead record is dropped so Shizuku stops waiting on it.
+                shizuku.verify {
+                    Shizuku.unbindUserService(
+                        any(Shizuku.UserServiceArgs::class.java),
+                        any(ServiceConnection::class.java),
+                        eq(true),
+                    )
+                }
+                shizuku.clearInvocations()
+
+                // Later binds, from this host or a new one, go to the app_process injector.
+                host.bind(connection)
+                PrivilegedInjectorFactory.hostFor(context, PrivilegeKind.SHIZUKU).bind(connection)
+                host.unbind(connection, destroy = true)
+                shizuku.verify(
+                    {
+                        Shizuku.bindUserService(
+                            any(Shizuku.UserServiceArgs::class.java),
+                            any(ServiceConnection::class.java),
+                        )
+                    },
+                    never(),
+                )
+                shizuku.verify(
+                    {
+                        Shizuku.unbindUserService(
+                            any(Shizuku.UserServiceArgs::class.java),
+                            any(ServiceConnection::class.java),
+                            anyBoolean(),
+                        )
+                    },
+                    never(),
+                )
+            } finally {
+                ShizukuUserServiceHost.resetUserServiceFallbackForTest()
+            }
         }
     }
 
