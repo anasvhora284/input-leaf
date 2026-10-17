@@ -41,24 +41,26 @@ internal object StandaloneInjectorLauncher {
             mainHandler.post { conn.onServiceConnected(componentName(context.packageName), warm) }
             return true
         }
-        synchronized(lock) {
-            if (process?.isAlive == true) return true
-        }
-
         val authority = InjectorHandoffProvider.authority(context)
         val userId = android.os.Process.myUid() / PER_USER_RANGE
         val command = "CLASSPATH='${context.applicationInfo.sourceDir}' exec app_process /system/bin " +
             "--nice-name=${context.packageName}:input_injector " +
             "${StandaloneInjectorMain::class.java.name} $authority $userId"
-        return try {
-            val started = newProcess(arrayOf("sh", "-c", command))
-            drain(started)
-            synchronized(lock) { process = started }
-            Log.i(TAG, "Started standalone injector")
-            true
-        } catch (e: Throwable) {
-            Log.e(TAG, "Could not start standalone injector", e)
-            false
+        // Check and launch under one lock so concurrent binds share a single injector
+        // instead of racing two privileged processes for the HID devices. Only the
+        // fork happens here; the handoff arrives later on a binder thread.
+        synchronized(lock) {
+            if (process?.isAlive == true) return true
+            return try {
+                val started = newProcess(arrayOf("sh", "-c", command))
+                drain(started)
+                process = started
+                Log.i(TAG, "Started standalone injector")
+                true
+            } catch (e: Throwable) {
+                Log.e(TAG, "Could not start standalone injector", e)
+                false
+            }
         }
     }
 

@@ -7,6 +7,7 @@ import com.inputleaf.android.privilege.PrivilegeKind
 import com.inputleaf.android.privilege.PrivilegedUserServiceHost
 import com.inputleaf.android.service.sharesPrivilegedService
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers.anyString
@@ -75,13 +76,23 @@ class ShizukuInjectorHandoverTest {
         ).inOrder()
     }
 
+    @Test
+    fun `a caller cancelling connect is not reported as a bind timeout`() = runBlocking<Unit> {
+        val host = SilentHost(bindTimeoutMs = 10_000L)
+        val injector = ShizukuInputInjector(100, 100, host)
+
+        val result = withTimeoutOrNull(50L) { injector.connect() }
+
+        assertThat(result).isNull()
+        assertThat(host.events).containsExactly("bind")
+    }
+
     /** Accepts every bind and never connects, like a UserService that dies at startup. */
-    private class SilentHost : PrivilegedUserServiceHost {
+    private class SilentHost(override val bindTimeoutMs: Long = 50L) : PrivilegedUserServiceHost {
         val events = mutableListOf<String>()
 
         override val kind: PrivilegeKind = PrivilegeKind.SHIZUKU
         override val displayName: String = "silent"
-        override val bindTimeoutMs: Long = 50L
         override val bindAttempts: Int = 2
         override fun isAvailable(): Boolean = true
         override fun bind(connection: ServiceConnection): Boolean {
