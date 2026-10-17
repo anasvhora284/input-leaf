@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.Looper
 import com.inputleaf.android.shizuku.InputInjectorService
 import com.inputleaf.android.shizuku.ShizukuInputInjector
+import com.inputleaf.android.shizuku.StandaloneInjectorLauncher
 import com.topjohnwu.superuser.ipc.RootService
 import rikka.shizuku.Shizuku
 
@@ -27,6 +28,9 @@ internal interface PrivilegedUserServiceHost {
     /** @return false when the bind could not even be started, so the caller fails fast. */
     fun bind(connection: ServiceConnection): Boolean
     fun unbind(connection: ServiceConnection, destroy: Boolean)
+
+    /** Called when a [bind] never connected, before the caller unbinds and retries. */
+    fun onBindTimeout(connection: ServiceConnection) {}
 }
 
 internal class ShizukuUserServiceHost : PrivilegedUserServiceHost {
@@ -51,17 +55,42 @@ internal class ShizukuUserServiceHost : PrivilegedUserServiceHost {
     }
 
     override fun bind(connection: ServiceConnection): Boolean {
+        if (userServiceFailed) return StandaloneInjectorLauncher.bind(connection)
         return runCatching { Shizuku.bindUserService(serviceArgs, connection) }.isSuccess
     }
 
     override fun unbind(connection: ServiceConnection, destroy: Boolean) {
+        if (userServiceFailed) {
+            StandaloneInjectorLauncher.unbind(connection, destroy)
+            return
+        }
         Shizuku.unbindUserService(serviceArgs, connection, destroy)
+    }
+
+    /**
+     * Some OEM builds kill the UserService before it runs (Onyx Boox: NPE in
+     * addPackageDependency), and Shizuku then sits on the dead record until its own
+     * start timeout, so retrying the same bind cannot work. Switch the rest of this app
+     * process to [StandaloneInjectorLauncher].
+     */
+    override fun onBindTimeout(connection: ServiceConnection) {
+        if (userServiceFailed) return
+        android.util.Log.w("ShizukuUserServiceHost", "UserService never started; falling back to app_process injector")
+        runCatching { Shizuku.unbindUserService(serviceArgs, connection, true) }
+        userServiceFailed = true
     }
 
     companion object {
         // Bumped for the attachClient and Enter-warp AIDL additions: a cached older
         // UserService does not implement them and would throw on every bind.
         private const val SHIZUKU_SERVICE_VERSION = 6
+
+        @Volatile
+        private var userServiceFailed = false
+
+        internal fun resetUserServiceFallbackForTest() {
+            userServiceFailed = false
+        }
     }
 }
 

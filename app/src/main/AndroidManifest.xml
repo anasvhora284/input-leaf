@@ -84,5 +84,13 @@
             android:enabled="true"
             android:exported="true"
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"/>
+
+        <!-- Receives the injector binder when it runs as a bare app_process (see
+             StandaloneInjectorMain). Exported for the shell process; call() only
+             trusts root and shell. -->
+        <provider
+            android:name=".shizuku.InjectorHandoffProvider"
+            android:authorities="${applicationId}.injector"
+            android:exported="true"/>
     </application>
 </manifest>
