@@ -67,4 +67,5 @@ private class StubHost(override val kind: PrivilegeKind) : PrivilegedUserService
     override fun isAvailable(): Boolean = false
     override fun bind(connection: ServiceConnection): Boolean = false
     override fun unbind(connection: ServiceConnection, destroy: Boolean) = Unit
+    override fun onBindTimeout(connection: ServiceConnection) = Unit
 }

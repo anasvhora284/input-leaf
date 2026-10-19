@@ -37,6 +37,12 @@ ignore:
   - "app/src/main/java/com/inputleaf/android/shizuku/ShizukuInputInjector.kt"
   - "app/src/main/java/com/inputleaf/android/shizuku/InputInjectorProcess.kt"
   - "app/src/main/java/com/inputleaf/android/shizuku/ShizukuAvailability.kt"
+  # The app_process fallback runs only inside a shell-uid process Shizuku forks: main()
+  # ends in exitProcess/Looper.loop, and InjectorHandoff reflects into hidden
+  # ActivityManager/IContentProvider APIs. Neither can run in a unit test. The app side
+  # (StandaloneInjectorLauncher, InjectorHandoffProvider) is tested and counted.
+  - "app/src/main/java/com/inputleaf/android/shizuku/StandaloneInjectorMain.kt"
+  - "app/src/main/java/com/inputleaf/android/shizuku/InjectorHandoff.kt"
   - "app/src/main/java/com/inputleaf/android/InputLeafApplication.kt"
   - "app/src/main/java/com/inputleaf/android/inject/AccessibilityInputService.kt"
   - "app/src/main/java/com/inputleaf/android/inject/AccessibilityInputInjector.kt"

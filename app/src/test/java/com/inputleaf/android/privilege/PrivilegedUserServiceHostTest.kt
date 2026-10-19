@@ -12,12 +12,18 @@ import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.inputleaf.android.inject.AccessibilityInputInjector
+import com.inputleaf.android.shizuku.InjectorHandoffProvider
+import com.inputleaf.android.shizuku.StandaloneInjectorLauncher
 import com.topjohnwu.superuser.Shell
 import com.topjohnwu.superuser.ipc.RootService
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.anyBoolean
+import org.mockito.ArgumentMatchers.eq
 import org.mockito.Mockito.mockStatic
+import org.mockito.Mockito.never
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
@@ -106,6 +112,114 @@ class PrivilegedUserServiceHostTest {
     }
 
     @Test
+    fun `shizuku host stops using the UserService after a bind timeout`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        // A fallback that launches: one that cannot start hands back to the UserService.
+        Robolectric.setupContentProvider(InjectorHandoffProvider::class.java)
+        StandaloneInjectorLauncher.launchProcess = { IdleProcess() }
+        mockStatic(Shizuku::class.java).use { shizuku ->
+            try {
+                val host = PrivilegedInjectorFactory.hostFor(context, PrivilegeKind.SHIZUKU)
+                assertThat(host.bind(connection)).isTrue()
+                shizuku.verify {
+                    Shizuku.bindUserService(
+                        any(Shizuku.UserServiceArgs::class.java),
+                        any(ServiceConnection::class.java),
+                    )
+                }
+
+                host.onBindTimeout(connection)
+
+                // The dead record is dropped so Shizuku stops waiting on it.
+                shizuku.verify {
+                    Shizuku.unbindUserService(
+                        any(Shizuku.UserServiceArgs::class.java),
+                        any(ServiceConnection::class.java),
+                        eq(true),
+                    )
+                }
+                shizuku.clearInvocations()
+
+                // Later binds, from this host or a new one, go to the app_process injector.
+                host.bind(connection)
+                PrivilegedInjectorFactory.hostFor(context, PrivilegeKind.SHIZUKU).bind(connection)
+                host.unbind(connection, destroy = true)
+                shizuku.verify(
+                    {
+                        Shizuku.bindUserService(
+                            any(Shizuku.UserServiceArgs::class.java),
+                            any(ServiceConnection::class.java),
+                        )
+                    },
+                    never(),
+                )
+                shizuku.verify(
+                    {
+                        Shizuku.unbindUserService(
+                            any(Shizuku.UserServiceArgs::class.java),
+                            any(ServiceConnection::class.java),
+                            anyBoolean(),
+                        )
+                    },
+                    never(),
+                )
+            } finally {
+                ShizukuUserServiceHost.resetUserServiceFallbackForTest()
+                StandaloneInjectorLauncher.resetForTest()
+            }
+        }
+    }
+
+    @Test
+    fun `a fallback that cannot start hands the next bind back to the UserService`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        Robolectric.setupContentProvider(InjectorHandoffProvider::class.java)
+        StandaloneInjectorLauncher.launchProcess = { throw IllegalStateException("no newProcess") }
+        mockStatic(Shizuku::class.java).use { shizuku ->
+            try {
+                val host = PrivilegedInjectorFactory.hostFor(context, PrivilegeKind.SHIZUKU)
+                host.onBindTimeout(connection)
+                shizuku.clearInvocations()
+
+                // The fallback fails to launch, so this bind must use the UserService again
+                // instead of failing until the app restarts.
+                assertThat(host.bind(connection)).isTrue()
+                shizuku.verify {
+                    Shizuku.bindUserService(
+                        any(Shizuku.UserServiceArgs::class.java),
+                        any(ServiceConnection::class.java),
+                    )
+                }
+                host.unbind(connection, destroy = true)
+                shizuku.verify {
+                    Shizuku.unbindUserService(
+                        any(Shizuku.UserServiceArgs::class.java),
+                        any(ServiceConnection::class.java),
+                        eq(true),
+                    )
+                }
+            } finally {
+                ShizukuUserServiceHost.resetUserServiceFallbackForTest()
+                StandaloneInjectorLauncher.resetForTest()
+            }
+        }
+    }
+
+    @Test
+    fun `root host ignores a bind timeout`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val granted = object : RootAccess {
+            override fun availability() = RootAvailability.GRANTED
+            override fun requestAccess() = true
+        }
+        val host = PrivilegedInjectorFactory.hostFor(context, PrivilegeKind.ROOT, granted)
+
+        host.onBindTimeout(connection)
+
+        assertThat(host.kind).isEqualTo(PrivilegeKind.ROOT)
+    }
+
+    @Test
     fun `root host binds on the main thread and posts when called off it`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val granted = object : RootAccess {
@@ -183,4 +297,14 @@ class PrivilegedUserServiceHostTest {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) = Unit
         override fun onServiceDisconnected(name: ComponentName?) = Unit
     }
+}
+
+/** A forked process that never exits on its own and prints nothing. */
+private class IdleProcess : Process() {
+    override fun getOutputStream(): java.io.OutputStream = java.io.ByteArrayOutputStream()
+    override fun getInputStream(): java.io.InputStream = java.io.ByteArrayInputStream(ByteArray(0))
+    override fun getErrorStream(): java.io.InputStream = java.io.ByteArrayInputStream(ByteArray(0))
+    override fun waitFor(): Int = 0
+    override fun exitValue(): Int = throw IllegalThreadStateException("still running")
+    override fun destroy() = Unit
 }

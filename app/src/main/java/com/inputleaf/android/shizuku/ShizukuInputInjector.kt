@@ -25,10 +25,10 @@ import com.inputleaf.android.shizuku.uhid.HidMouse
 import com.inputleaf.android.shizuku.uhid.HidMouseState
 import com.inputleaf.android.shizuku.uhid.MouseEdgeAnchor
 import com.inputleaf.android.shizuku.uhid.WheelNotchAccumulator
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 
 private const val TAG = "ShizukuInputInjector"
 
@@ -165,10 +165,16 @@ class ShizukuInputInjector internal constructor(
                 Log.e(TAG, "${host.kind} bind could not be started")
                 return false
             }
-            withTimeout(host.bindTimeoutMs) { deferred.await() }
-        } catch (e: TimeoutCancellationException) {
-            Log.e(TAG, "${host.kind} service bind timeout")
-            false
+            // OrNull so only this bind's own timeout counts as one; a caller's
+            // cancellation or enclosing timeout must not flip the host's fallback.
+            val connected = withTimeoutOrNull(host.bindTimeoutMs) { deferred.await() }
+            if (connected == null) {
+                Log.e(TAG, "${host.kind} service bind timeout")
+                runCatching { host.onBindTimeout(serviceConnection) }
+            }
+            connected ?: false
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Failed to bind ${host.kind} service", e)
             false
