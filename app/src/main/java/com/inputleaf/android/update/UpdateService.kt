@@ -63,6 +63,14 @@ object UpdateService {
 
     private val RELEASES = listOf(
         VersionChangelog(
+            versionName = "1.4.5",
+            versionCode = 12,
+            highlights = listOf(
+                "Fixed Shizuku never connecting on Onyx Boox tablets, where the vendor's Android build crashes Shizuku's service starter. Input Leaf now starts the injector itself as a fallback.",
+                "A failed fallback no longer leaves Shizuku broken until the app restarts.",
+            ),
+        ),
+        VersionChangelog(
             versionName = "1.4.4",
             versionCode = 11,
             highlights = listOf(
@@ -310,10 +318,10 @@ internal fun resolveInstallSource(installerPackage: String?): InstallSource {
 }
 
 internal fun versionNameFrom(packageInfo: PackageInfo?): String =
-    packageInfo?.versionName ?: "1.4.4"
+    packageInfo?.versionName ?: "1.4.5"
 
 internal fun versionCodeFrom(packageInfo: PackageInfo?, sdkInt: Int = Build.VERSION.SDK_INT): Long {
-    if (packageInfo == null) return 11L
+    if (packageInfo == null) return 12L
     return if (sdkInt >= Build.VERSION_CODES.P) {
         packageInfo.longVersionCode
     } else {
