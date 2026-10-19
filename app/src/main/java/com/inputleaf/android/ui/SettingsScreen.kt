@@ -82,9 +82,9 @@ fun SettingsScreen(
     val cursorAvailable = canDrawOverlays || accessibilityAvailable
     val versionName = remember(context) {
         try {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.4.4"
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.4.5"
         } catch (_: Exception) {
-            "1.4.4"
+            "1.4.5"
         }
     }
     val installSource = remember(context) { UpdateService.getInstallSource(context) }

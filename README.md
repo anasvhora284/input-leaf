@@ -418,6 +418,10 @@ Input Leaf is better because of these people. Thank you!
 
 - **Android 10 and older:** fixed the crash on devices below Android 11 and made unreachable servers retry instead of crashing the app ([#4](https://github.com/anasvhora284/input-leaf/pull/4)).
 
+### [@tonank](https://github.com/tonank)
+
+- **Shizuku on Onyx Boox:** found and fixed Shizuku never connecting on Onyx Boox tablets, where the vendor's Android build crashes Shizuku's service starter. Input Leaf now falls back to starting the injector itself ([#63](https://github.com/anasvhora284/input-leaf/pull/63), reported in [#62](https://github.com/anasvhora284/input-leaf/issues/62)). Shipped in 1.4.5.
+
 Want to see your name here? Check out [Contributing](#contributing).
 
 ---
