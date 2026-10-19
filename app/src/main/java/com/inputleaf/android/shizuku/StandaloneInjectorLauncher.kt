@@ -28,6 +28,9 @@ internal object StandaloneInjectorLauncher {
     private var injector: IBinder? = null
     private var connection: ServiceConnection? = null
 
+    /** Starts the process; swapped in tests, which have no Shizuku to fork through. */
+    internal var launchProcess: (Array<String>) -> Process = ::newProcess
+
     fun bind(conn: ServiceConnection): Boolean {
         val context = InjectorHandoffProvider.appContext ?: run {
             Log.e(TAG, "Handoff provider not created; cannot start injector")
@@ -52,7 +55,7 @@ internal object StandaloneInjectorLauncher {
         synchronized(lock) {
             if (process?.isAlive == true) return true
             return try {
-                val started = newProcess(arrayOf("sh", "-c", command))
+                val started = launchProcess(arrayOf("sh", "-c", command))
                 drain(started)
                 process = started
                 Log.i(TAG, "Started standalone injector")
@@ -90,7 +93,7 @@ internal object StandaloneInjectorLauncher {
         mainHandler.post { conn?.onServiceConnected(componentName(packageName), binder) }
     }
 
-    private fun onInjectorDied(binder: IBinder) {
+    internal fun onInjectorDied(binder: IBinder) {
         val conn = synchronized(lock) {
             if (injector !== binder) return
             injector = null
@@ -100,6 +103,15 @@ internal object StandaloneInjectorLauncher {
         Log.w(TAG, "Injector process died")
         val packageName = InjectorHandoffProvider.appContext?.packageName ?: return
         mainHandler.post { conn?.onServiceDisconnected(componentName(packageName)) }
+    }
+
+    internal fun resetForTest() {
+        synchronized(lock) {
+            process = null
+            injector = null
+            connection = null
+        }
+        launchProcess = ::newProcess
     }
 
     private fun componentName(packageName: String) =

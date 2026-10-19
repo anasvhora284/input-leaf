@@ -66,5 +66,9 @@ class InjectorHandoffProvider : ContentProvider() {
             private set
 
         fun authority(context: Context): String = "${context.packageName}.injector"
+
+        internal fun clearAppContextForTest() {
+            appContext = null
+        }
     }
 }

@@ -125,5 +125,6 @@ class ShizukuInjectorHandoverTest {
         override fun unbind(connection: ServiceConnection, destroy: Boolean) {
             unbinds += destroy
         }
+        override fun onBindTimeout(connection: ServiceConnection) = Unit
     }
 }

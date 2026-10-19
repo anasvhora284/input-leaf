@@ -1,7 +1,9 @@
 package com.inputleaf.android.shizuku
 
 import android.content.ComponentName
+import android.content.ContentValues
 import android.content.ServiceConnection
+import android.net.Uri
 import android.os.Binder
 import android.os.Bundle
 import android.os.IBinder
@@ -68,6 +70,18 @@ class InjectorHandoffProviderTest {
         ShadowBinder.setCallingUid(2000)
 
         assertThat(provider.call("somethingElse", null, extrasWith(Binder()))).isNull()
+    }
+
+    @Test
+    fun `the provider exposes no data`() {
+        val provider = Robolectric.setupContentProvider(InjectorHandoffProvider::class.java)
+        val uri = Uri.parse("content://${InjectorHandoffProvider.authority(provider.context!!)}/x")
+
+        assertThat(provider.query(uri, null, null, null, null)).isNull()
+        assertThat(provider.getType(uri)).isNull()
+        assertThat(provider.insert(uri, ContentValues())).isNull()
+        assertThat(provider.delete(uri, null, null)).isEqualTo(0)
+        assertThat(provider.update(uri, ContentValues(), null, null)).isEqualTo(0)
     }
 
     private fun extrasWith(injector: IBinder) =

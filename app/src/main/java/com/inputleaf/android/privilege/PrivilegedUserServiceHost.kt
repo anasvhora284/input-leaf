@@ -30,7 +30,7 @@ internal interface PrivilegedUserServiceHost {
     fun unbind(connection: ServiceConnection, destroy: Boolean)
 
     /** Called when a [bind] never connected, before the caller unbinds and retries. */
-    fun onBindTimeout(connection: ServiceConnection) {}
+    fun onBindTimeout(connection: ServiceConnection)
 }
 
 internal class ShizukuUserServiceHost : PrivilegedUserServiceHost {
@@ -55,7 +55,14 @@ internal class ShizukuUserServiceHost : PrivilegedUserServiceHost {
     }
 
     override fun bind(connection: ServiceConnection): Boolean {
-        if (userServiceFailed) return StandaloneInjectorLauncher.bind(connection)
+        if (userServiceFailed) {
+            if (StandaloneInjectorLauncher.bind(connection)) return true
+            // The fallback could not even start (for example a Shizuku release without the
+            // private newProcess). Go back to the UserService rather than staying broken
+            // until the app restarts.
+            StandaloneInjectorLauncher.unbind(connection, destroy = false)
+            userServiceFailed = false
+        }
         return runCatching { Shizuku.bindUserService(serviceArgs, connection) }.isSuccess
     }
 
@@ -129,6 +136,9 @@ internal class RootUserServiceHost(
             }
         }
     }
+
+    /** libsu has no stale-record problem to recover from. */
+    override fun onBindTimeout(connection: ServiceConnection) = Unit
 
     private fun runOnMain(block: () -> Unit) {
         if (Looper.myLooper() == Looper.getMainLooper()) {
