@@ -110,6 +110,30 @@ class LoopbackServerTest {
         }
     }
 
+    @Test fun `close does not report the read it interrupts as a handler failure`() {
+        // The handler blocks waiting for the client to hang up, like the connection tests'
+        // server side. close() closes its socket first, so the read throws "Socket closed";
+        // that is shutdown, not a failure, and previously failed whichever test lost the race.
+        val handlerStarted = CountDownLatch(1)
+        val handlerStopped = CountDownLatch(1)
+        LoopbackServer { socket, _ ->
+            try {
+                handlerStarted.countDown()
+                socket.inputStream.read()
+            } finally {
+                handlerStopped.countDown()
+            }
+        }.use { server ->
+            loopbackClient(server.port).use {
+                assertThat(handlerStarted.await(TEST_TIMEOUT_MS, TimeUnit.MILLISECONDS)).isTrue()
+
+                server.close()
+
+                assertThat(handlerStopped.await(TEST_TIMEOUT_MS, TimeUnit.MILLISECONDS)).isTrue()
+            }
+        }
+    }
+
     @Test fun `close can be called repeatedly`() {
         LoopbackServer { _, _ -> }.use { server ->
             loopbackClient(server.port).use { client ->

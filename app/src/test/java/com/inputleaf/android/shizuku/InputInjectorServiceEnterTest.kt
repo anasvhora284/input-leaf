@@ -29,7 +29,15 @@ class InputInjectorServiceEnterTest {
 
         fun sleep(ms: Long) {
             nowNanos += TimeUnit.MILLISECONDS.toNanos(ms)
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            while (queued() && System.nanoTime() < deadline) Thread.sleep(1)
             Thread.sleep(1)
+        }
+
+        private var queued: () -> Boolean = { false }
+
+        fun watch(input: PipedInputStream) {
+            queued = { input.available() > 0 }
         }
 
         fun elapsedMs(): Long = TimeUnit.NANOSECONDS.toMillis(nowNanos)
@@ -40,6 +48,7 @@ class InputInjectorServiceEnterTest {
         val clock = TestClock()
         val kernel = PipedOutputStream()
         val input = PipedInputStream(kernel, 8192)
+        clock.watch(input)
         val output = ByteArrayOutputStream()
         kernel.write(typeWord(UhidProtocol.UHID_OPEN))
         kernel.flush()
