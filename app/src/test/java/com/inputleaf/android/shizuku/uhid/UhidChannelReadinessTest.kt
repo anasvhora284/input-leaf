@@ -33,7 +33,24 @@ class UhidChannelReadinessTest {
 
         fun sleep(ms: Long) {
             nowNanos += TimeUnit.MILLISECONDS.toNanos(ms)
-            Thread.sleep(1) // let the real reader thread drain the pipe
+            awaitReaderDrained()
+        }
+
+        /**
+         * Virtual time must not outrun the real reader thread. Waiting on the pipe, with a
+         * generous bound, rather than a fixed 1ms nap, keeps a loaded machine from starving
+         * the reader past the virtual deadline.
+         */
+        private fun awaitReaderDrained() {
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            while (queued() && System.nanoTime() < deadline) Thread.sleep(1)
+            Thread.sleep(1) // the reader updates its state just after the last byte
+        }
+
+        private var queued: () -> Boolean = { false }
+
+        fun watch(input: PipedInputStream) {
+            queued = { input.available() > 0 }
         }
 
         fun elapsedMs(): Long = TimeUnit.NANOSECONDS.toMillis(nowNanos)
@@ -44,6 +61,7 @@ class UhidChannelReadinessTest {
         val clock = TestClock()
         val kernel = PipedOutputStream()
         val input = PipedInputStream(kernel, 8192)
+        clock.watch(input)
         kernel.write(typeWord(UhidProtocol.UHID_OPEN))
         kernel.flush()
 
@@ -71,6 +89,7 @@ class UhidChannelReadinessTest {
         val clock = TestClock()
         val kernel = PipedOutputStream()
         val input = PipedInputStream(kernel, 8192)
+        clock.watch(input)
         kernel.write(typeWord(UhidProtocol.UHID_OPEN))
         kernel.flush()
 
@@ -103,6 +122,7 @@ class UhidChannelReadinessTest {
         val clock = TestClock()
         val kernel = PipedOutputStream()
         val input = PipedInputStream(kernel, 8192)
+        clock.watch(input)
         var presenceChecks = 0
 
         val channel = UhidChannel.forTesting(
@@ -131,6 +151,7 @@ class UhidChannelReadinessTest {
         val clock = TestClock()
         val kernel = PipedOutputStream()
         val input = PipedInputStream(kernel, 8192)
+        clock.watch(input)
         kernel.write(typeWord(UhidProtocol.UHID_START))
         kernel.write(ByteArray(UhidProtocol.payloadSize(UhidProtocol.UHID_START)))
         kernel.flush()
@@ -184,6 +205,7 @@ class UhidChannelReadinessTest {
         val clock = TestClock()
         val kernel = PipedOutputStream()
         val input = PipedInputStream(kernel, 8192)
+        clock.watch(input)
         kernel.write(typeWord(UhidProtocol.UHID_START))
         kernel.write(ByteArray(UhidProtocol.payloadSize(UhidProtocol.UHID_START)))
         kernel.flush()
@@ -222,6 +244,7 @@ class UhidChannelReadinessTest {
         val clock = TestClock()
         val kernel = PipedOutputStream()
         val input = PipedInputStream(kernel, 8192)
+        clock.watch(input)
         kernel.write(typeWord(UhidProtocol.UHID_START))
         kernel.write(ByteArray(UhidProtocol.payloadSize(UhidProtocol.UHID_START)))
         kernel.flush()
@@ -263,6 +286,7 @@ class UhidChannelReadinessTest {
         val clock = TestClock()
         val kernel = PipedOutputStream()
         val input = PipedInputStream(kernel, 8192)
+        clock.watch(input)
         val polls = AtomicInteger()
         val pipe = ParcelFileDescriptor.createPipe()
 
@@ -297,6 +321,7 @@ class UhidChannelReadinessTest {
         val clock = TestClock()
         val kernel = PipedOutputStream()
         val input = PipedInputStream(kernel, 8192)
+        clock.watch(input)
         kernel.write(typeWord(UhidProtocol.UHID_START))
         kernel.write(ByteArray(UhidProtocol.payloadSize(UhidProtocol.UHID_START)))
         kernel.flush()

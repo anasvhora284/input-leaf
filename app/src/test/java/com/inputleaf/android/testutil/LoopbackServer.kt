@@ -4,6 +4,7 @@ import java.io.Closeable
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.net.SocketException
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -31,6 +32,7 @@ internal open class LoopbackServer(
     private val workers = CopyOnWriteArrayList<Thread>()
     private val activeSockets = CopyOnWriteArrayList<Socket>()
     private val ready = CountDownLatch(1)
+    @Volatile private var closing = false
     // Keep the ephemeral port reserved until close(). A transport fallback can otherwise
     // connect to a later test that was assigned this port after the listener was released.
     private val acceptThread: Thread
@@ -73,6 +75,7 @@ internal open class LoopbackServer(
     }
 
     override fun close() {
+        closing = true
         serverSocket.close()
         acceptThread.join(2_000)
         check(!acceptThread.isAlive) { "Loopback accept thread did not stop" }
@@ -95,7 +98,10 @@ internal open class LoopbackServer(
                 try {
                     handler(it, index)
                 } catch (failure: Throwable) {
-                    failures += failure
+                    // close() shuts the socket under a handler that is still waiting on the
+                    // client to hang up, so that read throws. That is shutdown, not a failure,
+                    // and counting it failed whichever test lost the race.
+                    if (!(closing && failure is SocketException)) failures += failure
                 } finally {
                     activeSockets -= socket
                 }
