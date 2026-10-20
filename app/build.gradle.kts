@@ -23,7 +23,7 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = 12
-        versionName = "1.4.5"
+        versionName = "1.4.5-beta.1"
         // JUnit4 runner so the androidTest classes are discovered on the emulator
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

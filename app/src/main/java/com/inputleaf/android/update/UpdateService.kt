@@ -68,6 +68,8 @@ object UpdateService {
             highlights = listOf(
                 "Fixed Shizuku never connecting on Onyx Boox tablets, where the vendor's Android build crashes Shizuku's service starter. Input Leaf now starts the injector itself as a fallback.",
                 "A failed fallback no longer leaves Shizuku broken until the app restarts.",
+                "Android TV: clicking an app on the home screen opens it, instead of showing the Open / Move / Info menu.",
+                "Android TV: the launcher tile now shows the real Input Leaf logo and name.",
             ),
         ),
         VersionChangelog(

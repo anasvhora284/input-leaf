@@ -13,6 +13,10 @@ import kotlinx.coroutines.*
 
 private const val TAG = "AccessibilityInputService"
 
+/** How long to watch for Android TV Home's app menu after a click: 12 x 250ms, for slow boxes. */
+private const val LAUNCHER_MENU_CHECKS = 12
+private const val LAUNCHER_MENU_CHECK_MS = 250L
+
 class AccessibilityInputService : AccessibilityService() {
 
     companion object {
@@ -188,9 +192,31 @@ class AccessibilityInputService : AccessibilityService() {
      */
     fun clickNodeAt(x: Float, y: Float): Boolean {
         val roots = accessibilityRoots()
+        val onLauncher = rootInActiveWindow?.packageName == TvLauncherMenu.LAUNCHER_PACKAGE
         val clicked = AccessibilityNodeClicker.clickAt(roots, x, y)
         Log.d(TAG, "Clicked accessibility node at $x, $y: $clicked")
+        if (clicked && onLauncher) watchForLauncherMenu()
         return clicked
+    }
+
+    private var launcherMenuWatch: Job? = null
+
+    /**
+     * Some Android TV Home builds open an app's long-press menu for an accessibility
+     * click (#64). If that menu appears right after our click, open the app as meant.
+     */
+    private fun watchForLauncherMenu() {
+        launcherMenuWatch?.cancel()
+        launcherMenuWatch = scope.launch {
+            repeat(LAUNCHER_MENU_CHECKS) {
+                delay(LAUNCHER_MENU_CHECK_MS)
+                if (TvLauncherMenu.confirmOpen(accessibilityRoots())) {
+                    Log.i(TAG, "Launcher answered the click with its app menu; opened the app")
+                    return@launch
+                }
+            }
+            Log.d(TAG, "No launcher app menu after the click")
+        }
     }
 
     fun performGlobalBack(): Boolean = performGlobalAction(GLOBAL_ACTION_BACK)
