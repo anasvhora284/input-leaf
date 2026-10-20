@@ -13,8 +13,8 @@ import kotlinx.coroutines.*
 
 private const val TAG = "AccessibilityInputService"
 
-/** How long to watch for Android TV Home's app menu after a click: 6 x 250ms. */
-private const val LAUNCHER_MENU_CHECKS = 6
+/** How long to watch for Android TV Home's app menu after a click: 12 x 250ms, for slow boxes. */
+private const val LAUNCHER_MENU_CHECKS = 12
 private const val LAUNCHER_MENU_CHECK_MS = 250L
 
 class AccessibilityInputService : AccessibilityService() {
@@ -215,6 +215,7 @@ class AccessibilityInputService : AccessibilityService() {
                     return@launch
                 }
             }
+            Log.d(TAG, "No launcher app menu after the click")
         }
     }
 
