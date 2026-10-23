@@ -79,6 +79,35 @@ class AccessibilityNodeClickerTest {
         assertThat(AccessibilityNodeClicker.scrollAt(listOf(plain), 10f, 10f, steps = 0, horizontal = false)).isFalse()
     }
 
+    @Test
+    fun `focus moves to the neighbour in the wheel direction, like a D-pad press`() {
+        val next = node(clickable = false)
+        `when`(next.performAction(AccessibilityNodeInfo.ACTION_FOCUS)).thenReturn(true)
+        val focused = node(clickable = true)
+        `when`(focused.focusSearch(android.view.View.FOCUS_DOWN)).thenReturn(next)
+        val root = node(clickable = false)
+        `when`(root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)).thenReturn(focused)
+
+        assertThat(AccessibilityNodeClicker.moveFocus(listOf(root), android.view.View.FOCUS_DOWN)).isTrue()
+        verify(next).performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+        // Nothing further up, and nothing focused at all, report no move.
+        assertThat(AccessibilityNodeClicker.moveFocus(listOf(root), android.view.View.FOCUS_UP)).isFalse()
+        assertThat(AccessibilityNodeClicker.moveFocus(listOf(node(clickable = false)), android.view.View.FOCUS_UP)).isFalse()
+    }
+
+    @Test
+    fun `a vertical scroll skips a horizontal row to reach the page that scrolls down`() {
+        val page = scrollable(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN)
+        val row = scrollable(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_RIGHT)
+        `when`(page.childCount).thenReturn(1)
+        `when`(page.getChild(0)).thenReturn(row)
+
+        AccessibilityNodeClicker.scrollAt(listOf(page), 10f, 10f, steps = 1, horizontal = false)
+
+        verify(page).performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN.id)
+        verify(row, never()).performAction(org.mockito.ArgumentMatchers.anyInt())
+    }
+
     private fun scrollable(vararg offered: AccessibilityNodeInfo.AccessibilityAction): AccessibilityNodeInfo =
         node(clickable = false).also {
             `when`(it.isScrollable).thenReturn(true)
