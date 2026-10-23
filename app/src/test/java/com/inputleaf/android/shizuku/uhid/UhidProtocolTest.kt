@@ -137,9 +137,9 @@ class UhidProtocolTest {
     }
 
     @Test
-    fun `writeInput2Into encodes a six-byte mouse click and an eight-byte key`() {
+    fun `writeInput2Into encodes a seven-byte mouse click and an eight-byte key`() {
         val mouseDest = ByteArray(UhidProtocol.INPUT2_PACKET_SIZE)
-        val click = byteArrayOf(HidMouse.BUTTON_LEFT.toByte(), 0, 0, 0, 0, 0)
+        val click = ByteArray(HidMouse.REPORT_SIZE).also { it[0] = HidMouse.BUTTON_LEFT.toByte() }
         UhidProtocol.writeInput2Into(mouseDest, click)
         assertThat(mouseDest[6].toInt() and 0xFF).isEqualTo(HidMouse.BUTTON_LEFT)
         assertThat(

@@ -129,4 +129,10 @@ interface IInputInjector {
 
     /** Send an absolute pen report in screen pixels. */
     boolean injectHidPen(int x, int y, int maxX, int maxY, boolean inRange, boolean tip, boolean barrel);
+
+    /**
+     * Send a relative motion report with both wheels. Appended last so the transaction
+     * codes of every earlier method stay stable.
+     */
+    boolean injectHidMouseScroll(int dx, int dy, int buttons, int wheel, int hWheel);
 }

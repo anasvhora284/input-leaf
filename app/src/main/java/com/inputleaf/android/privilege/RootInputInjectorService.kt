@@ -40,7 +40,7 @@ class RootInputInjectorService : RootService() {
         private const val TAG = "RootInputInjector"
         // 5: stub now includes attachClient and the 1.4.2 HID lifecycle. A daemon
         // left over from the parked branch (v4) must not be reused.
-        const val SERVICE_VERSION = 5
+        const val SERVICE_VERSION = 6
         const val CATEGORY_VERSION = "com.inputleaf.android.root.injector.v$SERVICE_VERSION"
 
         fun bindIntent(context: Context): Intent {
