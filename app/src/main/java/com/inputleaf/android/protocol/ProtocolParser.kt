@@ -133,6 +133,18 @@ class ProtocolParser(input: DataInputStream) {
             requireExact(payload.size, 4, tag)
             InputLeapEvent.MouseWheel(payload.s16(0), payload.s16(2))
         }
+        ProtocolConstants.TAG_CLIPBOARD_GRAB -> {
+            requireExact(payload.size, 5, tag)
+            InputLeapEvent.ClipboardGrab(payload.u8(0), payload.s32(1))
+        }
+        ProtocolConstants.TAG_CLIPBOARD_DATA -> {
+            requireAtLeast(payload.size, 10, "payload", tag)
+            val length = payload.u32(6)
+            requireExact(payload.size.toLong() - 10, length, "data", tag)
+            InputLeapEvent.ClipboardData(
+                payload.u8(0), payload.s32(1), payload.u8(5), payload.copyOfRange(10, payload.size),
+            )
+        }
         ProtocolConstants.TAG_INCOMPATIBLE -> {
             requireExact(payload.size, 4, tag)
             InputLeapEvent.Incompatible(payload.u16(0), payload.u16(2))

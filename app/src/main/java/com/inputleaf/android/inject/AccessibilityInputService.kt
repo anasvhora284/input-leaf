@@ -7,6 +7,7 @@ import android.graphics.Path
 import android.os.Build
 import android.util.Log
 import android.view.KeyEvent
+import android.view.View
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import kotlinx.coroutines.*
@@ -220,6 +221,27 @@ class AccessibilityInputService : AccessibilityService() {
     }
 
     fun performGlobalBack(): Boolean = performGlobalAction(GLOBAL_ACTION_BACK)
+
+    fun performGlobalHome(): Boolean = performGlobalAction(GLOBAL_ACTION_HOME)
+
+    /**
+     * The wheel on devices that reject gesture swipes (non-touch TV boxes): each step moves
+     * focus like a D-pad press, which is how TV lists scroll. Screens with nothing focused
+     * fall back to the scroll action on the list under the cursor.
+     */
+    fun scrollNodeAt(x: Float, y: Float, steps: Int, horizontal: Boolean): Boolean {
+        val roots = accessibilityRoots()
+        val direction = when {
+            horizontal && steps > 0 -> View.FOCUS_RIGHT
+            horizontal -> View.FOCUS_LEFT
+            steps > 0 -> View.FOCUS_DOWN
+            else -> View.FOCUS_UP
+        }
+        var moved = 0
+        repeat(kotlin.math.abs(steps)) { if (AccessibilityNodeClicker.moveFocus(roots, direction)) moved++ }
+        if (moved > 0) return true
+        return AccessibilityNodeClicker.scrollAt(roots, x, y, steps, horizontal)
+    }
 
     private fun accessibilityRoots(): List<AccessibilityNodeInfo> = buildList {
         rootInActiveWindow?.let(::add)

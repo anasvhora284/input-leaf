@@ -5,7 +5,10 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -13,6 +16,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import androidx.compose.material3.RadioButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +31,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.inputleaf.android.R
 import com.inputleaf.android.inject.PointerDevice
+import com.inputleaf.android.inject.ScrollSpeed
 import com.inputleaf.android.network.ClientCertificateSummary
 import com.inputleaf.android.network.ConnectionTransportPolicy
 import com.inputleaf.android.network.TlsFingerprintManager
@@ -52,6 +57,7 @@ fun SettingsScreen(
     connectionTransportPolicy: ConnectionTransportPolicy,
     cursorStyle: String,
     pointerDevice: PointerDevice,
+    scrollSpeed: Int = ScrollSpeed.DEFAULT,
     shizukuAvailable: Boolean,
     rootGranted: Boolean,
     rootUsable: Boolean,
@@ -68,6 +74,7 @@ fun SettingsScreen(
     onConnectionTransportPolicyChange: (ConnectionTransportPolicy) -> Unit,
     onCursorStyleChange: (String) -> Unit,
     onPointerDeviceChange: (PointerDevice) -> Unit,
+    onScrollSpeedChange: (Int) -> Unit = {},
     onRequestOverlayPermission: () -> Unit,
     onDeleteFingerprint: (String) -> Unit,
     onImportClientCertificate: () -> Unit,
@@ -100,6 +107,7 @@ fun SettingsScreen(
     var showInputMethodDialog by remember { mutableStateOf(false) }
     var showTransportPolicyDialog by remember { mutableStateOf(false) }
     var showCursorStyleDialog by remember { mutableStateOf(false) }
+    var showScrollSpeedDialog by remember { mutableStateOf(false) }
     var showLocalFingerprint by remember { mutableStateOf(false) }
     var showRegenerateConfirm by remember { mutableStateOf(false) }
     var showTrustedServersSheet by remember { mutableStateOf(false) }
@@ -238,6 +246,15 @@ fun SettingsScreen(
                     ) {
                         Text("Pointer device")
                     }
+                }
+                row { shapes ->
+                    SettingsRow(
+                        icon = Icons.Rounded.Mouse,
+                        title = "Scroll speed",
+                        subtitle = ScrollSpeed.label(scrollSpeed),
+                        shapes = shapes,
+                        onClick = { showScrollSpeedDialog = true },
+                    )
                 }
                 row { shapes ->
                     SegmentedListItem(
@@ -591,6 +608,46 @@ fun SettingsScreen(
                     Text("Cancel")
                 }
             }
+        )
+    }
+
+    if (showScrollSpeedDialog) {
+        AlertDialog(
+            onDismissRequest = { showScrollSpeedDialog = false },
+            title = { Text("Scroll speed") },
+            text = {
+                Column {
+                    Text(
+                        "How far the mouse wheel scrolls on this device, for both directions.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                    ScrollSpeed.OPTIONS.forEach { option ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onScrollSpeedChange(option)
+                                    showScrollSpeedDialog = false
+                                }
+                                .padding(vertical = 4.dp),
+                        ) {
+                            RadioButton(
+                                selected = option == ScrollSpeed.fromStorage(scrollSpeed),
+                                onClick = {
+                                    onScrollSpeedChange(option)
+                                    showScrollSpeedDialog = false
+                                },
+                            )
+                            Text(ScrollSpeed.label(option))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showScrollSpeedDialog = false }) { Text("Close") }
+            },
         )
     }
 

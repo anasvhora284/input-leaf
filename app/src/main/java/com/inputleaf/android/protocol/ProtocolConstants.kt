@@ -24,6 +24,8 @@ object ProtocolConstants {
     const val TAG_MOUSE_DOWN    = "DMDN"
     const val TAG_MOUSE_UP      = "DMUP"
     const val TAG_MOUSE_WHEEL   = "DMWM"
+    const val TAG_CLIPBOARD_GRAB = "CCLP" // both directions: CCLP%1i%4i
+    const val TAG_CLIPBOARD_DATA = "DCLP" // both directions: DCLP%1i%4i%1i%s
     const val TAG_INCOMPATIBLE  = "EICV"
     const val TAG_BUSY          = "EBSY"
     const val TAG_UNKNOWN       = "EUNK"

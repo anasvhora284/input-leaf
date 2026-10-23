@@ -137,6 +137,23 @@ class ConnectionCoordinatorTest {
     }
 
     @Test
+    fun `clipboard events go to the clipboard bridge and Enter records its sequence number`() {
+        val coordinator = ConnectionCoordinator()
+        val plan = coordinator.startConnect("10.0.0.1", "server")
+        coordinator.onConnectOk("10.0.0.1", "server", plan.generation)
+
+        coordinator.processEvent(InputLeapEvent.Enter(1, 2, seqNum = 42, mask = 0), plan.generation)
+        assertThat(coordinator.enterSeqNum).isEqualTo(42)
+
+        val grab = InputLeapEvent.ClipboardGrab(0, 1)
+        assertThat(coordinator.processEvent(grab, plan.generation))
+            .isEqualTo(CoordinatorEventResult.Clipboard(grab))
+        val data = InputLeapEvent.ClipboardData(0, 1, 3, ByteArray(0))
+        assertThat(coordinator.processEvent(data, plan.generation))
+            .isEqualTo(CoordinatorEventResult.Clipboard(data))
+    }
+
+    @Test
     fun `Enter transitions state to Active and Leave debounce transitions back to Idle`() {
         val coordinator = ConnectionCoordinator()
         val plan = coordinator.startConnect("192.168.1.50", "android-tablet")

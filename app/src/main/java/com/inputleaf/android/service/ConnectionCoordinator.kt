@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.StateFlow
 
 sealed interface CoordinatorEventResult {
     data class Enter(val x: Int, val y: Int) : CoordinatorEventResult
+    /** A clipboard grab or data chunk from the server, for the clipboard bridge. */
+    data class Clipboard(val event: InputLeapEvent) : CoordinatorEventResult
     object Leave : CoordinatorEventResult
     object KeepAlive : CoordinatorEventResult
     object InfoAck : CoordinatorEventResult
@@ -65,6 +67,9 @@ class ConnectionCoordinator {
     private var pointerOnScreen: Boolean = false
     val isPointerOnScreen: Boolean get() = pointerOnScreen
 
+    /** Sequence number of the most recent Enter; the client's clipboard replies use it. */
+    var enterSeqNum: Int = 0
+        private set
     var mouseEnabled: Boolean = true
     var keyboardEnabled: Boolean = true
     var absolutePointer: Boolean = false
@@ -156,6 +161,7 @@ class ConnectionCoordinator {
             is InputLeapEvent.Enter -> {
                 pointerOnScreen = true
                 keepAliveMissed = 0
+                enterSeqNum = event.seqNum
                 val current = _state.value
                 if (current !is ConnectionState.Active) {
                     val ip = activeServerIp ?: (current as? ConnectionState.Idle)?.serverIp ?: ""
@@ -210,6 +216,10 @@ class ConnectionCoordinator {
                 if (!keyboardEnabled) return CoordinatorEventResult.Ignored
                 keepAliveMissed = 0
                 CoordinatorEventResult.Input(event)
+            }
+            is InputLeapEvent.ClipboardGrab, is InputLeapEvent.ClipboardData -> {
+                keepAliveMissed = 0
+                CoordinatorEventResult.Clipboard(event)
             }
             is InputLeapEvent.Unhandled -> {
                 if (event.tag == "__DISCONNECTED__") {
