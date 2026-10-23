@@ -64,12 +64,16 @@ object UpdateService {
     private val RELEASES = listOf(
         VersionChangelog(
             versionName = "1.4.5",
-            versionCode = 12,
+            versionCode = 13,
             highlights = listOf(
+                "Clipboard sharing: text copied on the PC can be pasted on the phone, and text copied on the phone reaches the PC when the cursor leaves.",
+                "Scroll speed setting, and horizontal scrolling with Shizuku or root.",
+                "Mouse side buttons work as Back and Forward.",
                 "Fixed Shizuku never connecting on Onyx Boox tablets, where the vendor's Android build crashes Shizuku's service starter. Input Leaf now starts the injector itself as a fallback.",
                 "A failed fallback no longer leaves Shizuku broken until the app restarts.",
                 "Android TV: clicking an app on the home screen opens it, instead of showing the Open / Move / Info menu.",
                 "Android TV: the launcher tile now shows the real Input Leaf logo and name.",
+                "Android TV: the scroll wheel moves through rows like the remote, Search / Home / Apps respond to clicks, middle click goes Home, and Esc goes Back.",
             ),
         ),
         VersionChangelog(
@@ -323,7 +327,7 @@ internal fun versionNameFrom(packageInfo: PackageInfo?): String =
     packageInfo?.versionName ?: "1.4.5"
 
 internal fun versionCodeFrom(packageInfo: PackageInfo?, sdkInt: Int = Build.VERSION.SDK_INT): Long {
-    if (packageInfo == null) return 12L
+    if (packageInfo == null) return 13L
     return if (sdkInt >= Build.VERSION_CODES.P) {
         packageInfo.longVersionCode
     } else {
