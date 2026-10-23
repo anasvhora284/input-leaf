@@ -36,6 +36,18 @@ class ProtocolWriter(output: OutputStream) {
 
     fun writeInfoAck() = frame("CIAK") {}
 
+    /** Tells the server this client's clipboard [id] changed (CCLP%1i%4i). */
+    fun writeClipboardGrab(id: Int, seqNum: Int) = frame(ProtocolConstants.TAG_CLIPBOARD_GRAB) {
+        writeByte(id); writeInt(seqNum)
+    }
+
+    /** One DCLP%1i%4i%1i%s chunk: [mark] 1 start, 2 data, 3 end. */
+    fun writeClipboardData(id: Int, seqNum: Int, mark: Int, data: ByteArray) =
+        frame(ProtocolConstants.TAG_CLIPBOARD_DATA) {
+            writeByte(id); writeInt(seqNum); writeByte(mark)
+            writeInt(data.size); write(data)
+        }
+
     private fun frame(tag: String, block: DataOutputStream.() -> Unit) {
         val buf = java.io.ByteArrayOutputStream()
         val tmp = DataOutputStream(buf)

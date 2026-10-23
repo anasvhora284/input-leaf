@@ -1,6 +1,8 @@
 package com.inputleaf.android.service
 
 import android.app.Service
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Point
@@ -17,6 +19,7 @@ import android.provider.Settings
 import android.util.Log
 import android.view.WindowManager
 import androidx.core.app.ServiceCompat
+import com.inputleaf.android.clipboard.ClipboardSync
 import com.inputleaf.android.inject.AccessibilityInputService
 import com.inputleaf.android.inject.NativePointerState
 import com.inputleaf.android.inject.PointerDevice
@@ -64,6 +67,8 @@ class ConnectionService : Service() {
     private var retryJob: Job? = null
     private var activePolicy = ConnectionTransportPolicy.AUTO
     private var cursorOverlayEnabled = false
+    private val clipboardSync = ClipboardSync()
+    @Volatile private var lastAppClipTimestamp = Long.MIN_VALUE
     @Volatile private var scrollSpeedPercent = ScrollSpeed.DEFAULT
     private var previousImeId: String? = null
     private var previousImeLabel: String? = null
@@ -378,6 +383,12 @@ class ConnectionService : Service() {
                     is CoordinatorEventResult.Leave -> {
                         injector?.onHidMouseLeave()
                         scheduleLeave(generation)
+                        sendClipboardOnLeave(conn)
+                    }
+                    is CoordinatorEventResult.Clipboard -> {
+                        clipboardSync.onServerEvent(result.event)?.let { text ->
+                            scope.launch { setDeviceClipboard(text) }
+                        }
                     }
                     is CoordinatorEventResult.KeepAlive -> {
                         conn.sendKeepAlive()
@@ -472,6 +483,37 @@ class ConnectionService : Service() {
         leaveDebounceJob = null
         hidMouseIdleJob?.cancel()
         hidMouseIdleJob = null
+    }
+
+    /** Sends the device clipboard to the server if it changed while the cursor was here (#56). */
+    private fun sendClipboardOnLeave(conn: InputLeapConnection) {
+        val text = injector?.readClipboardTextIfChanged() ?: readAppClipboardIfChanged()
+        val toSend = clipboardSync.onLeave(text) ?: return
+        runCatching { conn.sendClipboard(coordinator.enterSeqNum, toSend) }
+            .onSuccess { Log.i(TAG, "Sent clipboard to server (${toSend.length} chars)") }
+            .onFailure { Log.w(TAG, "Clipboard send failed", it) }
+    }
+
+    /**
+     * The app's own read. Android 10+ allows it only while Input Leaf's keyboard is the
+     * default IME (Accessibility mode) or the app is in front, and returns nothing otherwise.
+     * The timestamp check avoids re-reading, which Android 12+ announces with a notice.
+     */
+    private fun readAppClipboardIfChanged(): String? = runCatching {
+        val manager = getSystemService(ClipboardManager::class.java) ?: return null
+        val stamp = manager.primaryClipDescription?.timestamp ?: return null
+        if (stamp == lastAppClipTimestamp) return null
+        lastAppClipTimestamp = stamp
+        manager.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()
+    }.getOrNull()
+
+    private fun setDeviceClipboard(text: String) {
+        runCatching {
+            val manager = getSystemService(ClipboardManager::class.java) ?: return
+            manager.setPrimaryClip(ClipData.newPlainText("Input Leaf", text))
+            lastAppClipTimestamp = manager.primaryClipDescription?.timestamp ?: lastAppClipTimestamp
+            Log.i(TAG, "Clipboard from server applied (${text.length} chars)")
+        }.onFailure { Log.w(TAG, "Could not set the clipboard", it) }
     }
 
     private fun scheduleLeave(generation: Int) {

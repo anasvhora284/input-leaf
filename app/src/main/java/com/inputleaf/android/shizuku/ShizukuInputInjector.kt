@@ -114,6 +114,9 @@ class ShizukuInputInjector internal constructor(
         hWheelNotches.speed = scrollSpeed
     }
 
+    override fun readClipboardTextIfChanged(): String? =
+        runCatching { service?.readClipboardTextIfChanged() }.getOrNull()
+
     private fun resetWheels() {
         wheelNotches.reset()
         hWheelNotches.reset()

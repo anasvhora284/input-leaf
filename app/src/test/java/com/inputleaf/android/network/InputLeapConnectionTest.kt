@@ -921,6 +921,44 @@ class InputLeapConnectionTest {
         }
     }
 
+    @Test fun `sendClipboard announces the clipboard and sends it in Deskflow-sized chunks`(): Unit = runBlocking {
+        // 600 KB of text needs two 512 KB data chunks after the 12-byte format header.
+        val text = "x".repeat(600 * 1024)
+        val blob = com.inputleaf.android.clipboard.ClipboardCodec.marshallText(text)
+        val frames = CompletableDeferred<List<ByteArray>>()
+        LoopbackServer { socket, _ ->
+            performServerHandshake(socket)
+            val input = DataInputStream(socket.inputStream)
+            frames.complete(List(5) { readFrame(input) })
+            socket.inputStream.read()
+        }.use { server ->
+            connection(
+                server.port,
+                transportPolicy = ConnectionTransportPolicy.PLAIN_ONLY,
+                preferredTransport = ServerTransport.PLAIN,
+            ).useConnection { connection ->
+                assertThat(connection.connect("android", 1920, 1080)).isInstanceOf(ConnectResult.Ok::class.java)
+                connection.sendClipboard(seqNum = 9, text = text)
+                connection.clearHandshakeTimeout()
+
+                val (grab, start, first, second, end) = withTimeout(TEST_TIMEOUT_MS) { frames.await() }
+                assertThat(String(grab, 0, 4)).isEqualTo("CCLP")
+                assertThat(grab.copyOfRange(4, grab.size).map { it.toInt() }).containsExactly(0, 0, 0, 0, 9).inOrder()
+                // DCLP: id, seq, mark, then a length-prefixed string.
+                assertThat(String(start, 0, 4)).isEqualTo("DCLP")
+                assertThat(start[9].toInt()).isEqualTo(1)
+                assertThat(String(start, 14, start.size - 14)).isEqualTo(blob.size.toString())
+                assertThat(listOf(first[9], second[9], end[9]).map { it.toInt() }).containsExactly(2, 2, 3).inOrder()
+                val sent = first.copyOfRange(14, first.size) + second.copyOfRange(14, second.size)
+                assertThat(sent.size).isEqualTo(blob.size)
+                assertThat(first.size - 14).isEqualTo(com.inputleaf.android.clipboard.ClipboardAssembler.CHUNK_BYTES)
+                assertThat(end.size).isEqualTo(14)
+            }
+        }
+        // Not connected: nothing to send and no crash.
+        connection(1, transportPolicy = ConnectionTransportPolicy.PLAIN_ONLY).sendClipboard(1, "unused")
+    }
+
     @Test fun `pinned fingerprint mismatch logs warning and fails`(): Unit = runBlocking {
         val identity = TestTlsIdentity.create()
         TlsLoopbackServer(identity.context) { socket, _ ->

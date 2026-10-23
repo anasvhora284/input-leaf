@@ -320,6 +320,8 @@ class InputInjectorService : IInputInjector.Stub {
 
     override fun injectHidMouseScroll(dx: Int, dy: Int, buttons: Int, wheel: Int, hWheel: Int): Boolean =
         synchronized(mouseLock) { mouse }?.move(dx, dy, buttons, wheel, hWheel) ?: false
+
+    override fun readClipboardTextIfChanged(): String? = ClipboardAccess.readTextIfChanged()
     
     override fun onHidMouseEnter(x: Int, y: Int, maxX: Int, maxY: Int, pointerSpeed: Int) {
         synchronized(mouseLock) {

@@ -40,6 +40,9 @@ class AccessibilityInputInjector(
         hidKeyboard.updatePointerSpeed(speed)
     }
 
+    // The latent privileged injector, when present, may read the clipboard in the background.
+    override fun readClipboardTextIfChanged(): String? = hidKeyboard.readClipboardTextIfChanged()
+
     override fun setScrollSpeed(percent: Int) {
         scrollSpeed = ScrollSpeed.multiplier(percent)
         wheelNotches.speed = scrollSpeed

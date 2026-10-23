@@ -135,4 +135,11 @@ interface IInputInjector {
      * codes of every earlier method stay stable.
      */
     boolean injectHidMouseScroll(int dx, int dy, int buttons, int wheel, int hWheel);
+
+    /**
+     * The device clipboard text if it changed since the last call, else null. Read here
+     * because the shell/root injector may read the clipboard in the background and the
+     * app may not.
+     */
+    String readClipboardTextIfChanged();
 }
