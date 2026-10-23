@@ -221,6 +221,12 @@ class AccessibilityInputService : AccessibilityService() {
 
     fun performGlobalBack(): Boolean = performGlobalAction(GLOBAL_ACTION_BACK)
 
+    fun performGlobalHome(): Boolean = performGlobalAction(GLOBAL_ACTION_HOME)
+
+    /** Scroll actions for devices where gesture swipes are rejected (non-touch TV boxes). */
+    fun scrollNodeAt(x: Float, y: Float, steps: Int, horizontal: Boolean): Boolean =
+        AccessibilityNodeClicker.scrollAt(accessibilityRoots(), x, y, steps, horizontal)
+
     private fun accessibilityRoots(): List<AccessibilityNodeInfo> = buildList {
         rootInActiveWindow?.let(::add)
         for (window in windows) {

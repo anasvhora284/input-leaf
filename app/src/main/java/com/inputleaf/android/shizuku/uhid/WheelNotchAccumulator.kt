@@ -13,18 +13,21 @@ package com.inputleaf.android.shizuku.uhid
  */
 internal class WheelNotchAccumulator(private val unitsPerNotch: Int = 120) {
 
-    private var remainder = 0
+    private var remainder = 0.0
+
+    /** User scroll speed; 1.0 sends exactly what the server sent (#19). */
+    var speed: Double = 1.0
 
     /** @return whole notches to send now; 0 means the delta was banked, not dropped. */
     fun accept(delta: Int): Int {
-        remainder += delta
-        val notches = remainder / unitsPerNotch
-        remainder -= notches * unitsPerNotch
+        remainder += delta * speed
+        val notches = (remainder / unitsPerNotch).toInt()
+        remainder -= notches * unitsPerNotch.toDouble()
         return notches
     }
 
     /** Drops any partial notch so it cannot leak into the next attach. */
     fun reset() {
-        remainder = 0
+        remainder = 0.0
     }
 }

@@ -6,6 +6,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import com.inputleaf.android.inject.PointerDevice
+import com.inputleaf.android.inject.ScrollSpeed
 import com.inputleaf.android.network.ConnectionTransportPolicy
 import com.inputleaf.android.update.UpdateChannel
 import kotlinx.coroutines.flow.Flow
@@ -40,6 +41,7 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
         private val KEY_INPUT_METHOD     = stringPreferencesKey("input_method")
         private val KEY_CURSOR_STYLE     = stringPreferencesKey("cursor_style")
         private val KEY_POINTER_DEVICE   = stringPreferencesKey("pointer_device")
+        private val KEY_SCROLL_SPEED     = intPreferencesKey("scroll_speed_percent")
         private val KEY_SERVER_NAMES     = stringPreferencesKey("server_display_names")
         private val KEY_LAST_SEEN_VERSION_CODE = intPreferencesKey("last_seen_version_code")
 
@@ -108,6 +110,9 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
 
     val pointerDevice: Flow<PointerDevice> =
         dataStore.data.map { PointerDevice.fromStorage(it[KEY_POINTER_DEVICE]) }
+
+    val scrollSpeed: Flow<Int> =
+        dataStore.data.map { ScrollSpeed.fromStorage(it[KEY_SCROLL_SPEED]) }
 
     val connectionTransportPolicy: Flow<ConnectionTransportPolicy> =
         dataStore.data.map { prefs ->
@@ -249,6 +254,10 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
 
     suspend fun saveCursorStyle(style: String) = dataStore.edit {
         it[KEY_CURSOR_STYLE] = style
+    }
+
+    suspend fun saveScrollSpeed(percent: Int) = dataStore.edit {
+        it[KEY_SCROLL_SPEED] = ScrollSpeed.fromStorage(percent)
     }
 
     suspend fun savePointerDevice(device: PointerDevice) = dataStore.edit {

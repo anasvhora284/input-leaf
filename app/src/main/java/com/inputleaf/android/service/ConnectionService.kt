@@ -20,6 +20,7 @@ import androidx.core.app.ServiceCompat
 import com.inputleaf.android.inject.AccessibilityInputService
 import com.inputleaf.android.inject.NativePointerState
 import com.inputleaf.android.inject.PointerDevice
+import com.inputleaf.android.inject.ScrollSpeed
 import com.inputleaf.android.model.ConnectionState
 import com.inputleaf.android.model.InputLeapEvent
 import com.inputleaf.android.network.ConnectResult
@@ -63,6 +64,7 @@ class ConnectionService : Service() {
     private var retryJob: Job? = null
     private var activePolicy = ConnectionTransportPolicy.AUTO
     private var cursorOverlayEnabled = false
+    @Volatile private var scrollSpeedPercent = ScrollSpeed.DEFAULT
     private var previousImeId: String? = null
     private var previousImeLabel: String? = null
     private var isUsingAccessibilityIme = false
@@ -138,6 +140,13 @@ class ConnectionService : Service() {
             prefs.keyboardEnabled.collect { enabled ->
                 coordinator.keyboardEnabled = enabled
                 setHidKeyboardAttached(enabled && coordinator.state.value is ConnectionState.Active)
+            }
+        }
+
+        scope.launch {
+            prefs.scrollSpeed.collect { percent ->
+                scrollSpeedPercent = percent
+                injector?.setScrollSpeed(percent)
             }
         }
 
@@ -552,6 +561,7 @@ class ConnectionService : Service() {
         injector.updateScreenSize(coordinator.screenWidth, coordinator.screenHeight)
         injector.updatePointerSpeed(readPointerSpeed())
         injector.setAbsolutePointer(coordinator.absolutePointer)
+        injector.setScrollSpeed(scrollSpeedPercent)
         injector.setOnNativePointerStateChanged {
             scope.launch { applyCursorOverlay() }
         }

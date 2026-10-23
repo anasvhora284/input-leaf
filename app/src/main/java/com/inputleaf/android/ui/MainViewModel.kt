@@ -174,6 +174,7 @@ class MainViewModel @JvmOverloads constructor(
     val favoriteServers: Flow<Set<String>> = prefs.favoriteServers
     val inputMethod: Flow<String> = prefs.inputMethod
     val pointerDevice: Flow<PointerDevice> = prefs.pointerDevice
+    val scrollSpeed: Flow<Int> = prefs.scrollSpeed
     val connectionTransportPolicy: Flow<ConnectionTransportPolicy> =
         prefs.connectionTransportPolicy
 
@@ -254,6 +255,10 @@ class MainViewModel @JvmOverloads constructor(
     fun toggleFavoriteServer(ip: String) { viewModelScope.launch { prefs.toggleFavoriteServer(ip) } }
     fun removeSavedServer(ip: String) { viewModelScope.launch { prefs.removeServer(ip) } }
     fun saveCursorStyle(style: String) { viewModelScope.launch { prefs.saveCursorStyle(style) } }
+    fun saveScrollSpeed(percent: Int) {
+        viewModelScope.launch { prefs.saveScrollSpeed(percent) }
+    }
+
     fun savePointerDevice(device: PointerDevice) {
         viewModelScope.launch { prefs.savePointerDevice(device) }
     }

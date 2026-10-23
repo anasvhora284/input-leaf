@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.inputleaf.android.inject.PointerDevice
+import com.inputleaf.android.inject.ScrollSpeed
 import com.inputleaf.android.network.ConnectionTransportPolicy
 import com.inputleaf.android.ui.components.UpdateAvailableDialog
 import com.inputleaf.android.ui.components.WhatsNewDialog
@@ -84,6 +85,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
     val clientCertificateSummary by viewModel.clientCertificateSummary.collectAsStateWithLifecycle()
     val cursorStyle by viewModel.cursorStyle.collectAsState(initial = "default")
     val pointerDevice by viewModel.pointerDevice.collectAsState(initial = PointerDevice.MOUSE)
+    val scrollSpeed by viewModel.scrollSpeed.collectAsState(initial = ScrollSpeed.DEFAULT)
     val shizukuAvailable by viewModel.shizukuAvailable.collectAsState(initial = false)
     val rootGranted by viewModel.rootGranted.collectAsState(initial = false)
     val rootUsable by viewModel.rootUsable.collectAsState(initial = false)
@@ -342,6 +344,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     connectionTransportPolicy = connectionTransportPolicy,
                     cursorStyle = cursorStyle,
                     pointerDevice = pointerDevice,
+                    scrollSpeed = scrollSpeed,
                     shizukuAvailable = shizukuAvailable,
                     rootGranted = rootGranted,
                     rootUsable = rootUsable,
@@ -360,6 +363,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     },
                     onCursorStyleChange = { viewModel.saveCursorStyle(it) },
                     onPointerDeviceChange = { viewModel.savePointerDevice(it) },
+                    onScrollSpeedChange = { viewModel.saveScrollSpeed(it) },
                     onRequestOverlayPermission = {
                         context.startActivity(
                             Intent(
