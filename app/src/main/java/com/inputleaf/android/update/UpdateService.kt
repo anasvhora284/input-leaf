@@ -69,6 +69,7 @@ object UpdateService {
                 "Clipboard sharing: text copied on the PC can be pasted on the phone, and text copied on the phone reaches the PC when the cursor leaves.",
                 "Scroll speed setting, and horizontal scrolling with Shizuku or root.",
                 "Mouse side buttons work as Back and Forward.",
+                "Dragging in Accessibility mode keeps up with the mouse instead of lagging behind.",
                 "Fixed Shizuku never connecting on Onyx Boox tablets, where the vendor's Android build crashes Shizuku's service starter. Input Leaf now starts the injector itself as a fallback.",
                 "A failed fallback no longer leaves Shizuku broken until the app restarts.",
                 "Android TV: clicking an app on the home screen opens it, instead of showing the Open / Move / Info menu.",
