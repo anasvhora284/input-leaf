@@ -14,6 +14,9 @@ import kotlinx.coroutines.*
 
 private const val TAG = "AccessibilityInputService"
 
+/** Length of each drag gesture segment; one plays at a time (see DragCoalescer). */
+private const val SEGMENT_MS = 10L
+
 /** How long to watch for Android TV Home's app menu after a click: 12 x 250ms, for slow boxes. */
 private const val LAUNCHER_MENU_CHECKS = 12
 private const val LAUNCHER_MENU_CHECK_MS = 250L
@@ -31,9 +34,7 @@ class AccessibilityInputService : AccessibilityService() {
         var targetImeLabelToSelect: String? = null
     }
 
-    private var isDragging = false
-    private var lastDragX = 0f
-    private var lastDragY = 0f
+    @Volatile private var isDragging = false
     private var lastStroke: GestureDescription.StrokeDescription? = null
     
     private var windowManager: android.view.WindowManager? = null
@@ -251,50 +252,56 @@ class AccessibilityInputService : AccessibilityService() {
         }
     }
 
+    private val drag = DragCoalescer()
+
+    private val segmentCallback = object : GestureResultCallback() {
+        override fun onCompleted(gestureDescription: GestureDescription?) {
+            drag.onSegmentDone()?.let(::dispatchSegment)
+        }
+
+        override fun onCancelled(gestureDescription: GestureDescription?) {
+            drag.onCancelled()
+            synchronized(drag) { lastStroke = null; isDragging = false }
+        }
+    }
+
     fun injectTouchDown(x: Float, y: Float): Boolean {
         Log.d(TAG, "injectTouchDown: $x, $y")
-        isDragging = true
-        lastDragX = x
-        lastDragY = y
         val path = Path().apply { moveTo(x, y) }
-        val stroke = GestureDescription.StrokeDescription(path, 0, 10, true)
-        lastStroke = stroke
+        val stroke = GestureDescription.StrokeDescription(path, 0, SEGMENT_MS, true)
+        synchronized(drag) {
+            isDragging = true
+            lastStroke = stroke
+            drag.onDown(x, y)
+        }
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
-        return dispatchGesture(gesture, null, null)
+        return dispatchGesture(gesture, segmentCallback, null)
     }
 
     fun injectTouchMove(x: Float, y: Float): Boolean {
         if (!isDragging) return false
-        val prev = lastStroke ?: return false
-        // Only emit if there's actual movement to avoid empty paths
-        if (Math.abs(x - lastDragX) < 0.1f && Math.abs(y - lastDragY) < 0.1f) return true
-        
-        val path = Path().apply { moveTo(lastDragX, lastDragY); lineTo(x, y) }
-        lastDragX = x
-        lastDragY = y
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val stroke = prev.continueStroke(path, 0, 10, true)
-            lastStroke = stroke
-            val gesture = GestureDescription.Builder().addStroke(stroke).build()
-            return dispatchGesture(gesture, null, null)
-        }
-        return false
+        drag.onMove(x, y)?.let(::dispatchSegment)
+        return true
     }
 
     fun injectTouchUp(x: Float, y: Float): Boolean {
         if (!isDragging) return false
-        val prev = lastStroke ?: return false
-        val path = Path().apply { moveTo(lastDragX, lastDragY); lineTo(x, y) }
-        isDragging = false
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val stroke = prev.continueStroke(path, 0, 10, false)
-            lastStroke = null
-            val gesture = GestureDescription.Builder().addStroke(stroke).build()
-            return dispatchGesture(gesture, null, null)
+        drag.onUp(x, y)?.let(::dispatchSegment)
+        return true
+    }
+
+    /** Continues the drag stroke with one segment; the callback chains the next one. */
+    private fun dispatchSegment(segment: DragCoalescer.Segment) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val gesture = synchronized(drag) {
+            val prev = lastStroke ?: return
+            val path = Path().apply { moveTo(segment.fromX, segment.fromY); lineTo(segment.toX, segment.toY) }
+            val stroke = prev.continueStroke(path, 0, SEGMENT_MS, !segment.last)
+            lastStroke = if (segment.last) null else stroke
+            if (segment.last) isDragging = false
+            GestureDescription.Builder().addStroke(stroke).build()
         }
-        return false
+        dispatchGesture(gesture, segmentCallback, null)
     }
 
     fun injectSwipe(x1: Float, y1: Float, x2: Float, y2: Float, duration: Long): Boolean {
