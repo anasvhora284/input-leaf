@@ -13,8 +13,7 @@ class ClipboardSync {
     private val assembler = ClipboardAssembler()
 
     /** Last text received from or sent to the server. */
-    @Volatile var lastSynced: String? = null
-        private set
+    @Volatile private var lastSynced: String? = null
 
     /** @return text to put on the device clipboard, once a transfer completes. */
     fun onServerEvent(event: InputLeapEvent): String? {
