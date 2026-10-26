@@ -10,6 +10,7 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
 import com.inputleaf.android.inject.InputInjector
+import com.inputleaf.android.inject.ScrollSpeed
 import com.inputleaf.android.inject.NativePointerState
 import com.inputleaf.android.inject.InputLeafIME
 import com.inputleaf.android.inject.KeyMapUtils
@@ -65,6 +66,8 @@ class ShizukuInputInjector internal constructor(
     private var buttonState = 0
 
     private val wheelNotches = WheelNotchAccumulator()
+    private val hWheelNotches = WheelNotchAccumulator()
+    @Volatile private var scrollSpeed = 1.0
     @Volatile private var pointerSpeed = 0
     /** True until the first successful attach after [setHidMouseAttached(false)] or disconnect. */
     private var clientClosedMouse = true
@@ -105,6 +108,20 @@ class ShizukuInputInjector internal constructor(
         hidMouse.resizeDisplay(pointerMaxX(), pointerMaxY())
     }
 
+    override fun setScrollSpeed(percent: Int) {
+        scrollSpeed = ScrollSpeed.multiplier(percent)
+        wheelNotches.speed = scrollSpeed
+        hWheelNotches.speed = scrollSpeed
+    }
+
+    override fun readClipboardTextIfChanged(): String? =
+        runCatching { service?.readClipboardTextIfChanged() }.getOrNull()
+
+    private fun resetWheels() {
+        wheelNotches.reset()
+        hWheelNotches.reset()
+    }
+
     override fun updatePointerSpeed(speed: Int) {
         val clamped = speed.coerceIn(-7, 7)
         if (clamped == pointerSpeed) return
@@ -116,7 +133,7 @@ class ShizukuInputInjector internal constructor(
         service = null
         isBound = false
         hidMouse.resetOnDisconnect()
-        wheelNotches.reset()
+        resetWheels()
         clientClosedMouse = true
         publishNativePointerState(NativePointerState.NONE)
         if (wasActive) {
@@ -211,7 +228,7 @@ class ShizukuInputInjector internal constructor(
             service = null
             isBound = false
             hidMouse.resetOnDisconnect()
-            wheelNotches.reset()
+            resetWheels()
             clientClosedMouse = true
             publishNativePointerState(NativePointerState.NONE)
         }
@@ -253,7 +270,7 @@ class ShizukuInputInjector internal constructor(
                 runCatching { s.closeVirtualPen() }
                 penActive = false
                 hidMouse.detach()
-                wheelNotches.reset()
+                resetWheels()
                 clientClosedMouse = true
                 publishNativePointerState(NativePointerState.NONE)
                 Log.i(TAG, "HID mouse detached")
@@ -358,7 +375,7 @@ class ShizukuInputInjector internal constructor(
             remote("SPIKE pen leave", Unit) { sendPen(it, hidMouse.protocolX, hidMouse.protocolY, inRange = false) }
         }
         hidMouse.markLeave()
-        wheelNotches.reset()
+        resetWheels()
         remote("Failed to clear HID mouse enter on injector", Unit) { it.onHidMouseLeave() }
     }
 
@@ -446,9 +463,15 @@ class ShizukuInputInjector internal constructor(
                 }
                 is InputLeapEvent.MouseWheel -> {
                     val notches = wheelNotches.accept(event.yDelta)
+                    // Positive x scrolls right, as on Deskflow's Windows client; so does AC Pan.
+                    val hNotches = hWheelNotches.accept(event.xDelta)
                     // Handled either way: a partial notch is banked, not passed to the
                     // fallback path, which would scroll it a second time.
-                    if (notches == 0) true else svc.injectHidMouse(0, 0, hidMouse.buttons(), notches)
+                    if (notches == 0 && hNotches == 0) {
+                        true
+                    } else {
+                        svc.injectHidMouseScroll(0, 0, hidMouse.buttons(), notches, hNotches)
+                    }
                 }
                 else -> false
             }
@@ -481,7 +504,7 @@ class ShizukuInputInjector internal constructor(
         penBarrel = false
         hidMouse.detach()
         clientClosedMouse = true
-        wheelNotches.reset()
+        resetWheels()
         publishNativePointerState(NativePointerState.NONE)
         setHidMouseAttached(true)
     }
@@ -498,11 +521,12 @@ class ShizukuInputInjector internal constructor(
             is InputLeapEvent.MouseUp -> return penButton(event.buttonId, down = false, svc)
             is InputLeapEvent.MouseWheel -> {
                 val notches = wheelNotches.accept(event.yDelta)
-                if (notches != 0) {
+                val hNotches = hWheelNotches.accept(event.xDelta)
+                if (notches != 0 || hNotches != 0) {
                     svc.injectScrollEvent(
                         hidMouse.protocolX.toFloat(),
                         hidMouse.protocolY.toFloat(),
-                        0f,
+                        hNotches.toFloat(),
                         notches.toFloat(),
                     )
                 }
@@ -584,8 +608,8 @@ class ShizukuInputInjector internal constructor(
 
                 is InputLeapEvent.MouseWheel -> {
                     if (!tryHidMouse(event)) {
-                        val vScroll = event.yDelta / 120f
-                        val hScroll = event.xDelta / 120f
+                        val vScroll = (event.yDelta * scrollSpeed / 120.0).toFloat()
+                        val hScroll = (event.xDelta * scrollSpeed / 120.0).toFloat()
                         svc.injectScrollEvent(mouseX, mouseY, hScroll, vScroll)
                     }
                 }
@@ -753,15 +777,20 @@ class ShizukuInputInjector internal constructor(
             1 -> MotionEvent.BUTTON_PRIMARY
             2 -> MotionEvent.BUTTON_TERTIARY
             3 -> MotionEvent.BUTTON_SECONDARY
+            4 -> MotionEvent.BUTTON_BACK
+            5 -> MotionEvent.BUTTON_FORWARD
             else -> 0
         }
     }
 
     private fun inputLeapButtonToHid(buttonId: Int): Int {
         return when (buttonId) {
-            1 -> 1
-            3 -> 2
-            2 -> 4
+            1 -> HidMouse.BUTTON_LEFT
+            3 -> HidMouse.BUTTON_RIGHT
+            2 -> HidMouse.BUTTON_MIDDLE
+            // Deskflow/Input Leap kButtonExtra0 and kButtonExtra1: the side buttons.
+            4 -> HidMouse.BUTTON_BACK
+            5 -> HidMouse.BUTTON_FORWARD
             else -> 0
         }
     }

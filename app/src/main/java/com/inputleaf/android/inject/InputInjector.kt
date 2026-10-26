@@ -19,6 +19,12 @@ interface InputInjector {
     fun updateScreenSize(width: Int, height: Int) {}
     fun updatePointerSpeed(speed: Int) {}
 
+    /** Wheel distance as a percentage of what the server sends; see [ScrollSpeed]. */
+    fun setScrollSpeed(percent: Int) {}
+
+    /** Device clipboard text if it changed and this injector may read it; null otherwise. */
+    fun readClipboardTextIfChanged(): String? = null
+
     /**
      * Privileged HID only. [enabled] presents an absolute pen instead of the relative mouse.
      * A live session closes the current device and opens the other one.

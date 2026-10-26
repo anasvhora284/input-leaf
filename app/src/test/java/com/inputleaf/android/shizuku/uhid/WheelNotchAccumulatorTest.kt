@@ -57,4 +57,24 @@ class WheelNotchAccumulatorTest {
         repeat(1000) { total += acc.accept(120) }
         assertThat(total).isEqualTo(1000)
     }
+
+    @Test
+    fun `speed scales notches and keeps fractions across events`() {
+        val fast = WheelNotchAccumulator().apply { speed = 2.0 }
+        assertThat(fast.accept(120)).isEqualTo(2)
+
+        val slow = WheelNotchAccumulator().apply { speed = 0.25 }
+        // A quarter notch each: nothing is lost, the fourth one scrolls.
+        assertThat((1..3).map { slow.accept(120) }).containsExactly(0, 0, 0)
+        assertThat(slow.accept(120)).isEqualTo(1)
+        assertThat((1..4).sumOf { slow.accept(-120) }).isEqualTo(-1)
+    }
+
+    @Test
+    fun `reset drops a banked fraction`() {
+        val acc = WheelNotchAccumulator().apply { speed = 0.5 }
+        acc.accept(120)
+        acc.reset()
+        assertThat(acc.accept(120)).isEqualTo(0)
+    }
 }

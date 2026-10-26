@@ -405,6 +405,23 @@ class InputLeapConnection(
     fun sendKeepAlive() = writer?.writeKeepAlive()
     fun sendInfoAck() = writer?.writeInfoAck()
 
+    /** Announces and sends [text] as the clipboard (CCLP, then DCLP start/data/end). */
+    fun sendClipboard(seqNum: Int, text: String) {
+        val w = writer ?: return
+        val id = com.inputleaf.android.clipboard.ClipboardSync.PRIMARY
+        val blob = com.inputleaf.android.clipboard.ClipboardCodec.marshallText(text)
+        val chunk = com.inputleaf.android.clipboard.ClipboardAssembler.CHUNK_BYTES
+        w.writeClipboardGrab(id, seqNum)
+        w.writeClipboardData(id, seqNum, 1, blob.size.toString().toByteArray(Charsets.US_ASCII))
+        var offset = 0
+        while (offset < blob.size) {
+            val end = minOf(offset + chunk, blob.size)
+            w.writeClipboardData(id, seqNum, 2, blob.copyOfRange(offset, end))
+            offset = end
+        }
+        w.writeClipboardData(id, seqNum, 3, ByteArray(0))
+    }
+
     fun close() {
         readJob?.cancel()
         readJob = null

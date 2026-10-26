@@ -43,6 +43,9 @@ ignore:
   # (StandaloneInjectorLauncher, InjectorHandoffProvider) is tested and counted.
   - "app/src/main/java/com/inputleaf/android/shizuku/StandaloneInjectorMain.kt"
   - "app/src/main/java/com/inputleaf/android/shizuku/InjectorHandoff.kt"
+  # Reflects into the hidden IClipboard service and only works as shell or root; checked
+  # by running it under app_process on the Android 12 and 16 emulators.
+  - "app/src/main/java/com/inputleaf/android/shizuku/ClipboardAccess.kt"
   - "app/src/main/java/com/inputleaf/android/InputLeafApplication.kt"
   - "app/src/main/java/com/inputleaf/android/inject/AccessibilityInputService.kt"
   - "app/src/main/java/com/inputleaf/android/inject/AccessibilityInputInjector.kt"

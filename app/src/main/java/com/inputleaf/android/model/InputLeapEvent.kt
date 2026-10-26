@@ -30,6 +30,12 @@ sealed class InputLeapEvent {
     data class MouseDown(val buttonId: Int) : InputLeapEvent()
     data class MouseUp(val buttonId: Int) : InputLeapEvent()
     data class MouseWheel(val xDelta: Int, val yDelta: Int) : InputLeapEvent()
+
+    /** The server's clipboard [id] changed, so this client no longer owns it. */
+    data class ClipboardGrab(val id: Int, val seqNum: Int) : InputLeapEvent()
+
+    /** One chunk of a clipboard transfer; [mark] is 1 start (decimal size), 2 data, 3 end. */
+    class ClipboardData(val id: Int, val seqNum: Int, val mark: Int, val data: ByteArray) : InputLeapEvent()
     // Errors
     data class Incompatible(val major: Int, val minor: Int) : InputLeapEvent()
     object Busy : InputLeapEvent()
