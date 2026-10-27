@@ -112,27 +112,9 @@ class AccessibilityInputInjector(
         hidKeyboard.setHidKeyboardAttached(attached)
     }
 
-    override fun setHidMouseAttached(attached: Boolean) {
-        hidKeyboard.setHidMouseAttached(attached)
-    }
-
-    override fun onHidMouseEnter(x: Int, y: Int) {
-        hidKeyboard.onHidMouseEnter(x, y)
-    }
-
-    override fun onHidMouseLeave() {
-        hidKeyboard.onHidMouseLeave()
-    }
-
-    override fun usesNativePointer(): Boolean = hidKeyboard.usesNativePointer()
-
-    override fun nativePointerState() = hidKeyboard.nativePointerState()
-
-    override fun expectsNativePointer() = hidKeyboard.expectsNativePointer()
-
-    override fun setOnNativePointerStateChanged(listener: ((NativePointerState) -> Unit)?) {
-        hidKeyboard.setOnNativePointerStateChanged(listener)
-    }
+    // The mouse stays on Accessibility even when Shizuku or root could attach a HID mouse:
+    // that mouse brings Android's own pointer and hides the overlay, so the cursor style the
+    // user picked never showed. The privileged host is only borrowed for keys and clipboard.
 
     override fun send(event: InputLeapEvent) {
         val svc = AccessibilityInputService.getInstance() ?: return
@@ -142,44 +124,32 @@ class AccessibilityInputInjector(
                 is InputLeapEvent.MouseMoveAbs -> {
                     mouseX = event.x.toFloat().coerceIn(0f, screenWidth.toFloat())
                     mouseY = event.y.toFloat().coerceIn(0f, screenHeight.toFloat())
-                    if (!hidKeyboard.tryHidMouse(event)) {
-                        svc.injectTouchMove(mouseX, mouseY)
-                    }
+                    svc.injectTouchMove(mouseX, mouseY)
                 }
 
                 is InputLeapEvent.MouseMoveRel -> {
                     mouseX = (mouseX + event.dx).coerceIn(0f, screenWidth.toFloat())
                     mouseY = (mouseY + event.dy).coerceIn(0f, screenHeight.toFloat())
-                    if (!hidKeyboard.tryHidMouse(event)) {
-                        svc.injectTouchMove(mouseX, mouseY)
-                    }
+                    svc.injectTouchMove(mouseX, mouseY)
                 }
 
-                is InputLeapEvent.MouseDown -> {
-                    if (!hidKeyboard.tryHidMouse(event)) {
-                        when (AccessibilityMousePolicy.onButtonDown(event.buttonId, supportsTouchGestures)) {
-                            AccessibilityMouseAction.TOUCH_DOWN -> svc.injectTouchDown(mouseX, mouseY)
-                            else -> Unit
-                        }
+                is InputLeapEvent.MouseDown ->
+                    when (AccessibilityMousePolicy.onButtonDown(event.buttonId, supportsTouchGestures)) {
+                        AccessibilityMouseAction.TOUCH_DOWN -> svc.injectTouchDown(mouseX, mouseY)
+                        else -> Unit
                     }
-                }
 
-                is InputLeapEvent.MouseUp -> {
-                    if (!hidKeyboard.tryHidMouse(event)) {
-                        when (AccessibilityMousePolicy.onButtonUp(event.buttonId, supportsTouchGestures)) {
-                            AccessibilityMouseAction.TOUCH_UP -> svc.injectTouchUp(mouseX, mouseY)
-                            AccessibilityMouseAction.CLICK_NODE -> svc.clickNodeAt(mouseX, mouseY)
-                            AccessibilityMouseAction.GLOBAL_BACK -> svc.performGlobalBack()
-                            AccessibilityMouseAction.GLOBAL_HOME -> svc.performGlobalHome()
-                            else -> Unit
-                        }
+                is InputLeapEvent.MouseUp ->
+                    when (AccessibilityMousePolicy.onButtonUp(event.buttonId, supportsTouchGestures)) {
+                        AccessibilityMouseAction.TOUCH_UP -> svc.injectTouchUp(mouseX, mouseY)
+                        AccessibilityMouseAction.CLICK_NODE -> svc.clickNodeAt(mouseX, mouseY)
+                        AccessibilityMouseAction.GLOBAL_BACK -> svc.performGlobalBack()
+                        AccessibilityMouseAction.GLOBAL_HOME -> svc.performGlobalHome()
+                        else -> Unit
                     }
-                }
 
                 is InputLeapEvent.MouseWheel -> {
-                    if (hidKeyboard.tryHidMouse(event)) {
-                        // The latent privileged HID mouse scrolled natively.
-                    } else if (!supportsTouchGestures) {
+                    if (!supportsTouchGestures) {
                         // Swipes are touch gestures, which non-touch devices reject (#65).
                         // Input Leap's positive y scrolls up; scrollNodeAt's positive is down.
                         val down = -wheelNotches.accept(event.yDelta)
