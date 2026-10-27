@@ -5,7 +5,6 @@ import android.content.Context
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
-import android.view.inputmethod.InputMethodManager
 
 /**
  * Accessibility mode types through the Input Leaf keyboard, but only while the mouse is on
@@ -62,14 +61,12 @@ internal object ImeSwitcher {
         Log.i(TAG, "Restore keyboard ${target ?: "(previous)"}: $handedBack")
     }
 
-    /** The keyboard to return to, if it is still enabled. */
-    fun previousId(context: Context): String? {
-        val saved = prefs(context).getString(KEY_PREVIOUS, null) ?: return null
-        val enabled = runCatching {
-            context.getSystemService(InputMethodManager::class.java).enabledInputMethodList.map { it.id }
-        }.getOrDefault(emptyList())
-        return saved.takeIf { it in enabled }
-    }
+    /**
+     * The keyboard to return to. Not checked against the enabled list: Android 11+ hides
+     * other apps' keyboards from it. A keyboard disabled since is rejected by the switch,
+     * which then falls back to the previous one.
+     */
+    fun previousId(context: Context): String? = prefs(context).getString(KEY_PREVIOUS, null)
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 }

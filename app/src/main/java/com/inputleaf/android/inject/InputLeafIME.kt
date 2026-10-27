@@ -36,8 +36,11 @@ class InputLeafIME : InputMethodService() {
         main.post {
             runCatching {
                 when {
-                    targetId != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P -> switchInputMethod(targetId)
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.P -> switchToPreviousInputMethod()
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ->
+                        // switchInputMethod throws for a keyboard that is no longer enabled.
+                        if (targetId == null || runCatching { switchInputMethod(targetId) }.isFailure) {
+                            switchToPreviousInputMethod()
+                        }
                     else -> {
                         @Suppress("DEPRECATION")
                         getSystemService(InputMethodManager::class.java)

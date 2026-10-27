@@ -51,16 +51,6 @@ class ImeSwitcherTest {
     }
 
     @Test
-    @Config(sdk = [33])
-    fun `a saved keyboard that was disabled since is not offered`() {
-        select(gboard)
-        enable(gboard)
-        ImeSwitcher.useOurs(context)
-        enable(ImeSwitcher.ourId(context))
-        assertThat(ImeSwitcher.previousId(context)).isNull()
-    }
-
-    @Test
     @Config(sdk = [29])
     fun `before Android 11 the keyboard stays until the session ends`() {
         select(gboard)
