@@ -24,7 +24,9 @@ sealed interface UpdateCheckResult {
         val latestVersion: String,
         val changelog: String,
         val updateUrl: String,
-        val isFdroid: Boolean
+        val isFdroid: Boolean,
+        /** The APK to download and install in the app; null on F-Droid or when none fits. */
+        val apk: ReleaseApk? = null,
     ) : UpdateCheckResult
 
     data class UpToDate(val currentVersion: String) : UpdateCheckResult
@@ -367,6 +369,7 @@ private fun releaseResult(
     json: JSONObject,
     currentVersion: String,
     isFdroid: Boolean,
+    supportedAbis: List<String> = deviceAbis(),
 ): UpdateCheckResult {
     val rawTagName = json.optString("tag_name", "").trim()
     val latestVersion = rawTagName.removePrefix("v").removePrefix("V")
@@ -384,7 +387,11 @@ private fun releaseResult(
             latestVersion = latestVersion,
             changelog = releaseNotes,
             updateUrl = targetUrl,
-            isFdroid = isFdroid
+            isFdroid = isFdroid,
+            // F-Droid builds are signed by F-Droid, so a GitHub APK could never update them.
+            apk = if (isFdroid) null else ReleaseApkPicker.pick(
+                ReleaseApkPicker.parseAssets(json), latestVersion, supportedAbis,
+            ),
         )
     } else {
         UpdateCheckResult.UpToDate(currentVersion)
@@ -398,3 +405,5 @@ internal inline fun <T> HttpURLConnection.useAndDisconnect(block: HttpURLConnect
         disconnect()
     }
 }
+
+internal fun deviceAbis(): List<String> = runCatching { Build.SUPPORTED_ABIS.toList() }.getOrDefault(emptyList())
