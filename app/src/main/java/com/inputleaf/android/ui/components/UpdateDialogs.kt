@@ -15,8 +15,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.inputleaf.android.update.ApkInstaller
-import com.inputleaf.android.update.UpdateDownload
 import com.inputleaf.android.update.VersionChangelog
+import java.io.File
+
+/** Where an in-app update download is, for the update dialog. */
+sealed interface UpdateDownload {
+    data object Idle : UpdateDownload
+    data class Downloading(val done: Long, val total: Long) : UpdateDownload
+    data class Ready(val file: File) : UpdateDownload
+    data class Failed(val message: String) : UpdateDownload
+}
 
 @Composable
 fun UpdateAvailableDialog(

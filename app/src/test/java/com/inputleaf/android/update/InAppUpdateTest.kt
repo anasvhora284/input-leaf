@@ -131,6 +131,14 @@ class InAppUpdateTest {
         }
     }
 
+    @Test
+    fun openDownload_setsUserAgentAndTimeoutsWithoutConnecting() {
+        val connection = ApkDownloader.openDownload(URL(prefix + "u.apk"))
+        assertThat(connection.getRequestProperty("User-Agent")).isEqualTo("InputLeaf-Android")
+        assertThat(connection.connectTimeout).isEqualTo(15_000)
+        assertThat(connection.readTimeout).isEqualTo(30_000)
+    }
+
     private class FakeConnection(url: URL, private val code: Int, private val body: ByteArray, private val length: Long) :
         HttpURLConnection(url) {
         override fun disconnect() = Unit

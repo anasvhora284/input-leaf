@@ -9,14 +9,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
-/** Where an in-app update download is, for the update dialog. */
-sealed interface UpdateDownload {
-    data object Idle : UpdateDownload
-    data class Downloading(val done: Long, val total: Long) : UpdateDownload
-    data class Ready(val file: File) : UpdateDownload
-    data class Failed(val message: String) : UpdateDownload
-}
-
 /** The download failed or the file is not what the release published. */
 class UpdateDownloadException(message: String) : IOException(message)
 
@@ -72,8 +64,8 @@ class ApkDownloader(
             }
         }
 
-    private companion object {
-        const val BUFFER_BYTES = 64 * 1024
+    internal companion object {
+        private const val BUFFER_BYTES = 64 * 1024
 
         // GitHub answers with a redirect to its file host; HttpURLConnection follows it (both HTTPS).
         fun openDownload(url: URL): HttpURLConnection = (url.openConnection() as HttpURLConnection).apply {

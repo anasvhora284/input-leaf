@@ -36,7 +36,7 @@ import com.inputleaf.android.update.ApkDownloader
 import com.inputleaf.android.update.ApkInstaller
 import com.inputleaf.android.update.ReleaseApk
 import com.inputleaf.android.update.UpdateChannel
-import com.inputleaf.android.update.UpdateDownload
+import com.inputleaf.android.ui.components.UpdateDownload
 import com.inputleaf.android.update.UpdateCheckResult
 import com.inputleaf.android.update.UpdateService
 import com.inputleaf.android.update.VersionChangelog
