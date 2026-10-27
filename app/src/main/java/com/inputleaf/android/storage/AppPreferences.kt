@@ -8,8 +8,12 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.inputleaf.android.inject.PointerDevice
 import com.inputleaf.android.inject.ScrollSpeed
 import com.inputleaf.android.network.ConnectionTransportPolicy
+import com.inputleaf.android.service.CursorColor
+import com.inputleaf.android.service.CursorLook
+import com.inputleaf.android.service.CursorSize
 import com.inputleaf.android.update.UpdateChannel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 // internal so instrumented tests can reset app state through the app's own singleton
@@ -40,6 +44,9 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
         private val KEY_LEGACY_TLS_ENABLED = booleanPreferencesKey("tls_enabled")
         private val KEY_INPUT_METHOD     = stringPreferencesKey("input_method")
         private val KEY_CURSOR_STYLE     = stringPreferencesKey("cursor_style")
+        private val KEY_CURSOR_SIZE      = stringPreferencesKey("cursor_size")
+        private val KEY_CURSOR_FILL      = stringPreferencesKey("cursor_fill")
+        private val KEY_CURSOR_OUTLINE   = stringPreferencesKey("cursor_outline")
         private val KEY_POINTER_DEVICE   = stringPreferencesKey("pointer_device")
         private val KEY_SCROLL_SPEED     = intPreferencesKey("scroll_speed_percent")
         private val KEY_SERVER_NAMES     = stringPreferencesKey("server_display_names")
@@ -105,8 +112,15 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
     val rootGrantRemembered: Flow<Boolean> =
         dataStore.data.map { it[KEY_ROOT_GRANT_REMEMBERED] ?: false }
 
-    val cursorStyle: Flow<String> =
-        dataStore.data.map { it[KEY_CURSOR_STYLE] ?: "default" }
+    val cursorLook: Flow<CursorLook> =
+        dataStore.data.map {
+            CursorLook(
+                style = it[KEY_CURSOR_STYLE] ?: "default",
+                size = CursorSize.fromStorage(it[KEY_CURSOR_SIZE]),
+                fill = CursorColor.fromStorage(it[KEY_CURSOR_FILL], CursorColor.BLACK),
+                outline = CursorColor.fromStorage(it[KEY_CURSOR_OUTLINE], CursorColor.WHITE),
+            )
+        }.distinctUntilChanged()
 
     val pointerDevice: Flow<PointerDevice> =
         dataStore.data.map { PointerDevice.fromStorage(it[KEY_POINTER_DEVICE]) }
@@ -252,8 +266,11 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
         it[KEY_ROOT_GRANT_REMEMBERED] = remembered
     }
 
-    suspend fun saveCursorStyle(style: String) = dataStore.edit {
-        it[KEY_CURSOR_STYLE] = style
+    suspend fun saveCursorLook(look: CursorLook) = dataStore.edit {
+        it[KEY_CURSOR_STYLE] = look.style
+        it[KEY_CURSOR_SIZE] = look.size.storageValue
+        it[KEY_CURSOR_FILL] = look.fill.storageValue
+        it[KEY_CURSOR_OUTLINE] = look.outline.storageValue
     }
 
     suspend fun saveScrollSpeed(percent: Int) = dataStore.edit {

@@ -171,7 +171,7 @@ class MainViewModel @JvmOverloads constructor(
     val autoConnect: Flow<Boolean> = prefs.autoConnect
     val fingerprints: Flow<Map<String, String>> = prefs.allFingerprints()
     val themeMode: Flow<String> = prefs.themeMode
-    val cursorStyle: Flow<String> = prefs.cursorStyle
+    val cursorLook: Flow<com.inputleaf.android.service.CursorLook> = prefs.cursorLook
     val leafOnboardingComplete: Flow<Boolean> = prefs.leafOnboardingComplete
     val onboardingComplete: Flow<Boolean> = prefs.leafOnboardingComplete
 
@@ -299,7 +299,9 @@ class MainViewModel @JvmOverloads constructor(
     fun toggleKeyboardEnabled(enabled: Boolean) { viewModelScope.launch { prefs.saveKeyboardEnabled(enabled) } }
     fun toggleFavoriteServer(ip: String) { viewModelScope.launch { prefs.toggleFavoriteServer(ip) } }
     fun removeSavedServer(ip: String) { viewModelScope.launch { prefs.removeServer(ip) } }
-    fun saveCursorStyle(style: String) { viewModelScope.launch { prefs.saveCursorStyle(style) } }
+    fun saveCursorLook(look: com.inputleaf.android.service.CursorLook) {
+        viewModelScope.launch { prefs.saveCursorLook(look) }
+    }
     fun saveScrollSpeed(percent: Int) {
         viewModelScope.launch { prefs.saveScrollSpeed(percent) }
     }

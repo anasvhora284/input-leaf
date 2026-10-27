@@ -83,7 +83,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
         initial = ConnectionTransportPolicy.AUTO
     )
     val clientCertificateSummary by viewModel.clientCertificateSummary.collectAsStateWithLifecycle()
-    val cursorStyle by viewModel.cursorStyle.collectAsState(initial = "default")
+    val cursorLook by viewModel.cursorLook.collectAsState(initial = com.inputleaf.android.service.CursorLook())
     val pointerDevice by viewModel.pointerDevice.collectAsState(initial = PointerDevice.MOUSE)
     val scrollSpeed by viewModel.scrollSpeed.collectAsState(initial = ScrollSpeed.DEFAULT)
     val shizukuAvailable by viewModel.shizukuAvailable.collectAsState(initial = false)
@@ -349,7 +349,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     themeMode = themeMode,
                     inputMethod = inputMethod,
                     connectionTransportPolicy = connectionTransportPolicy,
-                    cursorStyle = cursorStyle,
+                    cursorLook = cursorLook,
                     pointerDevice = pointerDevice,
                     scrollSpeed = scrollSpeed,
                     shizukuAvailable = shizukuAvailable,
@@ -368,7 +368,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     onConnectionTransportPolicyChange = {
                         viewModel.saveConnectionTransportPolicy(it)
                     },
-                    onCursorStyleChange = { viewModel.saveCursorStyle(it) },
+                    onCursorLookChange = { viewModel.saveCursorLook(it) },
                     onPointerDeviceChange = { viewModel.savePointerDevice(it) },
                     onScrollSpeedChange = { viewModel.saveScrollSpeed(it) },
                     onRequestOverlayPermission = {

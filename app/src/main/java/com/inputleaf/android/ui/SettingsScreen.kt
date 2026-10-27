@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -22,12 +23,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import com.inputleaf.android.service.CursorColor
+import com.inputleaf.android.service.CursorHotspot
+import com.inputleaf.android.service.CursorLook
+import com.inputleaf.android.service.CursorSize
 import androidx.compose.ui.unit.dp
 import com.inputleaf.android.R
 import com.inputleaf.android.inject.PointerDevice
@@ -55,7 +64,7 @@ fun SettingsScreen(
     themeMode: String,
     inputMethod: String,
     connectionTransportPolicy: ConnectionTransportPolicy,
-    cursorStyle: String,
+    cursorLook: CursorLook,
     pointerDevice: PointerDevice,
     scrollSpeed: Int = ScrollSpeed.DEFAULT,
     shizukuAvailable: Boolean,
@@ -72,7 +81,7 @@ fun SettingsScreen(
     onThemeModeChange: (String) -> Unit,
     onInputMethodChange: (String) -> Unit,
     onConnectionTransportPolicyChange: (ConnectionTransportPolicy) -> Unit,
-    onCursorStyleChange: (String) -> Unit,
+    onCursorLookChange: (CursorLook) -> Unit,
     onPointerDeviceChange: (PointerDevice) -> Unit,
     onScrollSpeedChange: (Int) -> Unit = {},
     onRequestOverlayPermission: () -> Unit,
@@ -215,7 +224,11 @@ fun SettingsScreen(
                         SettingsRow(
                             icon = Icons.Rounded.Edit,
                             title = "Cursor style",
-                            subtitle = if (cursorStyle == "leaf") "Input Leaf custom" else "Android default",
+                            subtitle = if (cursorLook.style == "leaf") {
+                                "Input Leaf · ${cursorLook.size.label}"
+                            } else {
+                                "Android · ${cursorLook.fill.label} · ${cursorLook.size.label}"
+                            },
                             shapes = shapes,
                             onClick = { showCursorStyleDialog = true }
                         )
@@ -654,35 +667,66 @@ fun SettingsScreen(
     if (showCursorStyleDialog) {
         AlertDialog(
             onDismissRequest = { showCursorStyleDialog = false },
-            title = { Text("Select Cursor Style") },
+            title = { Text("Cursor") },
             text = {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    CursorStyleCard(
-                        label = "Default",
-                        painter = painterResource(id = R.drawable.ic_cursor_aosp),
-                        mirrored = false,
-                        selected = cursorStyle == "default",
-                        onClick = {
-                            onCursorStyleChange("default")
-                            showCursorStyleDialog = false
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                    CursorStyleCard(
-                        label = "Input Leaf",
-                        painter = painterResource(id = R.drawable.cursor),
-                        mirrored = true,
-                        selected = cursorStyle == "leaf",
-                        onClick = {
-                            onCursorStyleChange("leaf")
-                            showCursorStyleDialog = false
-                        },
-                        modifier = Modifier.weight(1f),
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        CursorStyleCard(
+                            label = "Android",
+                            look = cursorLook.copy(style = "default"),
+                            selected = cursorLook.style == "default",
+                            onClick = { onCursorLookChange(cursorLook.copy(style = "default")) },
+                            modifier = Modifier.weight(1f),
+                        )
+                        CursorStyleCard(
+                            label = "Input Leaf",
+                            look = cursorLook.copy(style = "leaf"),
+                            selected = cursorLook.style == "leaf",
+                            onClick = { onCursorLookChange(cursorLook.copy(style = "leaf")) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    Text("Size", style = MaterialTheme.typography.labelLarge)
+                    ChipRow {
+                        CursorSize.entries.forEach { size ->
+                            FilterChip(
+                                selected = cursorLook.size == size,
+                                onClick = { onCursorLookChange(cursorLook.copy(size = size)) },
+                                label = { Text(size.label) },
+                            )
+                        }
+                    }
+                    if (cursorLook.style == "default") {
+                        Text("Colour", style = MaterialTheme.typography.labelLarge)
+                        ChipRow {
+                            CursorColor.entries.forEach { color ->
+                                ColorSwatch(
+                                    color = color,
+                                    selected = cursorLook.fill == color,
+                                    onClick = { onCursorLookChange(cursorLook.copy(fill = color)) },
+                                )
+                            }
+                        }
+                        Text("Outline", style = MaterialTheme.typography.labelLarge)
+                        ChipRow {
+                            CursorColor.OUTLINES.forEach { color ->
+                                FilterChip(
+                                    selected = cursorLook.outline == color,
+                                    onClick = { onCursorLookChange(cursorLook.copy(outline = color)) },
+                                    label = { Text(color.label) },
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = "Used in Accessibility mode. Shizuku and root use Android's own pointer.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             },
@@ -882,8 +926,7 @@ private fun NoticeCard(
 @Composable
 private fun CursorStyleCard(
     label: String,
-    painter: Painter,
-    mirrored: Boolean,
+    look: CursorLook,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -918,19 +961,64 @@ private fun CursorStyleCard(
                 color = MaterialTheme.colorScheme.surfaceContainerHighest,
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Image(
-                        painter = painter,
-                        contentDescription = "$label Cursor",
-                        modifier = Modifier
-                            .size(36.dp)
-                            .graphicsLayer(scaleX = if (mirrored) -1f else 1f)
-                    )
+                    CursorPreview(look = look, contentDescription = "$label cursor")
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(text = label, style = MaterialTheme.typography.labelLargeEmphasized)
         }
     }
+}
+
+/** The overlay cursor as drawn on screen, at its chosen size up to the preview box. */
+@Composable
+private fun CursorPreview(look: CursorLook, contentDescription: String) {
+    val modifier = Modifier
+        .size((36 * look.size.scale).coerceAtMost(56f).dp)
+        .graphicsLayer(scaleX = if (look.hotspot.mirrored) -1f else 1f)
+    if (look.hotspot == CursorHotspot.LEAF) {
+        Image(painterResource(R.drawable.cursor), contentDescription, modifier)
+    } else {
+        Box(modifier) {
+            Image(
+                painterResource(R.drawable.ic_cursor_aosp_fill),
+                contentDescription,
+                Modifier.fillMaxSize(),
+                colorFilter = ColorFilter.tint(Color(look.fill.argb)),
+            )
+            Image(
+                painterResource(R.drawable.ic_cursor_aosp_outline),
+                null,
+                Modifier.fillMaxSize(),
+                colorFilter = ColorFilter.tint(Color(look.outline.argb)),
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ChipRow(content: @Composable () -> Unit) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) { content() }
+}
+
+@Composable
+private fun ColorSwatch(color: CursorColor, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier
+            .size(40.dp)
+            .semantics { contentDescription = color.label; this.selected = selected },
+        shape = CircleShape,
+        color = Color(color.argb),
+        border = BorderStroke(
+            if (selected) 3.dp else 1.dp,
+            if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+        ),
+    ) {}
 }
 
 private fun openUrl(context: android.content.Context, url: String) {

@@ -42,7 +42,7 @@ class CursorOverlayService : Service() {
     
     private lateinit var prefs: com.inputleaf.android.storage.AppPreferences
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
-    private var currentCursorStyle = "default"
+    private var cursorLook = CursorLook()
     
     companion object {
         private var instance: CursorOverlayService? = null
@@ -134,8 +134,8 @@ class CursorOverlayService : Service() {
         
         prefs = com.inputleaf.android.storage.AppPreferences(this)
         scope.launch {
-            prefs.cursorStyle.collect { style ->
-                currentCursorStyle = style
+            prefs.cursorLook.collect { look ->
+                cursorLook = look
                 updateCursorImage()
             }
         }
@@ -158,7 +158,10 @@ class CursorOverlayService : Service() {
     
     private fun updateCursorImage() {
         val imageView = cursorView as? android.widget.ImageView ?: return
-        CursorOverlayView.applyStyle(imageView, currentCursorStyle)
+        CursorOverlayView.applyLook(imageView, cursorLook)
+        (imageView.layoutParams as? android.view.WindowManager.LayoutParams)?.let {
+            CursorOverlayView.resize(it, this, cursorLook)
+        }
         moveCursorInternal(_cursorX.value, _cursorY.value)
     }
 
@@ -186,7 +189,7 @@ class CursorOverlayService : Service() {
                 isShowing = false
                 return
             }
-            val view = CursorOverlayView.create(this, currentCursorStyle)
+            val view = CursorOverlayView.create(this, cursorLook)
             cursorView = view
             val params = CursorOverlayView.layoutParams(
                 this,
@@ -196,7 +199,7 @@ class CursorOverlayService : Service() {
                     @Suppress("DEPRECATION")
                     WindowManager.LayoutParams.TYPE_PHONE
                 },
-                currentCursorStyle, _cursorX.value, _cursorY.value,
+                cursorLook, _cursorX.value, _cursorY.value,
             )
             try {
                 windowManager?.addView(view, params)
@@ -220,7 +223,7 @@ class CursorOverlayService : Service() {
     private fun moveCursorInternal(x: Float, y: Float) {
         cursorView?.let { view ->
             val params = view.layoutParams as? WindowManager.LayoutParams ?: return
-            CursorOverlayView.place(params, currentCursorStyle, x, y)
+            CursorOverlayView.place(params, cursorLook, x, y)
             try {
                 windowManager?.updateViewLayout(view, params)
             } catch (e: Exception) {

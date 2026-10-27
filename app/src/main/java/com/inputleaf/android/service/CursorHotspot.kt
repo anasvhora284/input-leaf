@@ -18,7 +18,7 @@ enum class CursorHotspot(
     val tipY: Float,
     val mirrored: Boolean,
 ) {
-    /** ic_cursor_aosp.xml: 24x24 viewport, tip = top-left corner of the black body at (3.9, 3.7). */
+    /** ic_cursor_aosp_fill.xml / _outline.xml: 24x24 viewport, tip = top-left corner of the black body at (3.9, 3.7). */
     DEFAULT(aspect = 1f, tipX = 3.9f / 24f, tipY = 3.7f / 24f, mirrored = false),
 
     /** cursor.xml: 493x512 viewport, arrow head apex at (332, 165); drawn flipped so it points up-left. */
