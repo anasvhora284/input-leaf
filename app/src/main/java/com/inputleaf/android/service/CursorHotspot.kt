@@ -21,8 +21,11 @@ enum class CursorHotspot(
     /** ic_cursor_aosp_fill.xml / _outline.xml: 24x24 viewport, tip = top-left corner of the black body at (3.9, 3.7). */
     DEFAULT(aspect = 1f, tipX = 3.9f / 24f, tipY = 3.7f / 24f, mirrored = false),
 
-    /** cursor.xml: 493x512 viewport, arrow head apex at (332, 165); drawn flipped so it points up-left. */
-    LEAF(aspect = 493f / 512f, tipX = 332f / 493f, tipY = 165f / 512f, mirrored = true);
+    /**
+     * cursor.xml: 493x512 viewport, outer tip of the leaf at (425, 68); drawn flipped so it
+     * points up-left. The leaf, not the white arrow inside it, is what reads as the pointer.
+     */
+    LEAF(aspect = 493f / 512f, tipX = 425f / 493f, tipY = 68f / 512f, mirrored = true);
 
     /** Tip position in window pixels, measured from the window's top-left, for a square window. */
     fun tipInWindow(windowSize: Int): Pair<Float, Float> {

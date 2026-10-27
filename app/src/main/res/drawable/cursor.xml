@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Input Leaf cursor, traced from the original cursor artwork so it stays sharp at any size.
-     Viewport matches the original 493x512 image, so CursorHotspot.LEAF still points at the tip.
+     Viewport matches the original 493x512 image, so CursorHotspot.LEAF can name the leaf tip in its pixels.
      The veins, circuit lines and arrow outline are cut-outs (evenOdd), as in the original. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"

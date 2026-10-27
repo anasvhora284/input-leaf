@@ -41,9 +41,9 @@ class CursorHotspotTest {
     @Test
     fun `leaf tip is mirrored so it is left of centre`() {
         val (tx, ty) = CursorHotspot.LEAF.tipInWindow(size)
-        // image tip x = 1.5 (fit-centre pad) + 332/493*77 = 53.35, flipped: 80 - 53.35
-        assertThat(tx).isWithin(0.05f).of(26.65f)
-        assertThat(ty).isWithin(0.05f).of(165f / 512f * 80f)
+        // image tip x = 1.48 (fit-centre pad) + 425/493*77.03 = 67.89, flipped: 80 - 67.89
+        assertThat(tx).isWithin(0.05f).of(12.11f)
+        assertThat(ty).isWithin(0.05f).of(68f / 512f * 80f)
     }
 
     @Test
