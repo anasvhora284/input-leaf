@@ -30,16 +30,11 @@ class ShizukuActiveSessionPolicyTest {
     fun `shizuku restart is ignored only for the root injector itself`() {
         val root = ShizukuInputInjector(10, 10, StubHost(PrivilegeKind.ROOT))
         val shizuku = ShizukuInputInjector(10, 10, StubHost(PrivilegeKind.SHIZUKU))
-        val accessibility = AccessibilityInputInjector(
-            mock(Context::class.java),
-            10,
-            10,
-            hidKeyboard = root,
-        )
+        val accessibility = AccessibilityInputInjector(mock(Context::class.java), 10, 10)
 
         assertThat(shouldIgnoreShizukuRestart(root)).isTrue()
         assertThat(shouldIgnoreShizukuRestart(shizuku)).isFalse()
-        assertThat(accessibility.privilegeKind()).isEqualTo(PrivilegeKind.ROOT)
+        assertThat(accessibility.privilegeKind()).isEqualTo(PrivilegeKind.NONE)
         assertThat(shouldIgnoreShizukuRestart(accessibility)).isFalse()
         assertThat(shouldIgnoreShizukuRestart(null)).isFalse()
     }

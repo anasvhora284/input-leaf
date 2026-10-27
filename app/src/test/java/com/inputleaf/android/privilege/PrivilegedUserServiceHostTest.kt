@@ -274,7 +274,7 @@ class PrivilegedUserServiceHostTest {
     }
 
     @Test
-    fun `accessibility latent hid does not bind root that was never asked`() {
+    fun `accessibility never takes a privileged host, even with root granted`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val previous = LibSuRootAccess.pathExists
         try {
@@ -286,7 +286,7 @@ class PrivilegedUserServiceHostTest {
 
                 shells.`when`<Boolean?> { Shell.isAppGrantedRoot() }.thenReturn(true)
                 val granted = AccessibilityInputInjector(context, 1080, 1920)
-                assertThat(granted.privilegeKind()).isEqualTo(PrivilegeKind.ROOT)
+                assertThat(granted.privilegeKind()).isEqualTo(PrivilegeKind.NONE)
             }
         } finally {
             LibSuRootAccess.pathExists = previous

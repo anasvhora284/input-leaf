@@ -56,7 +56,7 @@ fun PermissionMethodsAccordion(
     accessibilityAvailable: Boolean,
     canDrawOverlays: Boolean,
     batteryOptimizationExempt: Boolean,
-    imeEnabledAndSelected: Boolean,
+    imeEnabled: Boolean,
     onRequestShizukuPermission: () -> Unit,
     onRequestRootAccess: () -> Unit,
     onRequestOverlayPermission: () -> Unit,
@@ -117,7 +117,7 @@ fun PermissionMethodsAccordion(
         PermissionMethodSection(
             title = "Non-root Accessibility",
             subtitle = methodSubtitle(
-                accessibilityMethodSubtitle(accessibilityAvailable, canDrawOverlays, imeEnabledAndSelected),
+                accessibilityMethodSubtitle(accessibilityAvailable, canDrawOverlays, imeEnabled),
                 inUse == PermissionMethod.ACCESSIBILITY,
             ),
             icon = Icons.Rounded.Accessibility,
@@ -137,9 +137,9 @@ fun PermissionMethodsAccordion(
             PermissionCard(
                 icon = Icons.Rounded.Warning,
                 title = "Virtual Keyboard",
-                description = "Required for hardware shortcuts like Ctrl+C without Shizuku or root",
-                buttonLabel = "Select Keyboard",
-                isGranted = imeEnabledAndSelected,
+                description = "Types for you. Selected only while your mouse is on this screen, then your keyboard comes back",
+                buttonLabel = "Enable Keyboard",
+                isGranted = imeEnabled,
                 onRequestPermission = onRequestImeSetup,
             )
             PermissionCard(
@@ -295,9 +295,9 @@ private fun rootMethodSubtitle(status: RootStatus): String = when (status) {
 private fun accessibilityMethodSubtitle(
     accessibilityAvailable: Boolean,
     canDrawOverlays: Boolean,
-    imeEnabledAndSelected: Boolean,
+    imeEnabled: Boolean,
 ): String {
-    val granted = listOf(accessibilityAvailable, canDrawOverlays, imeEnabledAndSelected).count { it }
+    val granted = listOf(accessibilityAvailable, canDrawOverlays, imeEnabled).count { it }
     return if (granted == 3) "Ready" else "$granted of 3 set up"
 }
 

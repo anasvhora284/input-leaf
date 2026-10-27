@@ -193,7 +193,7 @@ class MainViewModel @JvmOverloads constructor(
     val rootGranted: Flow<Boolean> = permissionProvider.rootGranted
     val rootUsable: Flow<Boolean> = permissionProvider.rootUsable
     val accessibilityAvailable: Flow<Boolean> = permissionProvider.accessibilityAvailable
-    val imeEnabledAndSelected: Flow<Boolean> = permissionProvider.imeEnabledAndSelected
+    val imeEnabled: Flow<Boolean> = permissionProvider.imeEnabled
 
     // TOFU: suspending channel — UI collects this and shows FingerprintDialog
     private val _fingerprintRequest = Channel<FingerprintRequest>(1)

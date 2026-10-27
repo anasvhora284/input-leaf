@@ -94,6 +94,22 @@ class AccessibilityInputService : AccessibilityService() {
         super.onDestroy()
     }
 
+    /**
+     * Select the keyboard [imeId]. Android 11+ does it silently; older versions only
+     * through the picker, where [onAccessibilityEvent] taps the matching entry.
+     */
+    fun switchKeyboard(imeId: String): Boolean {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            return runCatching { softKeyboardController.switchToInputMethod(imeId) }.getOrDefault(false)
+        }
+        val imm = getSystemService(android.view.inputmethod.InputMethodManager::class.java) ?: return false
+        val label = imm.enabledInputMethodList.firstOrNull { it.id == imeId }
+            ?.loadLabel(packageManager)?.toString() ?: return false
+        targetImeLabelToSelect = label
+        android.os.Handler(android.os.Looper.getMainLooper()).post { imm.showInputMethodPicker() }
+        return true
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val target = targetImeLabelToSelect ?: return
         val rootNode = rootInActiveWindow ?: return

@@ -83,7 +83,7 @@ class PermissionStatusProvider(
         }
     }.distinctUntilChanged()
 
-    val imeEnabledAndSelected: Flow<Boolean> = flow {
+    val imeEnabled: Flow<Boolean> = flow {
         val resolver = app.contentResolver
         val comp = ComponentName(
             app,
@@ -92,12 +92,12 @@ class PermissionStatusProvider(
         val shortName = comp.flattenToShortString()
         val fullName = comp.flattenToString()
         
+        // Enabled is enough: Accessibility mode selects it while the mouse is on this screen.
+        // (The ENABLED_INPUT_METHODS setting is unreadable at targetSdk 34+, so ask the IMM.)
+        val imm = app.getSystemService(android.view.inputmethod.InputMethodManager::class.java)
         while (true) {
-            val defaultIme = Settings.Secure.getString(
-                resolver,
-                Settings.Secure.DEFAULT_INPUT_METHOD
-            ) ?: ""
-            emit(defaultIme == shortName || defaultIme == fullName)
+            val enabled = runCatching { imm.enabledInputMethodList.map { it.id } }.getOrDefault(emptyList())
+            emit(shortName in enabled || fullName in enabled)
             delay(2000)
         }
     }.distinctUntilChanged()

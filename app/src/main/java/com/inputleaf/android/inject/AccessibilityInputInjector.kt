@@ -6,48 +6,32 @@ import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
 import com.inputleaf.android.model.InputLeapEvent
-import com.inputleaf.android.privilege.PrivilegeKind
-import com.inputleaf.android.privilege.PrivilegedInjectorFactory
-import com.inputleaf.android.privilege.snapshotForLatentHid
-import com.inputleaf.android.shizuku.ShizukuInputInjector
 import kotlinx.coroutines.delay
 
 private const val TAG = "AccessibilityInputInjector"
 
+/**
+ * Accessibility mode is entirely virtual: gestures and the overlay cursor for the mouse,
+ * the Input Leaf keyboard (IME) for keys. It never starts a Shizuku or root process, so
+ * switching to it cannot leave HID devices or injector processes behind.
+ */
 class AccessibilityInputInjector(
     private val context: Context,
     private var screenWidth: Int,
     private var screenHeight: Int,
-    private val hidKeyboard: ShizukuInputInjector = PrivilegedInjectorFactory.create(
-        context,
-        screenWidth,
-        screenHeight,
-        snapshot = snapshotForLatentHid(PrivilegedInjectorFactory.currentSnapshot()),
-    ),
 ) : InputInjector {
 
     override val name: String = "Accessibility Service (no extra app)"
 
-    override fun privilegeKind(): PrivilegeKind = hidKeyboard.privilegeKind()
-
     override fun updateScreenSize(width: Int, height: Int) {
         screenWidth = width
         screenHeight = height
-        hidKeyboard.updateScreenSize(width, height)
     }
-
-    override fun updatePointerSpeed(speed: Int) {
-        hidKeyboard.updatePointerSpeed(speed)
-    }
-
-    // The latent privileged injector, when present, may read the clipboard in the background.
-    override fun readClipboardTextIfChanged(): String? = hidKeyboard.readClipboardTextIfChanged()
 
     override fun setScrollSpeed(percent: Int) {
         scrollSpeed = ScrollSpeed.multiplier(percent)
         wheelNotches.speed = scrollSpeed
         hWheelNotches.speed = scrollSpeed
-        hidKeyboard.setScrollSpeed(percent)
     }
 
     private var mouseX = 0f
@@ -91,10 +75,6 @@ class AccessibilityInputInjector(
         val connected = AccessibilityInputService.isServiceRunning()
         if (connected) {
             Log.d(TAG, "Accessibility service connected successfully")
-            if (hidKeyboard.isAvailable()) {
-                val hidBound = hidKeyboard.connect()
-                Log.i(TAG, "Privileged HID bind after accessibility: $hidBound kind=${hidKeyboard.privilegeKind()}")
-            }
         } else {
             Log.e(TAG, "Accessibility service connection timeout")
         }
@@ -104,17 +84,18 @@ class AccessibilityInputInjector(
     override fun disconnect() {
         scanCodeDecoder.clearPressedKeys()
         Log.d(TAG, "disconnect called")
-        hidKeyboard.disconnect()
+        ImeSwitcher.restore(context)
     }
 
+    /** The "keyboard" here is the Input Leaf IME: selected on Enter, handed back on Leave. */
     override fun setHidKeyboardAttached(attached: Boolean) {
-        if (!attached) scanCodeDecoder.clearPressedKeys()
-        hidKeyboard.setHidKeyboardAttached(attached)
+        if (attached) {
+            ImeSwitcher.useOurs(context)
+        } else {
+            scanCodeDecoder.clearPressedKeys()
+            ImeSwitcher.restore(context, leaving = true)
+        }
     }
-
-    // The mouse stays on Accessibility even when Shizuku or root could attach a HID mouse:
-    // that mouse brings Android's own pointer and hides the overlay, so the cursor style the
-    // user picked never showed. The privileged host is only borrowed for keys and clipboard.
 
     override fun send(event: InputLeapEvent) {
         val svc = AccessibilityInputService.getInstance() ?: return
@@ -184,9 +165,6 @@ class AccessibilityInputInjector(
 
     private fun handleKeyEvent(keysym: Int, mask: Int, button: Int, isDown: Boolean) {
         val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown)
-        if (hidKeyboard.tryHidKey(scancode, isDown)) {
-            return
-        }
         if (AccessibilityKeyPolicy.isBackKey(keysym, mask)) {
             if (isDown) AccessibilityInputService.getInstance()?.performGlobalBack()
             return
@@ -232,9 +210,6 @@ class AccessibilityInputInjector(
 
     private fun handleKeyRepeat(keysym: Int, mask: Int, button: Int, count: Int) {
         val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown = true)
-        if (hidKeyboard.tryHidKey(scancode, isDown = true)) {
-            return
-        }
         // A held Esc must not fire Back again for every repeat.
         if (AccessibilityKeyPolicy.isBackKey(keysym, mask)) return
         val ime = InputLeafIME.getInstance()

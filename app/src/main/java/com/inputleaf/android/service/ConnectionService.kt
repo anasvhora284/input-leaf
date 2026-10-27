@@ -70,9 +70,6 @@ class ConnectionService : Service() {
     private val clipboardSync = ClipboardSync()
     @Volatile private var lastAppClipTimestamp = Long.MIN_VALUE
     @Volatile private var scrollSpeedPercent = ScrollSpeed.DEFAULT
-    private var previousImeId: String? = null
-    private var previousImeLabel: String? = null
-    private var isUsingAccessibilityIme = false
     private var shizukuRecoveryJob: Job? = null
     @Volatile private var leaveDebounceJob: Job? = null
     @Volatile private var hidMouseIdleJob: Job? = null
@@ -320,7 +317,6 @@ class ConnectionService : Service() {
                     conn.clearHandshakeTimeout()
                     startEventLoop(conn, serverIp, screenName, generation)
                     startKeepAliveMonitor(conn, generation)
-                    autoSwitchImeToOurs()
                 }
                 is ConnectResult.RejectedByUser -> {
                     conn.close()
@@ -414,7 +410,6 @@ class ConnectionService : Service() {
                         applyCursorOverlay()
                         setHidKeyboardAttached(false)
                         setHidMouseAttached(false)
-                        restorePreviousIme()
                         if (result.retry != null) {
                             scheduleRetry(ip, screenName, result.retry.delayMs, result.retry.generation)
                         }
@@ -588,11 +583,6 @@ class ConnectionService : Service() {
             } else {
                 previous.disconnect()
             }
-            if (this.injector is com.inputleaf.android.inject.AccessibilityInputInjector &&
-                injector !is com.inputleaf.android.inject.AccessibilityInputInjector
-            ) {
-                restorePreviousIme()
-            }
         }
         this.injector = injector
         hidKeyboardGate.noteInjectorChanged()
@@ -638,7 +628,6 @@ class ConnectionService : Service() {
                     applyCursorOverlay()
                     setHidKeyboardAttached(false)
                     setHidMouseAttached(false)
-                    restorePreviousIme()
                     break
                 }
             }
@@ -682,7 +671,6 @@ class ConnectionService : Service() {
         injector?.disconnect()
         injector = null
         applyCursorOverlay()
-        restorePreviousIme()
         runCatching {
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         }.onFailure { error ->
@@ -723,61 +711,7 @@ class ConnectionService : Service() {
 
     internal fun getScreenBounds(): Rect = ScreenBoundsResolver.resolveFromContext(this)
 
-    private fun autoSwitchImeToOurs() {
-        if (injector !is com.inputleaf.android.inject.AccessibilityInputInjector) {
-            return
-        }
-        try {
-            val currentIme = Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
-            val ourIme = android.content.ComponentName(this, com.inputleaf.android.inject.InputLeafIME::class.java).flattenToShortString()
-            if (currentIme != ourIme) {
-                isUsingAccessibilityIme = true
-                previousImeId = currentIme
-                val imm = getSystemService(android.view.inputmethod.InputMethodManager::class.java)
-                val list = imm.enabledInputMethodList
-                for (info in list) {
-                    if (info.id == currentIme) {
-                        previousImeLabel = info.loadLabel(packageManager).toString()
-                        break
-                    }
-                }
-                if (com.inputleaf.android.inject.AccessibilityInputService.isServiceRunning()) {
-                    com.inputleaf.android.inject.AccessibilityInputService.targetImeLabelToSelect = "Input Leaf Keyboard"
-                }
-                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    imm.showInputMethodPicker()
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to auto-switch IME", e)
-        }
-    }
-
-    private fun restorePreviousIme() {
-        if (!isUsingAccessibilityIme) {
-            return
-        }
-        isUsingAccessibilityIme = false
-        try {
-            val currentIme = Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
-            val ourIme = android.content.ComponentName(this, com.inputleaf.android.inject.InputLeafIME::class.java).flattenToShortString()
-            if (currentIme == ourIme && previousImeLabel != null) {
-                if (com.inputleaf.android.inject.AccessibilityInputService.isServiceRunning()) {
-                    com.inputleaf.android.inject.AccessibilityInputService.targetImeLabelToSelect = previousImeLabel
-                }
-                val imm = getSystemService(android.view.inputmethod.InputMethodManager::class.java)
-                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    imm.showInputMethodPicker()
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to restore previous IME", e)
-        }
-    }
-
     private fun handleShizukuDied() {
-        // AccessibilityInputInjector also reports SHIZUKU (it holds a latent Shizuku host),
-        // so the kind alone would tear down a working Accessibility session.
         val inj = injector
         if (inj is ShizukuInputInjector && inj.privilegeKind() == PrivilegeKind.SHIZUKU) {
             Log.w(TAG, "Shizuku binder died while using Shizuku injector; disconnecting injector")
@@ -859,7 +793,6 @@ class ConnectionService : Service() {
         injector?.setOnNativePointerStateChanged(null)
         injector?.disconnect()
         applyCursorOverlay()
-        restorePreviousIme()
         stopService(Intent(this, CursorOverlayService::class.java))
         super.onDestroy()
     }

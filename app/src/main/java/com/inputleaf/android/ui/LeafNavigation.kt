@@ -91,7 +91,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
     val rootUsable by viewModel.rootUsable.collectAsState(initial = false)
     val accessibilityAvailable by viewModel.accessibilityAvailable.collectAsState(initial = false)
     val activeMethod by viewModel.activeMethod.collectAsState()
-    val imeEnabledAndSelected by viewModel.imeEnabledAndSelected.collectAsStateWithLifecycle(initialValue = false)
+    val imeEnabled by viewModel.imeEnabled.collectAsStateWithLifecycle(initialValue = false)
     val updateCheckResult by viewModel.updateCheckResult.collectAsStateWithLifecycle()
     val updateDownload by viewModel.updateDownload.collectAsStateWithLifecycle()
     val updateInstallStatus by viewModel.updateInstallStatus.collectAsStateWithLifecycle()
@@ -239,7 +239,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
             accessibilityAvailable = accessibilityAvailable,
             canDrawOverlays = canDrawOverlays,
             batteryOptimizationExempt = batteryOptimizationExempt,
-            imeEnabledAndSelected = imeEnabledAndSelected,
+            imeEnabled = imeEnabled,
             onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
             onRequestRootAccess = { viewModel.requestRootAccess() },
             onRequestOverlayPermission = {
@@ -327,7 +327,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     accessibilityAvailable = accessibilityAvailable,
                     canDrawOverlays = canDrawOverlays,
                     batteryOptimizationExempt = batteryOptimizationExempt,
-                    imeEnabledAndSelected = imeEnabledAndSelected,
+                    imeEnabled = imeEnabled,
                     onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
                     onRequestRootAccess = { viewModel.requestRootAccess() },
                     onRequestOverlayPermission = {
@@ -404,22 +404,12 @@ fun LeafNavigation(viewModel: MainViewModel) {
 }
 
 private fun openImeSetup(context: android.content.Context) {
-    val imm = context.getSystemService(android.view.inputmethod.InputMethodManager::class.java)
-    val enabledIds = imm.enabledInputMethodList.map { it.id }
-    val ourId = ComponentName(
-        context.packageName,
-        com.inputleaf.android.inject.InputLeafIME::class.java.name,
-    ).flattenToShortString()
-    if (enabledIds.contains(ourId)) {
-        imm.showInputMethodPicker()
-    } else {
-        context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
-        Toast.makeText(
-            context,
-            "Enable Input Leaf Keyboard, then click again to select it",
-            Toast.LENGTH_LONG,
-        ).show()
-    }
+    context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+    Toast.makeText(
+        context,
+        "Turn on Input Leaf Keyboard. It is used only while your mouse is on this screen.",
+        Toast.LENGTH_LONG,
+    ).show()
 }
 
 private fun openAccessibilitySettings(context: android.content.Context) {
