@@ -158,15 +158,10 @@ class CursorOverlayService : Service() {
     
     private fun updateCursorImage() {
         val imageView = cursorView as? android.widget.ImageView ?: return
-        val resId = if (currentCursorStyle == "leaf") {
-            com.inputleaf.android.R.drawable.cursor
-        } else {
-            com.inputleaf.android.R.drawable.ic_cursor_aosp
-        }
-        imageView.setImageResource(resId)
-        imageView.scaleX = if (currentCursorStyle == "leaf") -1f else 1f
+        CursorOverlayView.applyStyle(imageView, currentCursorStyle)
+        moveCursorInternal(_cursorX.value, _cursorY.value)
     }
-    
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_SHOW -> showCursorInternal()
@@ -191,37 +186,17 @@ class CursorOverlayService : Service() {
                 isShowing = false
                 return
             }
-            val resId = if (currentCursorStyle == "leaf") {
-                com.inputleaf.android.R.drawable.cursor
-            } else {
-                com.inputleaf.android.R.drawable.ic_cursor_aosp
-            }
-            val scaleXValue = if (currentCursorStyle == "leaf") -1f else 1f
-            val view = android.widget.ImageView(this).apply {
-                setImageResource(resId)
-                scaleX = scaleXValue
-                visibility = android.view.View.INVISIBLE
-            }
+            val view = CursorOverlayView.create(this, currentCursorStyle)
             cursorView = view
-            val params = WindowManager.LayoutParams(
-                CURSOR_SIZE,
-                CURSOR_SIZE,
+            val params = CursorOverlayView.layoutParams(
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 } else {
                     @Suppress("DEPRECATION")
                     WindowManager.LayoutParams.TYPE_PHONE
                 },
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                PixelFormat.TRANSLUCENT
-            ).apply {
-                gravity = Gravity.TOP or Gravity.START
-                x = _cursorX.value.toInt() - CURSOR_SIZE / 2
-                y = _cursorY.value.toInt() - CURSOR_SIZE / 2
-            }
+                currentCursorStyle, _cursorX.value, _cursorY.value,
+            )
             try {
                 windowManager?.addView(view, params)
                 Log.d(TAG, "Cursor overlay added to window manager successfully")
@@ -244,8 +219,7 @@ class CursorOverlayService : Service() {
     private fun moveCursorInternal(x: Float, y: Float) {
         cursorView?.let { view ->
             val params = view.layoutParams as? WindowManager.LayoutParams ?: return
-            params.x = x.toInt() - CURSOR_SIZE / 2
-            params.y = y.toInt() - CURSOR_SIZE / 2
+            CursorOverlayView.place(params, currentCursorStyle, x, y)
             try {
                 windowManager?.updateViewLayout(view, params)
             } catch (e: Exception) {
@@ -275,7 +249,6 @@ class CursorOverlayService : Service() {
 }
 
 // Constants
-private const val CURSOR_SIZE = 80  // Increased from 48 to accommodate ripple
 const val ACTION_SHOW = "com.inputleaf.android.CURSOR_SHOW"
 const val ACTION_HIDE = "com.inputleaf.android.CURSOR_HIDE"
 const val ACTION_MOVE = "com.inputleaf.android.CURSOR_MOVE"
