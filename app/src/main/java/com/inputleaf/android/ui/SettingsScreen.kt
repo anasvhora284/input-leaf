@@ -195,8 +195,12 @@ fun SettingsScreen(
                 }
             }
 
+            // Shizuku and root move Android's own pointer: the overlay cursor and its look only
+            // apply in Accessibility mode, and Mouse/Stylus only to the privileged HID devices.
+            val usesPrivilegedInput = (shizukuAvailable || rootGranted) &&
+                (inputMethod == "auto" || inputMethod == "shizuku" || inputMethod == "root")
             SectionHeader("Display")
-            if (!cursorAvailable) {
+            if (!usesPrivilegedInput && !cursorAvailable) {
                 NoticeCard(
                     icon = Icons.Rounded.Warning,
                     title = "Overlay or Accessibility required",
@@ -208,7 +212,7 @@ fun SettingsScreen(
                 )
             }
             SettingsGroup {
-                row { shapes ->
+                if (!usesPrivilegedInput) row { shapes ->
                     SettingsSwitchRow(
                         icon = Icons.Rounded.Info,
                         title = "Show cursor overlay",
@@ -219,7 +223,7 @@ fun SettingsScreen(
                         shapes = shapes,
                     )
                 }
-                if (showCursor && cursorAvailable) {
+                if (!usesPrivilegedInput && showCursor && cursorAvailable) {
                     row { shapes ->
                         SettingsRow(
                             icon = Icons.Rounded.Edit,
@@ -234,7 +238,7 @@ fun SettingsScreen(
                         )
                     }
                 }
-                row { shapes ->
+                if (usesPrivilegedInput) row { shapes ->
                     SegmentedListItem(
                         shapes = shapes,
                         leadingContent = {
@@ -293,9 +297,8 @@ fun SettingsScreen(
                     }
                 }
             }
-            val usesPrivilegedInput = (shizukuAvailable || rootGranted) &&
-                (inputMethod == "auto" || inputMethod == "shizuku" || inputMethod == "root")
-            if (showCursor && cursorAvailable && (usesPrivilegedInput || !accessibilityAvailable)) {
+            // The plain overlay sits below the notification panel; the Accessibility one does not.
+            if (!usesPrivilegedInput && showCursor && cursorAvailable && !accessibilityAvailable) {
                 val onAccessibilityShortcut: () -> Unit = {
                     try {
                         context.startActivity(
@@ -311,7 +314,7 @@ fun SettingsScreen(
                     title = "Cursor in notification panel",
                     body = "Enable Accessibility Service for cursor visibility over the notification shade.",
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    onClick = if (usesPrivilegedInput) null else onAccessibilityShortcut,
+                    onClick = onAccessibilityShortcut,
                 )
             }
 
@@ -723,11 +726,6 @@ fun SettingsScreen(
                             }
                         }
                     }
-                    Text(
-                        text = "Used in Accessibility mode. Shizuku and root use Android's own pointer.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             },
             confirmButton = {
