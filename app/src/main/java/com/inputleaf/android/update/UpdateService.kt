@@ -1,5 +1,6 @@
 package com.inputleaf.android.update
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.InstallSourceInfo
 import android.content.pm.PackageInfo
@@ -261,9 +262,13 @@ object UpdateService {
         )
 }
 
+// Only called through installerPackageNameForSdk / packageInfoForSdk, which check the API level.
+@SuppressLint("NewApi")
 internal fun readModernInstallerPackageName(context: Context): String? =
     installSourcePackageName(context.packageManager.getInstallSourceInfo(context.packageName))
 
+// Only called through installerPackageNameForSdk / packageInfoForSdk, which check the API level.
+@SuppressLint("NewApi")
 internal fun installSourcePackageName(installSourceInfo: InstallSourceInfo): String? =
     installSourceInfo.installingPackageName
 
@@ -271,6 +276,8 @@ internal fun installSourcePackageName(installSourceInfo: InstallSourceInfo): Str
 internal fun readLegacyInstallerPackageName(context: Context): String? =
     context.packageManager.getInstallerPackageName(context.packageName)
 
+// Only called through installerPackageNameForSdk / packageInfoForSdk, which check the API level.
+@SuppressLint("NewApi")
 internal fun readModernPackageInfo(context: Context): PackageInfo =
     context.packageManager.getPackageInfo(
         context.packageName,
@@ -329,6 +336,8 @@ internal fun resolveInstallSource(installerPackage: String?): InstallSource {
 internal fun versionNameFrom(packageInfo: PackageInfo?): String =
     packageInfo?.versionName ?: "1.4.5"
 
+// [sdkInt] carries the API check (a parameter so tests can cover both branches).
+@SuppressLint("NewApi")
 internal fun versionCodeFrom(packageInfo: PackageInfo?, sdkInt: Int = Build.VERSION.SDK_INT): Long {
     if (packageInfo == null) return 13L
     return if (sdkInt >= Build.VERSION_CODES.P) {
