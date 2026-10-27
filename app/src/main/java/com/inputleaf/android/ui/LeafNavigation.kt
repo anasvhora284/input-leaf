@@ -93,6 +93,8 @@ fun LeafNavigation(viewModel: MainViewModel) {
     val activeMethod by viewModel.activeMethod.collectAsState()
     val imeEnabledAndSelected by viewModel.imeEnabledAndSelected.collectAsStateWithLifecycle(initialValue = false)
     val updateCheckResult by viewModel.updateCheckResult.collectAsStateWithLifecycle()
+    val updateDownload by viewModel.updateDownload.collectAsStateWithLifecycle()
+    val updateInstallStatus by viewModel.updateInstallStatus.collectAsStateWithLifecycle()
     val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsStateWithLifecycle()
     val updateChannel by viewModel.updateChannel.collectAsState(initial = UpdateChannel.STABLE)
     val whatsNewChangelog by viewModel.whatsNewChangelog.collectAsStateWithLifecycle()
@@ -221,7 +223,12 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     }
                 }
             },
-            onDismiss = { viewModel.dismissUpdateDialog() }
+            onDismiss = { viewModel.dismissUpdateDialog() },
+            canInstallInApp = update.apk != null,
+            download = updateDownload,
+            installStatus = updateInstallStatus,
+            onDownload = { update.apk?.let(viewModel::downloadUpdate) },
+            onInstall = viewModel::installUpdate,
         )
     }
 
