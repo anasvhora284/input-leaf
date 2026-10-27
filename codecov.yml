@@ -46,7 +46,14 @@ ignore:
   # Reflects into the hidden IClipboard service and only works as shell or root; checked
   # by running it under app_process on the Android 12 and 16 emulators.
   - "app/src/main/java/com/inputleaf/android/shizuku/ClipboardAccess.kt"
+  # Runs only inside the privileged injector process: exits it and ends orphaned copies.
+  # Checked on a OnePlus Nord 4 (Shizuku as root), where it ended ten leftover processes.
+  - "app/src/main/java/com/inputleaf/android/shizuku/InjectorProcess.kt"
   - "app/src/main/java/com/inputleaf/android/InputLeafApplication.kt"
+  # PackageInstaller sessions and archive signature reads need a real device; checked
+  # end to end on the Android 12 TV emulator. The rules it applies (UpdateVerification)
+  # live in ReleaseApk.kt and are counted.
+  - "app/src/main/java/com/inputleaf/android/update/ApkInstaller.kt"
   - "app/src/main/java/com/inputleaf/android/inject/AccessibilityInputService.kt"
   - "app/src/main/java/com/inputleaf/android/inject/AccessibilityInputInjector.kt"
   - "app/src/main/java/com/inputleaf/android/inject/InputLeafIME.kt"

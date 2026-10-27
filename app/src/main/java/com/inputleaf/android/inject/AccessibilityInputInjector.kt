@@ -6,48 +6,32 @@ import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
 import com.inputleaf.android.model.InputLeapEvent
-import com.inputleaf.android.privilege.PrivilegeKind
-import com.inputleaf.android.privilege.PrivilegedInjectorFactory
-import com.inputleaf.android.privilege.snapshotForLatentHid
-import com.inputleaf.android.shizuku.ShizukuInputInjector
 import kotlinx.coroutines.delay
 
 private const val TAG = "AccessibilityInputInjector"
 
+/**
+ * Accessibility mode is entirely virtual: gestures and the overlay cursor for the mouse,
+ * the Input Leaf keyboard (IME) for keys. It never starts a Shizuku or root process, so
+ * switching to it cannot leave HID devices or injector processes behind.
+ */
 class AccessibilityInputInjector(
     private val context: Context,
     private var screenWidth: Int,
     private var screenHeight: Int,
-    private val hidKeyboard: ShizukuInputInjector = PrivilegedInjectorFactory.create(
-        context,
-        screenWidth,
-        screenHeight,
-        snapshot = snapshotForLatentHid(PrivilegedInjectorFactory.currentSnapshot()),
-    ),
 ) : InputInjector {
 
     override val name: String = "Accessibility Service (no extra app)"
 
-    override fun privilegeKind(): PrivilegeKind = hidKeyboard.privilegeKind()
-
     override fun updateScreenSize(width: Int, height: Int) {
         screenWidth = width
         screenHeight = height
-        hidKeyboard.updateScreenSize(width, height)
     }
-
-    override fun updatePointerSpeed(speed: Int) {
-        hidKeyboard.updatePointerSpeed(speed)
-    }
-
-    // The latent privileged injector, when present, may read the clipboard in the background.
-    override fun readClipboardTextIfChanged(): String? = hidKeyboard.readClipboardTextIfChanged()
 
     override fun setScrollSpeed(percent: Int) {
         scrollSpeed = ScrollSpeed.multiplier(percent)
         wheelNotches.speed = scrollSpeed
         hWheelNotches.speed = scrollSpeed
-        hidKeyboard.setScrollSpeed(percent)
     }
 
     private var mouseX = 0f
@@ -91,10 +75,6 @@ class AccessibilityInputInjector(
         val connected = AccessibilityInputService.isServiceRunning()
         if (connected) {
             Log.d(TAG, "Accessibility service connected successfully")
-            if (hidKeyboard.isAvailable()) {
-                val hidBound = hidKeyboard.connect()
-                Log.i(TAG, "Privileged HID bind after accessibility: $hidBound kind=${hidKeyboard.privilegeKind()}")
-            }
         } else {
             Log.e(TAG, "Accessibility service connection timeout")
         }
@@ -104,34 +84,17 @@ class AccessibilityInputInjector(
     override fun disconnect() {
         scanCodeDecoder.clearPressedKeys()
         Log.d(TAG, "disconnect called")
-        hidKeyboard.disconnect()
+        ImeSwitcher.restore(context)
     }
 
+    /** The "keyboard" here is the Input Leaf IME: selected on Enter, handed back on Leave. */
     override fun setHidKeyboardAttached(attached: Boolean) {
-        if (!attached) scanCodeDecoder.clearPressedKeys()
-        hidKeyboard.setHidKeyboardAttached(attached)
-    }
-
-    override fun setHidMouseAttached(attached: Boolean) {
-        hidKeyboard.setHidMouseAttached(attached)
-    }
-
-    override fun onHidMouseEnter(x: Int, y: Int) {
-        hidKeyboard.onHidMouseEnter(x, y)
-    }
-
-    override fun onHidMouseLeave() {
-        hidKeyboard.onHidMouseLeave()
-    }
-
-    override fun usesNativePointer(): Boolean = hidKeyboard.usesNativePointer()
-
-    override fun nativePointerState() = hidKeyboard.nativePointerState()
-
-    override fun expectsNativePointer() = hidKeyboard.expectsNativePointer()
-
-    override fun setOnNativePointerStateChanged(listener: ((NativePointerState) -> Unit)?) {
-        hidKeyboard.setOnNativePointerStateChanged(listener)
+        if (attached) {
+            ImeSwitcher.useOurs(context)
+        } else {
+            scanCodeDecoder.clearPressedKeys()
+            ImeSwitcher.restore(context, leaving = true)
+        }
     }
 
     override fun send(event: InputLeapEvent) {
@@ -142,44 +105,32 @@ class AccessibilityInputInjector(
                 is InputLeapEvent.MouseMoveAbs -> {
                     mouseX = event.x.toFloat().coerceIn(0f, screenWidth.toFloat())
                     mouseY = event.y.toFloat().coerceIn(0f, screenHeight.toFloat())
-                    if (!hidKeyboard.tryHidMouse(event)) {
-                        svc.injectTouchMove(mouseX, mouseY)
-                    }
+                    svc.injectTouchMove(mouseX, mouseY)
                 }
 
                 is InputLeapEvent.MouseMoveRel -> {
                     mouseX = (mouseX + event.dx).coerceIn(0f, screenWidth.toFloat())
                     mouseY = (mouseY + event.dy).coerceIn(0f, screenHeight.toFloat())
-                    if (!hidKeyboard.tryHidMouse(event)) {
-                        svc.injectTouchMove(mouseX, mouseY)
-                    }
+                    svc.injectTouchMove(mouseX, mouseY)
                 }
 
-                is InputLeapEvent.MouseDown -> {
-                    if (!hidKeyboard.tryHidMouse(event)) {
-                        when (AccessibilityMousePolicy.onButtonDown(event.buttonId, supportsTouchGestures)) {
-                            AccessibilityMouseAction.TOUCH_DOWN -> svc.injectTouchDown(mouseX, mouseY)
-                            else -> Unit
-                        }
+                is InputLeapEvent.MouseDown ->
+                    when (AccessibilityMousePolicy.onButtonDown(event.buttonId, supportsTouchGestures)) {
+                        AccessibilityMouseAction.TOUCH_DOWN -> svc.injectTouchDown(mouseX, mouseY)
+                        else -> Unit
                     }
-                }
 
-                is InputLeapEvent.MouseUp -> {
-                    if (!hidKeyboard.tryHidMouse(event)) {
-                        when (AccessibilityMousePolicy.onButtonUp(event.buttonId, supportsTouchGestures)) {
-                            AccessibilityMouseAction.TOUCH_UP -> svc.injectTouchUp(mouseX, mouseY)
-                            AccessibilityMouseAction.CLICK_NODE -> svc.clickNodeAt(mouseX, mouseY)
-                            AccessibilityMouseAction.GLOBAL_BACK -> svc.performGlobalBack()
-                            AccessibilityMouseAction.GLOBAL_HOME -> svc.performGlobalHome()
-                            else -> Unit
-                        }
+                is InputLeapEvent.MouseUp ->
+                    when (AccessibilityMousePolicy.onButtonUp(event.buttonId, supportsTouchGestures)) {
+                        AccessibilityMouseAction.TOUCH_UP -> svc.injectTouchUp(mouseX, mouseY)
+                        AccessibilityMouseAction.CLICK_NODE -> svc.clickNodeAt(mouseX, mouseY)
+                        AccessibilityMouseAction.GLOBAL_BACK -> svc.performGlobalBack()
+                        AccessibilityMouseAction.GLOBAL_HOME -> svc.performGlobalHome()
+                        else -> Unit
                     }
-                }
 
                 is InputLeapEvent.MouseWheel -> {
-                    if (hidKeyboard.tryHidMouse(event)) {
-                        // The latent privileged HID mouse scrolled natively.
-                    } else if (!supportsTouchGestures) {
+                    if (!supportsTouchGestures) {
                         // Swipes are touch gestures, which non-touch devices reject (#65).
                         // Input Leap's positive y scrolls up; scrollNodeAt's positive is down.
                         val down = -wheelNotches.accept(event.yDelta)
@@ -214,9 +165,6 @@ class AccessibilityInputInjector(
 
     private fun handleKeyEvent(keysym: Int, mask: Int, button: Int, isDown: Boolean) {
         val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown)
-        if (hidKeyboard.tryHidKey(scancode, isDown)) {
-            return
-        }
         if (AccessibilityKeyPolicy.isBackKey(keysym, mask)) {
             if (isDown) AccessibilityInputService.getInstance()?.performGlobalBack()
             return
@@ -262,9 +210,6 @@ class AccessibilityInputInjector(
 
     private fun handleKeyRepeat(keysym: Int, mask: Int, button: Int, count: Int) {
         val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown = true)
-        if (hidKeyboard.tryHidKey(scancode, isDown = true)) {
-            return
-        }
         // A held Esc must not fire Back again for every repeat.
         if (AccessibilityKeyPolicy.isBackKey(keysym, mask)) return
         val ime = InputLeafIME.getInstance()

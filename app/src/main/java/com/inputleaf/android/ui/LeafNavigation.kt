@@ -83,7 +83,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
         initial = ConnectionTransportPolicy.AUTO
     )
     val clientCertificateSummary by viewModel.clientCertificateSummary.collectAsStateWithLifecycle()
-    val cursorStyle by viewModel.cursorStyle.collectAsState(initial = "default")
+    val cursorLook by viewModel.cursorLook.collectAsState(initial = com.inputleaf.android.service.CursorLook())
     val pointerDevice by viewModel.pointerDevice.collectAsState(initial = PointerDevice.MOUSE)
     val scrollSpeed by viewModel.scrollSpeed.collectAsState(initial = ScrollSpeed.DEFAULT)
     val shizukuAvailable by viewModel.shizukuAvailable.collectAsState(initial = false)
@@ -91,8 +91,10 @@ fun LeafNavigation(viewModel: MainViewModel) {
     val rootUsable by viewModel.rootUsable.collectAsState(initial = false)
     val accessibilityAvailable by viewModel.accessibilityAvailable.collectAsState(initial = false)
     val activeMethod by viewModel.activeMethod.collectAsState()
-    val imeEnabledAndSelected by viewModel.imeEnabledAndSelected.collectAsStateWithLifecycle(initialValue = false)
+    val imeEnabled by viewModel.imeEnabled.collectAsStateWithLifecycle(initialValue = false)
     val updateCheckResult by viewModel.updateCheckResult.collectAsStateWithLifecycle()
+    val updateDownload by viewModel.updateDownload.collectAsStateWithLifecycle()
+    val updateInstallStatus by viewModel.updateInstallStatus.collectAsStateWithLifecycle()
     val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsStateWithLifecycle()
     val updateChannel by viewModel.updateChannel.collectAsState(initial = UpdateChannel.STABLE)
     val whatsNewChangelog by viewModel.whatsNewChangelog.collectAsStateWithLifecycle()
@@ -221,7 +223,12 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     }
                 }
             },
-            onDismiss = { viewModel.dismissUpdateDialog() }
+            onDismiss = { viewModel.dismissUpdateDialog() },
+            canInstallInApp = update.apk != null,
+            download = updateDownload,
+            installStatus = updateInstallStatus,
+            onDownload = { update.apk?.let(viewModel::downloadUpdate) },
+            onInstall = viewModel::installUpdate,
         )
     }
 
@@ -232,7 +239,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
             accessibilityAvailable = accessibilityAvailable,
             canDrawOverlays = canDrawOverlays,
             batteryOptimizationExempt = batteryOptimizationExempt,
-            imeEnabledAndSelected = imeEnabledAndSelected,
+            imeEnabled = imeEnabled,
             onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
             onRequestRootAccess = { viewModel.requestRootAccess() },
             onRequestOverlayPermission = {
@@ -320,7 +327,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     accessibilityAvailable = accessibilityAvailable,
                     canDrawOverlays = canDrawOverlays,
                     batteryOptimizationExempt = batteryOptimizationExempt,
-                    imeEnabledAndSelected = imeEnabledAndSelected,
+                    imeEnabled = imeEnabled,
                     onRequestShizukuPermission = { viewModel.requestShizukuPermission() },
                     onRequestRootAccess = { viewModel.requestRootAccess() },
                     onRequestOverlayPermission = {
@@ -342,7 +349,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     themeMode = themeMode,
                     inputMethod = inputMethod,
                     connectionTransportPolicy = connectionTransportPolicy,
-                    cursorStyle = cursorStyle,
+                    cursorLook = cursorLook,
                     pointerDevice = pointerDevice,
                     scrollSpeed = scrollSpeed,
                     shizukuAvailable = shizukuAvailable,
@@ -361,7 +368,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     onConnectionTransportPolicyChange = {
                         viewModel.saveConnectionTransportPolicy(it)
                     },
-                    onCursorStyleChange = { viewModel.saveCursorStyle(it) },
+                    onCursorLookChange = { viewModel.saveCursorLook(it) },
                     onPointerDeviceChange = { viewModel.savePointerDevice(it) },
                     onScrollSpeedChange = { viewModel.saveScrollSpeed(it) },
                     onRequestOverlayPermission = {
@@ -397,22 +404,12 @@ fun LeafNavigation(viewModel: MainViewModel) {
 }
 
 private fun openImeSetup(context: android.content.Context) {
-    val imm = context.getSystemService(android.view.inputmethod.InputMethodManager::class.java)
-    val enabledIds = imm.enabledInputMethodList.map { it.id }
-    val ourId = ComponentName(
-        context.packageName,
-        com.inputleaf.android.inject.InputLeafIME::class.java.name,
-    ).flattenToShortString()
-    if (enabledIds.contains(ourId)) {
-        imm.showInputMethodPicker()
-    } else {
-        context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
-        Toast.makeText(
-            context,
-            "Enable Input Leaf Keyboard, then click again to select it",
-            Toast.LENGTH_LONG,
-        ).show()
-    }
+    context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+    Toast.makeText(
+        context,
+        "Turn on Input Leaf Keyboard. It is used only while your mouse is on this screen.",
+        Toast.LENGTH_LONG,
+    ).show()
 }
 
 private fun openAccessibilitySettings(context: android.content.Context) {

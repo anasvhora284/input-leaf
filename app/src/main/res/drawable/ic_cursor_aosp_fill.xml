@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Body of the Android-style arrow; drawn white and tinted from CursorLook. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M16.34 11.18 6.77 4.02a1.78 1.78 0 0 0-1.88-.17c-.63.31-1 .91-1 1.6l.01 11.96c0 .9.6 1.46 1.15 1.67a1.74 1.74 0 0 0 1.98-.45l2.96-3.19c.3-.32.7-.52 1.13-.56l4.33-.47a1.8 1.8 0 0 0 .89-3.23z" />
+</vector>

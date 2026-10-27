@@ -1,5 +1,6 @@
 package com.inputleaf.android.update
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.InstallSourceInfo
 import android.content.pm.PackageInfo
@@ -24,7 +25,9 @@ sealed interface UpdateCheckResult {
         val latestVersion: String,
         val changelog: String,
         val updateUrl: String,
-        val isFdroid: Boolean
+        val isFdroid: Boolean,
+        /** The APK to download and install in the app; null on F-Droid or when none fits. */
+        val apk: ReleaseApk? = null,
     ) : UpdateCheckResult
 
     data class UpToDate(val currentVersion: String) : UpdateCheckResult
@@ -64,8 +67,15 @@ object UpdateService {
     private val RELEASES = listOf(
         VersionChangelog(
             versionName = "1.4.5",
-            versionCode = 13,
+            versionCode = 14,
             highlights = listOf(
+                "Updates download and install inside the app: tap Download, then Install. F-Droid installs still update through F-Droid.",
+                "The cursor clicks exactly at its tip, and the Input Leaf cursor is sharp on every screen.",
+                "Choose the cursor size, and the colour and outline of the Android-style arrow, in Settings → Cursor style.",
+                "Accessibility mode always uses its own cursor and keyboard now, even when Shizuku or root is set up.",
+                "In Accessibility mode, the Input Leaf keyboard is used only while your mouse is on the phone. Your own keyboard comes back when it leaves, and after a disconnect or crash.",
+                "Fixed an extra background process being left behind after every Shizuku session.",
+                "Settings shows only the options that apply to the input method you use.",
                 "Clipboard sharing: text copied on the PC can be pasted on the phone, and text copied on the phone reaches the PC when the cursor leaves.",
                 "Scroll speed setting, and horizontal scrolling with Shizuku or root.",
                 "Mouse side buttons work as Back and Forward.",
@@ -259,9 +269,13 @@ object UpdateService {
         )
 }
 
+// Only called through installerPackageNameForSdk / packageInfoForSdk, which check the API level.
+@SuppressLint("NewApi")
 internal fun readModernInstallerPackageName(context: Context): String? =
     installSourcePackageName(context.packageManager.getInstallSourceInfo(context.packageName))
 
+// Only called through installerPackageNameForSdk / packageInfoForSdk, which check the API level.
+@SuppressLint("NewApi")
 internal fun installSourcePackageName(installSourceInfo: InstallSourceInfo): String? =
     installSourceInfo.installingPackageName
 
@@ -269,6 +283,8 @@ internal fun installSourcePackageName(installSourceInfo: InstallSourceInfo): Str
 internal fun readLegacyInstallerPackageName(context: Context): String? =
     context.packageManager.getInstallerPackageName(context.packageName)
 
+// Only called through installerPackageNameForSdk / packageInfoForSdk, which check the API level.
+@SuppressLint("NewApi")
 internal fun readModernPackageInfo(context: Context): PackageInfo =
     context.packageManager.getPackageInfo(
         context.packageName,
@@ -327,8 +343,10 @@ internal fun resolveInstallSource(installerPackage: String?): InstallSource {
 internal fun versionNameFrom(packageInfo: PackageInfo?): String =
     packageInfo?.versionName ?: "1.4.5"
 
+// [sdkInt] carries the API check (a parameter so tests can cover both branches).
+@SuppressLint("NewApi")
 internal fun versionCodeFrom(packageInfo: PackageInfo?, sdkInt: Int = Build.VERSION.SDK_INT): Long {
-    if (packageInfo == null) return 13L
+    if (packageInfo == null) return 14L
     return if (sdkInt >= Build.VERSION_CODES.P) {
         packageInfo.longVersionCode
     } else {
@@ -367,6 +385,7 @@ private fun releaseResult(
     json: JSONObject,
     currentVersion: String,
     isFdroid: Boolean,
+    supportedAbis: List<String> = deviceAbis(),
 ): UpdateCheckResult {
     val rawTagName = json.optString("tag_name", "").trim()
     val latestVersion = rawTagName.removePrefix("v").removePrefix("V")
@@ -384,7 +403,11 @@ private fun releaseResult(
             latestVersion = latestVersion,
             changelog = releaseNotes,
             updateUrl = targetUrl,
-            isFdroid = isFdroid
+            isFdroid = isFdroid,
+            // F-Droid builds are signed by F-Droid, so a GitHub APK could never update them.
+            apk = if (isFdroid) null else ReleaseApkPicker.pick(
+                ReleaseApkPicker.parseAssets(json), latestVersion, supportedAbis,
+            ),
         )
     } else {
         UpdateCheckResult.UpToDate(currentVersion)
@@ -398,3 +421,5 @@ internal inline fun <T> HttpURLConnection.useAndDisconnect(block: HttpURLConnect
         disconnect()
     }
 }
+
+internal fun deviceAbis(): List<String> = runCatching { Build.SUPPORTED_ABIS.toList() }.getOrDefault(emptyList())

@@ -32,10 +32,16 @@ import com.inputleaf.android.service.ConnectionService
 import com.inputleaf.android.service.ScreenBoundsResolver
 import com.inputleaf.android.storage.AppPreferences
 import com.inputleaf.android.storage.ClientCertificateStore
+import com.inputleaf.android.update.ApkDownloader
+import com.inputleaf.android.update.ApkInstaller
+import com.inputleaf.android.update.ReleaseApk
 import com.inputleaf.android.update.UpdateChannel
+import com.inputleaf.android.ui.components.UpdateDownload
 import com.inputleaf.android.update.UpdateCheckResult
 import com.inputleaf.android.update.UpdateService
 import com.inputleaf.android.update.VersionChangelog
+import java.io.File
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -165,7 +171,7 @@ class MainViewModel @JvmOverloads constructor(
     val autoConnect: Flow<Boolean> = prefs.autoConnect
     val fingerprints: Flow<Map<String, String>> = prefs.allFingerprints()
     val themeMode: Flow<String> = prefs.themeMode
-    val cursorStyle: Flow<String> = prefs.cursorStyle
+    val cursorLook: Flow<com.inputleaf.android.service.CursorLook> = prefs.cursorLook
     val leafOnboardingComplete: Flow<Boolean> = prefs.leafOnboardingComplete
     val onboardingComplete: Flow<Boolean> = prefs.leafOnboardingComplete
 
@@ -187,7 +193,7 @@ class MainViewModel @JvmOverloads constructor(
     val rootGranted: Flow<Boolean> = permissionProvider.rootGranted
     val rootUsable: Flow<Boolean> = permissionProvider.rootUsable
     val accessibilityAvailable: Flow<Boolean> = permissionProvider.accessibilityAvailable
-    val imeEnabledAndSelected: Flow<Boolean> = permissionProvider.imeEnabledAndSelected
+    val imeEnabled: Flow<Boolean> = permissionProvider.imeEnabled
 
     // TOFU: suspending channel — UI collects this and shows FingerprintDialog
     private val _fingerprintRequest = Channel<FingerprintRequest>(1)
@@ -215,6 +221,45 @@ class MainViewModel @JvmOverloads constructor(
 
     fun dismissUpdateDialog() {
         _updateCheckResult.value = null
+        updateDownloadJob?.cancel()
+        _updateDownload.value = UpdateDownload.Idle
+        ApkInstaller.reset()
+    }
+
+    private val _updateDownload = MutableStateFlow<UpdateDownload>(UpdateDownload.Idle)
+    val updateDownload: StateFlow<UpdateDownload> = _updateDownload
+    val updateInstallStatus: StateFlow<ApkInstaller.Status> = ApkInstaller.status
+    private var updateDownloadJob: Job? = null
+
+    /** Downloads [apk] into the cache and checks it can replace this app before offering Install. */
+    fun downloadUpdate(apk: ReleaseApk) {
+        if (updateDownloadJob?.isActive == true) return
+        val app = getApplication<Application>()
+        ApkInstaller.reset()
+        updateDownloadJob = viewModelScope.launch {
+            _updateDownload.value = UpdateDownload.Downloading(0, apk.sizeBytes)
+            try {
+                val dir = File(app.cacheDir, "updates")
+                withContext(Dispatchers.IO) { dir.deleteRecursively() } // drop older downloads
+                val file = ApkDownloader().download(apk, File(dir, apk.name)) { done, total ->
+                    _updateDownload.value = UpdateDownload.Downloading(done, total)
+                }
+                val problem = withContext(Dispatchers.IO) { ApkInstaller.verify(app, file) }
+                if (problem != null) file.delete()
+                _updateDownload.value = problem?.let(UpdateDownload::Failed) ?: UpdateDownload.Ready(file)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("MainViewModel", "Update download failed", e)
+                _updateDownload.value = UpdateDownload.Failed(e.message ?: "Download failed")
+            }
+        }
+    }
+
+    fun installUpdate() {
+        val ready = _updateDownload.value as? UpdateDownload.Ready ?: return
+        val app = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) { ApkInstaller.install(app, ready.file) }
     }
 
     fun dismissWhatsNew() {
@@ -254,7 +299,9 @@ class MainViewModel @JvmOverloads constructor(
     fun toggleKeyboardEnabled(enabled: Boolean) { viewModelScope.launch { prefs.saveKeyboardEnabled(enabled) } }
     fun toggleFavoriteServer(ip: String) { viewModelScope.launch { prefs.toggleFavoriteServer(ip) } }
     fun removeSavedServer(ip: String) { viewModelScope.launch { prefs.removeServer(ip) } }
-    fun saveCursorStyle(style: String) { viewModelScope.launch { prefs.saveCursorStyle(style) } }
+    fun saveCursorLook(look: com.inputleaf.android.service.CursorLook) {
+        viewModelScope.launch { prefs.saveCursorLook(look) }
+    }
     fun saveScrollSpeed(percent: Int) {
         viewModelScope.launch { prefs.saveScrollSpeed(percent) }
     }
@@ -426,6 +473,8 @@ class MainViewModel @JvmOverloads constructor(
     }
     init {
         bindService()
+        // An update APK left from an earlier install or download is no longer needed.
+        viewModelScope.launch(Dispatchers.IO) { File(app.cacheDir, "updates").deleteRecursively() }
 
         // Auto-connect when Shizuku or root becomes available
         viewModelScope.launch {

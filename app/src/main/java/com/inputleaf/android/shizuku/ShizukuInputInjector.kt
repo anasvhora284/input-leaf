@@ -48,6 +48,9 @@ class ShizukuInputInjector internal constructor(
 
     override fun privilegeKind(): PrivilegeKind = host.kind
 
+    /** Tells injector instances apart in logs; several may share one privileged process. */
+    private val id = Integer.toHexString(System.identityHashCode(this))
+
     private var screenWidth = screenWidth
     private var screenHeight = screenHeight
     private val hidMouse = HidMouseState(pointerMaxX(), pointerMaxY())
@@ -79,7 +82,7 @@ class ShizukuInputInjector internal constructor(
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
-            Log.d(TAG, "${host.kind} service connected")
+            Log.d(TAG, "${host.kind} service connected injector=$id")
             val injector = IInputInjector.Stub.asInterface(binder)
             // Best-effort: an injector that cannot watch us still works, it just falls
             // back to process reaping for UHID cleanup.
@@ -210,6 +213,7 @@ class ShizukuInputInjector internal constructor(
      * mouse or keyboard until the app restarted.
      */
     fun disconnect(stopService: Boolean) {
+        Log.i(TAG, "Disconnect injector=$id stopService=$stopService bound=$isBound")
         scanCodeDecoder.clearPressedKeys()
         if (isBound || service != null) {
             try {
@@ -243,9 +247,9 @@ class ShizukuInputInjector internal constructor(
         remote("Failed to update HID keyboard attachment", Unit) { svc ->
             if (attached) {
                 if (svc.openVirtualKeyboard()) {
-                    Log.i(TAG, "HID keyboard attached")
+                    Log.i(TAG, "HID keyboard attached injector=$id")
                 } else {
-                    Log.w(TAG, "HID keyboard unavailable; keys use injectKeyEvent")
+                    Log.w(TAG, "HID keyboard unavailable injector=$id; keys use injectKeyEvent")
                 }
             } else {
                 svc.releaseHidKeys()

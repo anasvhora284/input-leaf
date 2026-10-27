@@ -23,10 +23,35 @@ class InputInjectorService : IInputInjector.Stub {
     /** Seam so the UHID lifecycle can be exercised without a real `/dev/uhid`. */
     private val openChannel: () -> UhidChannel?
 
-    constructor() : this({ UhidChannel.openHandle() })
+    /**
+     * True when this stub is the whole process (Shizuku UserService, app_process fallback):
+     * it then exits once its client is gone. Root's libsu daemon stays warm on purpose.
+     */
+    private val ownsProcess: Boolean
 
-    internal constructor(openChannel: () -> UhidChannel?) {
+    /** Shizuku instantiates this by reflection; the process exists only for this stub. */
+    constructor() : this(ownsProcess = true, openChannel = { UhidChannel.openHandle() }) {
+        InjectorProcess.killOrphanedSiblings()
+    }
+
+    constructor(ownsProcess: Boolean) : this(ownsProcess, { UhidChannel.openHandle() })
+
+    internal constructor(ownsProcess: Boolean = false, openChannel: () -> UhidChannel?) {
         this.openChannel = openChannel
+        this.ownsProcess = ownsProcess
+    }
+
+    /**
+     * Shizuku's unbindUserService(remove = true) sends this transaction and expects the
+     * process to exit. Without it Shizuku drops the record but the process lives on, and
+     * the next bind starts another one: every session left a root process behind.
+     */
+    override fun onTransact(code: Int, data: android.os.Parcel, reply: android.os.Parcel?, flags: Int): Boolean {
+        if (code == InjectorProcess.SHIZUKU_DESTROY_TRANSACTION) {
+            destroy()
+            return true
+        }
+        return super.onTransact(code, data, reply, flags)
     }
 
     private val inputManager: HiddenInputManager.Target? =
@@ -389,6 +414,7 @@ class InputInjectorService : IInputInjector.Stub {
                     closeVirtualKeyboard()
                     closeVirtualMouse()
                     closeVirtualPen()
+                    if (ownsProcess) InjectorProcess.exitSoon()
                 }
             }
             activeDeathRecipient = recipient
@@ -421,6 +447,7 @@ class InputInjectorService : IInputInjector.Stub {
         closeVirtualKeyboard()
         closeVirtualMouse()
         closeVirtualPen()
+        if (ownsProcess) InjectorProcess.exitSoon()
     }
 
     private val penLock = Any()

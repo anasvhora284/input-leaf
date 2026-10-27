@@ -42,7 +42,7 @@ class AccessibilityInputService : AccessibilityService() {
 
     private lateinit var prefs: com.inputleaf.android.storage.AppPreferences
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
-    private var currentCursorStyle = "default"
+    private var cursorLook = com.inputleaf.android.service.CursorLook()
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -52,8 +52,8 @@ class AccessibilityInputService : AccessibilityService() {
         
         prefs = com.inputleaf.android.storage.AppPreferences(this)
         scope.launch {
-            prefs.cursorStyle.collect { style ->
-                currentCursorStyle = style
+            prefs.cursorLook.collect { look ->
+                cursorLook = look
                 updateCursorImage()
             }
         }
@@ -66,13 +66,14 @@ class AccessibilityInputService : AccessibilityService() {
 
     private fun updateCursorImage() {
         val imageView = cursorView as? android.widget.ImageView ?: return
-        val resId = if (currentCursorStyle == "leaf") {
-            com.inputleaf.android.R.drawable.cursor
-        } else {
-            com.inputleaf.android.R.drawable.ic_cursor_aosp
+        com.inputleaf.android.service.CursorOverlayView.applyLook(imageView, cursorLook)
+        (imageView.layoutParams as? android.view.WindowManager.LayoutParams)?.let {
+            com.inputleaf.android.service.CursorOverlayView.resize(it, this, cursorLook)
         }
-        imageView.setImageResource(resId)
-        imageView.scaleX = if (currentCursorStyle == "leaf") -1f else 1f
+        moveCursorInternal(
+            com.inputleaf.android.service.CursorOverlayService.cursorX.value,
+            com.inputleaf.android.service.CursorOverlayService.cursorY.value,
+        )
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
@@ -91,6 +92,22 @@ class AccessibilityInputService : AccessibilityService() {
         cursorView = null
         instance = null
         super.onDestroy()
+    }
+
+    /**
+     * Select the keyboard [imeId]. Android 11+ does it silently; older versions only
+     * through the picker, where [onAccessibilityEvent] taps the matching entry.
+     */
+    fun switchKeyboard(imeId: String): Boolean {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            return runCatching { softKeyboardController.switchToInputMethod(imeId) }.getOrDefault(false)
+        }
+        val imm = getSystemService(android.view.inputmethod.InputMethodManager::class.java) ?: return false
+        val label = imm.enabledInputMethodList.firstOrNull { it.id == imeId }
+            ?.loadLabel(packageManager)?.toString() ?: return false
+        targetImeLabelToSelect = label
+        android.os.Handler(android.os.Looper.getMainLooper()).post { imm.showInputMethodPicker() }
+        return true
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -126,32 +143,14 @@ class AccessibilityInputService : AccessibilityService() {
 
     private fun ensureCursorView(visible: Boolean) {
         if (cursorView == null) {
-            val resId = if (currentCursorStyle == "leaf") {
-                com.inputleaf.android.R.drawable.cursor
-            } else {
-                com.inputleaf.android.R.drawable.ic_cursor_aosp
-            }
-            val scaleXValue = if (currentCursorStyle == "leaf") -1f else 1f
-            val view = android.widget.ImageView(this).apply {
-                setImageResource(resId)
-                scaleX = scaleXValue
-                visibility = android.view.View.INVISIBLE
-            }
-            val CURSOR_SIZE = 80
-            val params = android.view.WindowManager.LayoutParams(
-                CURSOR_SIZE,
-                CURSOR_SIZE,
+            val view = com.inputleaf.android.service.CursorOverlayView.create(this, cursorLook)
+            val params = com.inputleaf.android.service.CursorOverlayView.layoutParams(
+                this,
                 android.view.WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                    android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                android.graphics.PixelFormat.TRANSLUCENT
-            ).apply {
-                gravity = android.view.Gravity.TOP or android.view.Gravity.START
-                x = com.inputleaf.android.service.CursorOverlayService.cursorX.value.toInt() - CURSOR_SIZE / 2
-                y = com.inputleaf.android.service.CursorOverlayService.cursorY.value.toInt() - CURSOR_SIZE / 2
-            }
+                cursorLook,
+                com.inputleaf.android.service.CursorOverlayService.cursorX.value,
+                com.inputleaf.android.service.CursorOverlayService.cursorY.value,
+            )
             try {
                 windowManager?.addView(view, params)
                 cursorView = view
@@ -171,8 +170,7 @@ class AccessibilityInputService : AccessibilityService() {
     fun moveCursorInternal(x: Float, y: Float) {
         val view = cursorView ?: return
         val params = view.layoutParams as? android.view.WindowManager.LayoutParams ?: return
-        params.x = x.toInt() - 40 // CURSOR_SIZE / 2
-        params.y = y.toInt() - 40
+        com.inputleaf.android.service.CursorOverlayView.place(params, cursorLook, x, y)
         try {
             windowManager?.updateViewLayout(view, params)
         } catch (e: Exception) {

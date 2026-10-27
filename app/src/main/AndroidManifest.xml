@@ -10,6 +10,7 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <uses-permission android:name="android.permission.ACCESS_SUPERUSER"/>
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
 
     <uses-feature
         android:name="android.hardware.touchscreen"
@@ -92,5 +93,8 @@
             android:name=".shizuku.InjectorHandoffProvider"
             android:authorities="${applicationId}.injector"
             android:exported="true"/>
+        <receiver
+            android:name=".update.InstallResultReceiver"
+            android:exported="false"/>
     </application>
 </manifest>

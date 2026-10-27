@@ -16,7 +16,7 @@ import com.topjohnwu.superuser.ipc.RootService
  */
 class RootInputInjectorService : RootService() {
 
-    private val stub = InputInjectorService()
+    private val stub = InputInjectorService(ownsProcess = false)
 
     override fun onBind(intent: Intent): IBinder {
         android.util.Log.i(
