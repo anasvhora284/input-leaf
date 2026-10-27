@@ -1,7 +1,6 @@
 package com.inputleaf.android.service
 
 import android.content.Context
-import android.graphics.drawable.BitmapDrawable
 import android.view.Gravity
 import android.view.WindowManager
 import android.widget.ImageView
@@ -19,14 +18,12 @@ object CursorOverlayView {
         val shape = CursorHotspot.forStyle(style)
         view.setImageResource(if (shape == CursorHotspot.LEAF) R.drawable.cursor else R.drawable.ic_cursor_aosp)
         view.scaleX = if (shape.mirrored) -1f else 1f
-        // The leaf PNG is ~6x larger than the overlay; mipmaps keep the downscale smooth.
-        (view.drawable as? BitmapDrawable)?.setMipMap(true)
     }
 
-    fun layoutParams(type: Int, style: String, x: Float, y: Float): WindowManager.LayoutParams =
+    fun layoutParams(context: Context, type: Int, style: String, x: Float, y: Float): WindowManager.LayoutParams =
         WindowManager.LayoutParams(
-            CursorHotspot.WINDOW_SIZE_PX,
-            CursorHotspot.WINDOW_SIZE_PX,
+            CursorHotspot.windowSizePx(context.resources.displayMetrics.density),
+            CursorHotspot.windowSizePx(context.resources.displayMetrics.density),
             type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
@@ -45,7 +42,7 @@ object CursorOverlayView {
 
     /** Position [params] so the arrow tip is at ([x], [y]). Used for both the first show and every move. */
     fun place(params: WindowManager.LayoutParams, style: String, x: Float, y: Float) {
-        val (wx, wy) = CursorHotspot.forStyle(style).windowOrigin(x, y, CursorHotspot.WINDOW_SIZE_PX)
+        val (wx, wy) = CursorHotspot.forStyle(style).windowOrigin(x, y, params.width)
         params.x = wx
         params.y = wy
     }

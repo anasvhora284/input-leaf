@@ -4,7 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 class CursorHotspotTest {
-    private val size = CursorHotspot.WINDOW_SIZE_PX
+    private val size = CursorHotspot.windowSizePx(2f)
 
     /** Where the tip really is on screen once the window sits at [windowOrigin]. */
     private fun tipOnScreen(shape: CursorHotspot, x: Float, y: Float): Pair<Float, Float> {
@@ -57,5 +57,20 @@ class CursorHotspotTest {
         assertThat(CursorHotspot.forStyle("leaf")).isEqualTo(CursorHotspot.LEAF)
         assertThat(CursorHotspot.forStyle("default")).isEqualTo(CursorHotspot.DEFAULT)
         assertThat(CursorHotspot.forStyle("anything")).isEqualTo(CursorHotspot.DEFAULT)
+    }
+
+    @Test
+    fun `the window is 40 dp, so the tip stays exact at every density`() {
+        assertThat(CursorHotspot.windowSizePx(2f)).isEqualTo(80)
+        assertThat(CursorHotspot.windowSizePx(2.75f)).isEqualTo(110)
+        for (density in listOf(0.75f, 1f, 1.5f, 2.75f, 4f)) {
+            val px = CursorHotspot.windowSizePx(density)
+            for (shape in CursorHotspot.entries) {
+                val (ox, oy) = shape.windowOrigin(300f, 200f, px)
+                val (tx, ty) = shape.tipInWindow(px)
+                assertThat(ox + tx).isWithin(0.5f).of(300f)
+                assertThat(oy + ty).isWithin(0.5f).of(200f)
+            }
+        }
     }
 }

@@ -126,6 +126,7 @@ class AccessibilityInputService : AccessibilityService() {
         if (cursorView == null) {
             val view = com.inputleaf.android.service.CursorOverlayView.create(this, currentCursorStyle)
             val params = com.inputleaf.android.service.CursorOverlayView.layoutParams(
+                this,
                 android.view.WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                 currentCursorStyle,
                 com.inputleaf.android.service.CursorOverlayService.cursorX.value,

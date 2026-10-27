@@ -21,7 +21,7 @@ enum class CursorHotspot(
     /** ic_cursor_aosp.xml: 24x24 viewport, tip = top-left corner of the black body at (3.9, 3.7). */
     DEFAULT(aspect = 1f, tipX = 3.9f / 24f, tipY = 3.7f / 24f, mirrored = false),
 
-    /** cursor.png: 493x512, arrow head apex at pixel (332, 165); drawn flipped so it points up-left. */
+    /** cursor.xml: 493x512 viewport, arrow head apex at (332, 165); drawn flipped so it points up-left. */
     LEAF(aspect = 493f / 512f, tipX = 332f / 493f, tipY = 165f / 512f, mirrored = true);
 
     /** Tip position in window pixels, measured from the window's top-left, for a square window. */
@@ -40,7 +40,14 @@ enum class CursorHotspot(
     }
 
     companion object {
-        const val WINDOW_SIZE_PX = 80
+        /**
+         * Overlay size in dp, matching both cursor drawables' intrinsic size so they are drawn
+         * 1:1 and stay sharp. Being dp, the cursor is the same physical size on every screen
+         * (#71); it equals the old fixed 80 px on an xhdpi (2.0) screen.
+         */
+        const val WINDOW_SIZE_DP = 40
+
+        fun windowSizePx(density: Float): Int = (WINDOW_SIZE_DP * density).roundToInt()
 
         fun forStyle(style: String): CursorHotspot = if (style == "leaf") LEAF else DEFAULT
     }

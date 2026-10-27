@@ -189,6 +189,7 @@ class CursorOverlayService : Service() {
             val view = CursorOverlayView.create(this, currentCursorStyle)
             cursorView = view
             val params = CursorOverlayView.layoutParams(
+                this,
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 } else {
