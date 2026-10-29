@@ -58,6 +58,9 @@ ignore:
   # live in ReleaseApk.kt and are counted.
   - "app/src/main/java/com/inputleaf/android/update/ApkInstaller.kt"
   - "app/src/main/java/com/inputleaf/android/inject/AccessibilityInputService.kt"
+  # The keyboard bubble's overlay window and touch handling; its placement maths is in
+  # BubblePlacement.kt, which is tested.
+  - "app/src/main/java/com/inputleaf/android/inject/KeyboardBubble.kt"
   - "app/src/main/java/com/inputleaf/android/inject/AccessibilityInputInjector.kt"
   - "app/src/main/java/com/inputleaf/android/inject/InputLeafIME.kt"
   - "app/src/main/java/com/inputleaf/android/inject/KeysymInjection.kt"

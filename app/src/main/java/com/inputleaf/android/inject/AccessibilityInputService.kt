@@ -44,9 +44,34 @@ class AccessibilityInputService : AccessibilityService() {
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
     private var cursorLook = com.inputleaf.android.service.CursorLook()
 
+    private var keyboardBubble: KeyboardBubble? = null
+
+    /**
+     * Windows of one type stack in the order they were added, so the cursor is rebuilt
+     * after the keyboard bubble appears to stay on top of it. A fresh window through the
+     * usual path; re-adding the old view left it hidden and no longer moving.
+     */
+    fun bringCursorToFront() {
+        val old = cursorView ?: return
+        val visible = old.visibility == android.view.View.VISIBLE
+        runCatching { windowManager?.removeViewImmediate(old) }
+        cursorView = null
+        ensureCursorView(visible)
+        moveCursorInternal(
+            com.inputleaf.android.service.CursorOverlayService.cursorX.value,
+            com.inputleaf.android.service.CursorOverlayService.cursorY.value,
+        )
+    }
+
+    /** Show, hide or update the keyboard bubble for ImeSwitcher's state. */
+    fun refreshKeyboardBubble() {
+        keyboardBubble?.refresh()
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        keyboardBubble = KeyboardBubble(this).also { it.refresh() }
         windowManager = getSystemService(WINDOW_SERVICE) as android.view.WindowManager
         Log.d(TAG, "AccessibilityInputService connected")
         
@@ -83,6 +108,8 @@ class AccessibilityInputService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        keyboardBubble?.remove()
+        keyboardBubble = null
         try {
             scope.cancel()
         } catch (e: Exception) {}
