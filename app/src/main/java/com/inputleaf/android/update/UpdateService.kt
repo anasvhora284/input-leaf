@@ -66,6 +66,14 @@ object UpdateService {
 
     private val RELEASES = listOf(
         VersionChangelog(
+            versionName = "1.4.6",
+            versionCode = 15,
+            highlights = listOf(
+                "Clipboard: text copied on the phone now reaches the PC in root mode, and with Shizuku started by root.",
+                "Clipboard: images and other non-text clips are left alone, so the phone's clipboard is never cleared by Input Leaf.",
+            ),
+        ),
+        VersionChangelog(
             versionName = "1.4.5",
             versionCode = 14,
             highlights = listOf(
@@ -346,7 +354,7 @@ internal fun versionNameFrom(packageInfo: PackageInfo?): String =
 // [sdkInt] carries the API check (a parameter so tests can cover both branches).
 @SuppressLint("NewApi")
 internal fun versionCodeFrom(packageInfo: PackageInfo?, sdkInt: Int = Build.VERSION.SDK_INT): Long {
-    if (packageInfo == null) return 14L
+    if (packageInfo == null) return 15L
     return if (sdkInt >= Build.VERSION_CODES.P) {
         packageInfo.longVersionCode
     } else {
