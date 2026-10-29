@@ -46,6 +46,9 @@ ignore:
   # Reflects into the hidden IClipboard service and only works as shell or root; checked
   # by running it under app_process on the Android 12 and 16 emulators.
   - "app/src/main/java/com/inputleaf/android/shizuku/ClipboardAccess.kt"
+  # Starts `su 2000` and app_process, so it only runs on a rooted device; checked on a
+  # OnePlus Nord 4 (KernelSU, Android 16). Its parsing lives in ClipboardHelperOutput.kt.
+  - "app/src/main/java/com/inputleaf/android/shizuku/ShellClipboardReader.kt"
   # Runs only inside the privileged injector process: exits it and ends orphaned copies.
   # Checked on a OnePlus Nord 4 (Shizuku as root), where it ended ten leftover processes.
   - "app/src/main/java/com/inputleaf/android/shizuku/InjectorProcess.kt"
