@@ -71,6 +71,7 @@ object UpdateService {
             highlights = listOf(
                 "Clipboard: text copied on the phone now reaches the PC in root mode, and with Shizuku started by root.",
                 "Clipboard: images and other non-text clips are left alone, so the phone's clipboard is never cleared by Input Leaf.",
+                "Accessibility mode: a small button on the screen edge switches to your phone's own keyboard for emoji, clipboard or voice, and back. Drag it anywhere along the edge.",
             ),
         ),
         VersionChangelog(
