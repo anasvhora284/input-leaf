@@ -117,4 +117,17 @@ class ImeSwitcherTest {
         ImeSwitcher.toggle(context)
         assertThat(ImeSwitcher.lent).isFalse()
     }
+
+    @Test
+    @Config(sdk = [33])
+    fun `the bubble still hands over when Input Leaf's keyboard service is not running`() {
+        select(gboard)
+        Robolectric.buildService(InputLeafIME::class.java).create().destroy()
+        assertThat(InputLeafIME.getInstance()).isNull()
+
+        ImeSwitcher.useOurs(context)
+        ImeSwitcher.toggle(context)
+        // The Accessibility service would switch; without one the loan is still recorded.
+        assertThat(ImeSwitcher.lent).isTrue()
+    }
 }
