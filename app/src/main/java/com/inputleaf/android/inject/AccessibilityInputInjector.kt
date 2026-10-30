@@ -9,6 +9,8 @@ import com.inputleaf.android.model.InputLeapEvent
 import kotlinx.coroutines.delay
 
 private const val TAG = "AccessibilityInputInjector"
+private const val RECLAIM_POLLS = 30
+private const val RECLAIM_POLL_MS = 50L
 
 /**
  * Accessibility mode is entirely virtual: gestures and the overlay cursor for the mouse,
@@ -163,13 +165,27 @@ class AccessibilityInputInjector(
         }
     }
 
+    /**
+     * The Input Leaf keyboard, taking it back first if the pill lent the user theirs. The
+     * key that triggers that waits for the switch (a few hundred ms) instead of being lost.
+     */
+    private fun keyboard(): InputLeafIME? {
+        InputLeafIME.getInstance()?.let { return it }
+        if (!ImeSwitcher.reclaim(context)) return null
+        repeat(RECLAIM_POLLS) {
+            Thread.sleep(RECLAIM_POLL_MS)
+            InputLeafIME.getInstance()?.takeIf { it.currentInputConnection != null }?.let { return it }
+        }
+        return null
+    }
+
     private fun handleKeyEvent(keysym: Int, mask: Int, button: Int, isDown: Boolean) {
         val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown)
         if (AccessibilityKeyPolicy.isBackKey(keysym, mask)) {
             if (isDown) AccessibilityInputService.getInstance()?.performGlobalBack()
             return
         }
-        val ime = InputLeafIME.getInstance()
+        val ime = keyboard()
         if (ime == null) {
             Log.w(TAG, "InputLeafIME not running, dropping key event")
             return
@@ -212,7 +228,7 @@ class AccessibilityInputInjector(
         val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown = true)
         // A held Esc must not fire Back again for every repeat.
         if (AccessibilityKeyPolicy.isBackKey(keysym, mask)) return
-        val ime = InputLeafIME.getInstance()
+        val ime = keyboard()
         if (ime == null) {
             Log.w(TAG, "InputLeafIME not running, dropping KeyRepeat")
             return

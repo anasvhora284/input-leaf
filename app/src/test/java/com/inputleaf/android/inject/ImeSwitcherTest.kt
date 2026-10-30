@@ -11,6 +11,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
@@ -68,5 +69,65 @@ class ImeSwitcherTest {
 
         ImeSwitcher.restore(context)
         assertThat(ImeSwitcher.wanted).isFalse()
+    }
+
+    @Test
+    @Config(sdk = [33])
+    fun `the bubble toggles to the user's keyboard and back, and a PC key also takes it back`() {
+        select(gboard)
+        enable(gboard, ImeSwitcher.ourId(context))
+        Robolectric.setupService(InputLeafIME::class.java)
+
+        // Nothing to toggle outside a session.
+        ImeSwitcher.toggle(context)
+        assertThat(ImeSwitcher.lent).isFalse()
+        assertThat(ImeSwitcher.reclaim(context)).isFalse()
+
+        ImeSwitcher.useOurs(context)
+        ImeSwitcher.toggle(context)
+        assertThat(ImeSwitcher.lent).isTrue()
+        ImeSwitcher.toggle(context)
+        assertThat(ImeSwitcher.lent).isFalse()
+        assertThat(ImeSwitcher.wanted).isTrue()
+
+        ImeSwitcher.toggle(context)
+        assertThat(ImeSwitcher.reclaim(context)).isTrue()
+        assertThat(ImeSwitcher.lent).isFalse()
+        // Already taken back: a second key must not wait again.
+        assertThat(ImeSwitcher.reclaim(context)).isFalse()
+    }
+
+    @Test
+    @Config(sdk = [33])
+    fun `leaving ends a loan`() {
+        select(gboard)
+        ImeSwitcher.useOurs(context)
+        ImeSwitcher.toggle(context)
+        ImeSwitcher.restore(context, leaving = true)
+        assertThat(ImeSwitcher.lent).isFalse()
+        assertThat(ImeSwitcher.reclaim(context)).isFalse()
+    }
+
+    @Test
+    @Config(sdk = [29])
+    fun `no bubble where getting the keyboard back would pop the picker`() {
+        select(gboard)
+        ImeSwitcher.useOurs(context)
+        assertThat(ImeSwitcher.canLend).isFalse()
+        ImeSwitcher.toggle(context)
+        assertThat(ImeSwitcher.lent).isFalse()
+    }
+
+    @Test
+    @Config(sdk = [33])
+    fun `the bubble still hands over when Input Leaf's keyboard service is not running`() {
+        select(gboard)
+        Robolectric.buildService(InputLeafIME::class.java).create().destroy()
+        assertThat(InputLeafIME.getInstance()).isNull()
+
+        ImeSwitcher.useOurs(context)
+        ImeSwitcher.toggle(context)
+        // The Accessibility service would switch; without one the loan is still recorded.
+        assertThat(ImeSwitcher.lent).isTrue()
     }
 }

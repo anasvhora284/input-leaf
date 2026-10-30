@@ -22,6 +22,11 @@ internal object ImeSwitcher {
     var wanted = false
         private set
 
+    /** True while the bubble has handed the user their own keyboard (emoji, clipboard, …). */
+    @Volatile
+    var lent = false
+        private set
+
     /**
      * Android 11+ lets the Accessibility service switch keyboards silently. Older versions
      * can only do it through the picker, so there the keyboard stays until the session ends
@@ -42,6 +47,7 @@ internal object ImeSwitcher {
     fun useOurs(context: Context) {
         val wasWanted = wanted
         wanted = true
+        if (!wasWanted) changed()
         val current = currentId(context)
         if (isOurs(context, current)) return
         if (!silent && wasWanted) return
@@ -50,10 +56,52 @@ internal object ImeSwitcher {
         Log.i(TAG, "Switch to Input Leaf keyboard: $switched")
     }
 
+    /**
+     * Getting Input Leaf's keyboard back must be silent, or the next key from the PC would
+     * pop the picker; so lending is offered on Android 11+ only.
+     */
+    val canLend: Boolean get() = silent
+
+    /**
+     * The floating bubble: switch between the user's own keyboard (for emoji, clipboard,
+     * voice and the like) and Input Leaf's. Typing on the PC also switches back.
+     */
+    fun toggle(context: Context) {
+        if (!canLend || !wanted) return
+        if (lent) {
+            reclaim(context)
+            return
+        }
+        lent = true
+        val target = previousId(context)
+        val handedOver = InputLeafIME.getInstance()?.handBack(target) == true ||
+            (target != null && AccessibilityInputService.getInstance()?.switchKeyboard(target) == true)
+        Log.i(TAG, "Lent the user's keyboard: $handedOver")
+        changed()
+    }
+
+    private fun changed() {
+        AccessibilityInputService.getInstance()?.refreshKeyboardBubble()
+    }
+
+    /**
+     * A key came from the PC while the user's keyboard was lent: take Input Leaf's back.
+     * @return true when the switch was requested, so the caller can wait for it.
+     */
+    fun reclaim(context: Context): Boolean {
+        if (!lent || !wanted) return false
+        lent = false
+        useOurs(context)
+        changed()
+        return true
+    }
+
     /** Mouse left ([leaving]) or the session ended: give the user's keyboard back. */
     fun restore(context: Context, leaving: Boolean = false) {
         if (leaving && !silent) return
         wanted = false
+        lent = false
+        changed()
         if (!isOurs(context, currentId(context))) return
         val target = previousId(context)
         val handedBack = InputLeafIME.getInstance()?.handBack(target) == true ||
@@ -67,6 +115,7 @@ internal object ImeSwitcher {
      * which then falls back to the previous one.
      */
     fun previousId(context: Context): String? = prefs(context).getString(KEY_PREVIOUS, null)
+
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 }
