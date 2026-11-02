@@ -22,6 +22,7 @@ import com.inputleaf.android.network.ClientCertificateValidationResult
 import com.inputleaf.android.network.ConnectResult
 import com.inputleaf.android.network.ConnectionTransportPolicy
 import com.inputleaf.android.network.ServerScanner
+import com.inputleaf.android.protocol.ProtocolConstants
 import com.inputleaf.android.privilege.InjectorMethodResolver
 import com.inputleaf.android.privilege.PrivilegeKind
 import com.inputleaf.android.privilege.LibSuRootAccess
@@ -154,6 +155,7 @@ class MainViewModel @JvmOverloads constructor(
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning
     private var scanJob: Job? = null
+    private var autoConnectJob: Job? = null
     private val permissionProvider = dependencies.permissionProvider
     
     // Shizuku status
@@ -467,7 +469,7 @@ class MainViewModel @JvmOverloads constructor(
                     val currentState = service?.state?.value ?: ConnectionState.Disconnected
                     if (auto && !lastIp.isNullOrBlank() && currentState !is ConnectionState.Idle && currentState !is ConnectionState.Active) {
                         Log.i("InputLeaf", "Auto-connecting to last server: $lastIp")
-                        connect(ServerInfo(ip = lastIp))
+                        autoConnect(lastIp)
                     }
                 }
             }
@@ -496,7 +498,7 @@ class MainViewModel @JvmOverloads constructor(
                         ) {
                             _errorState.value = null
                         }
-                        connect(ServerInfo(ip = lastIp))
+                        autoConnect(lastIp)
                     }
                 }
             }
@@ -577,37 +579,74 @@ class MainViewModel @JvmOverloads constructor(
 
     fun scan() {
         if (scanJob?.isActive == true) return
-        scanJob = viewModelScope.launch(Dispatchers.IO) {
-            _isScanning.value = true
-            val ips = com.inputleaf.android.network.NetworkUtils.getLocalIpAddresses(getApplication())
-            Log.d("InputLeaf", "Scanning from IPs: $ips")
-            try {
-                if (ips.isNotEmpty()) {
-                    // One sweep per network, in parallel, so a second network doesn't double the wait.
-                    coroutineScope {
-                        ips.map { ip ->
-                            async {
-                                scanner.scan(ip) { server ->
-                                    if (server.name.isNotBlank() && server.name != server.ip) {
-                                        viewModelScope.launch { prefs.saveServerName(server.ip, server.name) }
-                                    }
-                                    _discoveredServers.update { currentServers ->
-                                        val existingMap = currentServers.associateBy { it.ip }.toMutableMap()
-                                        existingMap[server.ip] = server
-                                        existingMap.values.toList()
-                                    }
-                                }
+        scanJob = viewModelScope.launch(Dispatchers.IO) { scanAllNetworks() }
+    }
+
+    private suspend fun scanAllNetworks(): List<ServerInfo> {
+        _isScanning.value = true
+        val ips = com.inputleaf.android.network.NetworkUtils.getLocalIpAddresses(getApplication())
+        Log.d("InputLeaf", "Scanning from IPs: $ips")
+        try {
+            if (ips.isEmpty()) {
+                Log.e("InputLeaf", "Could not determine local IP address")
+                _discoveredServers.value = emptyList()
+                return emptyList()
+            }
+            // One sweep per network, in parallel, so a second network doesn't double the wait.
+            return coroutineScope {
+                ips.map { ip ->
+                    async {
+                        scanner.scan(ip) { server ->
+                            if (server.name.isNotBlank() && server.name != server.ip) {
+                                viewModelScope.launch { prefs.saveServerName(server.ip, server.name) }
                             }
-                        }.awaitAll()
+                            _discoveredServers.update { currentServers ->
+                                val existingMap = currentServers.associateBy { it.ip }.toMutableMap()
+                                existingMap[server.ip] = server
+                                existingMap.values.toList()
+                            }
+                        }
                     }
-                } else {
-                    Log.e("InputLeaf", "Could not determine local IP address")
-                    _discoveredServers.value = emptyList()
-                }
-            } finally {
-                _isScanning.value = false
+                }.awaitAll().flatten()
+            }
+        } finally {
+            _isScanning.value = false
+        }
+    }
+
+    /** Launch auto-connect, following the server to a new IP if it moved. */
+    private fun autoConnect(lastIp: String) {
+        if (autoConnectJob?.isActive == true) return
+        autoConnectJob = viewModelScope.launch {
+            val address = autoConnectAddress(lastIp)
+            if (!userRequestedDisconnect && _connectionState.value is ConnectionState.Disconnected) {
+                connect(ServerInfo(ip = address))
             }
         }
+    }
+
+    /**
+     * The last server's IP changes after a PC reboot, a hotspot restart or airplane mode.
+     * When it no longer answers, search the local networks for the server presenting the
+     * same trusted certificate and move the saved server to its new IP. Without a saved
+     * fingerprint (plain connection) there's nothing safe to match on, so keep [lastIp].
+     */
+    private suspend fun autoConnectAddress(lastIp: String): String = withContext(Dispatchers.IO) {
+        if (isReachable(lastIp)) return@withContext lastIp
+        val trusted = prefs.fingerprintFor(lastIp).first()?.replace(":", "")?.lowercase()
+            ?: return@withContext lastIp
+        val match = scanAllNetworks().firstOrNull { scanner.fingerprintOf(it.ip) == trusted }
+            ?: return@withContext lastIp
+        Log.i("InputLeaf", "Last server moved from $lastIp to ${match.ip} (same certificate)")
+        prefs.moveServer(lastIp, match.ip)
+        match.ip
+    }
+
+    private fun isReachable(host: String): Boolean = try {
+        java.net.Socket().use { it.connect(java.net.InetSocketAddress(host, ProtocolConstants.DEFAULT_PORT), 1500) }
+        true
+    } catch (_: Exception) {
+        false
     }
 
     fun clearError() {

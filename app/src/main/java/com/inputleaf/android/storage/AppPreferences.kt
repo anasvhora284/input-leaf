@@ -287,6 +287,27 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
             it.remove(KEY_LEGACY_TLS_ENABLED)
         }
 
+    /**
+     * Re-keys everything stored for a server that came back at a new address (same TLS
+     * certificate found at [to]): saved entry, star, name, fingerprint, transport and
+     * last-server move to [to], and [from] is forgotten.
+     */
+    suspend fun moveServer(from: String, to: String) = dataStore.edit { prefs ->
+        if (from == to) return@edit
+        prefs[KEY_SAVED_SERVERS] = savedServerAddresses(prefs) - from + to
+        val favorites = prefs[KEY_FAVORITE_SERVERS]?.split("\n")?.filter { it.isNotBlank() }.orEmpty()
+        if (from in favorites) {
+            prefs[KEY_FAVORITE_SERVERS] = (favorites - from + to).distinct().joinToString("\n")
+        }
+        for (key in listOf(KEY_SERVER_NAMES, KEY_FINGERPRINTS, KEY_TRANSPORT_MODES)) {
+            val records = prefs[key]?.lineSequence()?.mapNotNull { ServerRecordCodec.decode(it) }?.toList() ?: continue
+            val moved = records.firstOrNull { it.first == from } ?: continue
+            prefs[key] = (records.filterNot { it.first == from || it.first == to } + (to to moved.second))
+                .joinToString("\n") { (srv, value) -> ServerRecordCodec.encode(srv, value) }
+        }
+        if (prefs[KEY_LAST_SERVER_IP] == from) prefs[KEY_LAST_SERVER_IP] = to
+    }
+
     suspend fun toggleFavoriteServer(ip: String) = dataStore.edit { prefs ->
         rememberServer(prefs, ip)
         val current = prefs[KEY_FAVORITE_SERVERS]?.split("\n")?.filter { it.isNotBlank() }?.toMutableSet() ?: mutableSetOf()
