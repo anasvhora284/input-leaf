@@ -14,11 +14,9 @@ import org.robolectric.annotation.Config
 @Config(sdk = [Build.VERSION_CODES.UPSIDE_DOWN_CAKE])
 class NetworkUtilsLocalIpTest {
     @Test
-    fun `getLocalIpAddress probes interfaces without throwing`() {
+    fun `getLocalIpAddresses probes interfaces without throwing`() {
         val app = ApplicationProvider.getApplicationContext<Application>()
-        val ip = NetworkUtils.getLocalIpAddress(app)
-        if (ip != null) {
-            assertThat(ip).contains(".")
-        }
+        val ips = NetworkUtils.getLocalIpAddresses(app)
+        ips.forEach { assertThat(it).contains(".") }
     }
 }

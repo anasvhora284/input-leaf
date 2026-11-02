@@ -8,73 +8,55 @@ import java.net.NetworkInterface
 object NetworkUtils {
     private const val TAG = "NetworkUtils"
 
+    /** Wi-Fi and hotspot interface names, in scan order. */
+    private val WIFI_INTERFACE_NAMES = listOf("wlan0", "wlan1", "swlan0", "ap0", "eth0")
+    private val CELLULAR_PREFIXES = listOf("rmnet", "ccmni", "pdp", "ppp", "uwbr")
+
     /**
-     * Get the local IP address for network scanning.
-     * Uses a prioritized approach to find the correct interface:
-     * 1. Wi-Fi interfaces (wlan0, swlan0) - for regular Wi-Fi client mode
-     * 2. Hotspot interfaces (ap0, swlan0) - for when phone is a hotspot
-     * 3. WifiManager fallback - for older Android or edge cases
-     * 4. Any private network interface - last resort
+     * One local IPv4 address per network to scan. A phone can be on Wi-Fi and host a
+     * hotspot at the same time (wlan0 + wlan1 on OnePlus), and the server may only be
+     * reachable on the hotspot, so every network is returned, not just the first.
      */
-    fun getLocalIpAddress(app: Application): String? {
-        // Priority 1: Look for Wi-Fi/hotspot interfaces by name
-        val wifiInterfaceNames = listOf("wlan0", "wlan1", "swlan0", "ap0", "eth0")
-        
+    fun getLocalIpAddresses(app: Application): List<String> {
         try {
             val interfaces = NetworkInterface.getNetworkInterfaces()?.toList() ?: emptyList()
-            
-            // Log all interfaces for debugging
-            interfaces.forEach { iface ->
-                if (iface.isUp && !iface.isLoopback) {
-                    val addrs = iface.inetAddresses.toList()
-                        .filter { it.hostAddress?.contains('.') == true }
-                        .mapNotNull { it.hostAddress }
-                    if (addrs.isNotEmpty()) {
-                        Log.d(TAG, "Interface ${iface.name}: $addrs")
-                    }
-                }
-            }
-            
-            // First pass: Look for preferred Wi-Fi interfaces
-            for (ifaceName in wifiInterfaceNames) {
-                val iface = interfaces.find { it.name == ifaceName && it.isUp && !it.isLoopback }
-                if (iface != null) {
-                    val ip = getIPv4FromInterface(iface)
-                    if (ip != null) {
-                        Log.d(TAG, "Using preferred interface ${iface.name}: $ip")
-                        return ip
-                    }
-                }
-            }
-            
-            // Second pass: WifiManager fallback (works for regular Wi-Fi)
-            val wifiIp = getWifiManagerIp(app)
-            if (wifiIp != null && wifiIp != "0.0.0.0") {
-                Log.d(TAG, "Using WifiManager IP: $wifiIp")
-                return wifiIp
-            }
-            
-            // Third pass: Any private network interface (except cellular)
-            val cellularPrefixes = listOf("rmnet", "ccmni", "pdp", "ppp", "uwbr")
-            for (iface in interfaces) {
-                if (iface.isLoopback || !iface.isUp) continue
-                // Skip cellular interfaces
-                if (cellularPrefixes.any { iface.name.startsWith(it) }) continue
-                
-                val ip = getIPv4FromInterface(iface)
-                if (ip != null && isPrivateIP(ip)) {
-                    Log.d(TAG, "Using fallback interface ${iface.name}: $ip")
-                    return ip
-                }
+            val candidates = interfaces
+                .filter { it.isUp && !it.isLoopback }
+                .map { iface -> iface.name to listOfNotNull(getIPv4FromInterface(iface)) }
+            candidates.filter { it.second.isNotEmpty() }
+                .forEach { (name, addrs) -> Log.d(TAG, "Interface $name: $addrs") }
+            val ips = scanAddresses(candidates)
+            if (ips.isNotEmpty()) {
+                Log.d(TAG, "Scanning from $ips")
+                return ips
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error getting IP address: ${e.message}", e)
         }
-        
+
+        // WifiManager fallback for older Android or edge cases
+        val wifiIp = getWifiManagerIp(app)
+        if (wifiIp != null && wifiIp != "0.0.0.0") {
+            Log.d(TAG, "Using WifiManager IP: $wifiIp")
+            return listOf(wifiIp)
+        }
         Log.e(TAG, "Could not determine local IP address")
-        return null
+        return emptyList()
     }
-    
+
+    /**
+     * Picks the addresses to scan from (interface name, IPv4 addresses) pairs: known
+     * Wi-Fi/hotspot interfaces first and with any address, other non-cellular
+     * interfaces only with a private one. One address per /24, since that's what
+     * [ServerScanner] sweeps.
+     */
+    internal fun scanAddresses(interfaces: List<Pair<String, List<String>>>): List<String> =
+        interfaces
+            .filterNot { (name, _) -> CELLULAR_PREFIXES.any { name.startsWith(it) } }
+            .sortedBy { (name, _) -> WIFI_INTERFACE_NAMES.indexOf(name).let { if (it < 0) Int.MAX_VALUE else it } }
+            .flatMap { (name, addrs) -> addrs.filter { name in WIFI_INTERFACE_NAMES || isPrivateIP(it) } }
+            .distinctBy { it.substringBeforeLast('.') }
+
     private fun getIPv4FromInterface(iface: NetworkInterface): String? {
         val addresses = iface.inetAddresses
         while (addresses.hasMoreElements()) {

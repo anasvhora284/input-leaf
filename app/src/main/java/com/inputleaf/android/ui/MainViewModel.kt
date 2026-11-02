@@ -44,7 +44,10 @@ import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -576,19 +579,26 @@ class MainViewModel @JvmOverloads constructor(
         if (scanJob?.isActive == true) return
         scanJob = viewModelScope.launch(Dispatchers.IO) {
             _isScanning.value = true
-            val ip = com.inputleaf.android.network.NetworkUtils.getLocalIpAddress(getApplication())
-            Log.d("InputLeaf", "Scanning from IP: $ip")
+            val ips = com.inputleaf.android.network.NetworkUtils.getLocalIpAddresses(getApplication())
+            Log.d("InputLeaf", "Scanning from IPs: $ips")
             try {
-                if (ip != null) {
-                    scanner.scan(ip) { server ->
-                        if (server.name.isNotBlank() && server.name != server.ip) {
-                            viewModelScope.launch { prefs.saveServerName(server.ip, server.name) }
-                        }
-                        _discoveredServers.update { currentServers ->
-                            val existingMap = currentServers.associateBy { it.ip }.toMutableMap()
-                            existingMap[server.ip] = server
-                            existingMap.values.toList()
-                        }
+                if (ips.isNotEmpty()) {
+                    // One sweep per network, in parallel, so a second network doesn't double the wait.
+                    coroutineScope {
+                        ips.map { ip ->
+                            async {
+                                scanner.scan(ip) { server ->
+                                    if (server.name.isNotBlank() && server.name != server.ip) {
+                                        viewModelScope.launch { prefs.saveServerName(server.ip, server.name) }
+                                    }
+                                    _discoveredServers.update { currentServers ->
+                                        val existingMap = currentServers.associateBy { it.ip }.toMutableMap()
+                                        existingMap[server.ip] = server
+                                        existingMap.values.toList()
+                                    }
+                                }
+                            }
+                        }.awaitAll()
                     }
                 } else {
                     Log.e("InputLeaf", "Could not determine local IP address")
