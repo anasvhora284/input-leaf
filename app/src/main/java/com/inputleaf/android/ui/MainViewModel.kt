@@ -579,10 +579,12 @@ class MainViewModel @JvmOverloads constructor(
 
     fun scan() {
         if (scanJob?.isActive == true) return
+        // Set before launching so a watcher (autoConnectAddress) never sees "done" before it starts.
+        _isScanning.value = true
         scanJob = viewModelScope.launch(Dispatchers.IO) { scanAllNetworks() }
     }
 
-    private suspend fun scanAllNetworks(): List<ServerInfo> {
+    private suspend fun scanAllNetworks() {
         _isScanning.value = true
         val ips = com.inputleaf.android.network.NetworkUtils.getLocalIpAddresses(getApplication())
         Log.d("InputLeaf", "Scanning from IPs: $ips")
@@ -590,10 +592,10 @@ class MainViewModel @JvmOverloads constructor(
             if (ips.isEmpty()) {
                 Log.e("InputLeaf", "Could not determine local IP address")
                 _discoveredServers.value = emptyList()
-                return emptyList()
+                return
             }
             // One sweep per network, in parallel, so a second network doesn't double the wait.
-            return coroutineScope {
+            coroutineScope {
                 ips.map { ip ->
                     async {
                         scanner.scan(ip) { server ->
@@ -607,7 +609,7 @@ class MainViewModel @JvmOverloads constructor(
                             }
                         }
                     }
-                }.awaitAll().flatten()
+                }.awaitAll()
             }
         } finally {
             _isScanning.value = false
@@ -635,7 +637,18 @@ class MainViewModel @JvmOverloads constructor(
         if (isReachable(lastIp)) return@withContext lastIp
         val trusted = prefs.fingerprintFor(lastIp).first()?.replace(":", "")?.lowercase()
             ?: return@withContext lastIp
-        val match = scanAllNetworks().firstOrNull { scanner.fingerprintOf(it.ip) == trusted }
+        // The scan started at launch has usually found the server already: check what it
+        // has (and finds next) as it arrives, and stop at the first certificate match.
+        scan()
+        val checked = mutableSetOf(lastIp)
+        val match = combine(_discoveredServers, _isScanning, ::Pair)
+            .transformWhile { (servers, scanning) ->
+                val hit = servers.filter { checked.add(it.ip) }
+                    .firstOrNull { scanner.fingerprintOf(it.ip) == trusted }
+                if (hit != null) emit(hit)
+                hit == null && scanning
+            }
+            .firstOrNull()
             ?: return@withContext lastIp
         Log.i("InputLeaf", "Last server moved from $lastIp to ${match.ip} (same certificate)")
         prefs.moveServer(lastIp, match.ip)
@@ -643,7 +656,7 @@ class MainViewModel @JvmOverloads constructor(
     }
 
     private fun isReachable(host: String): Boolean = try {
-        java.net.Socket().use { it.connect(java.net.InetSocketAddress(host, ProtocolConstants.DEFAULT_PORT), 1500) }
+        java.net.Socket().use { it.connect(java.net.InetSocketAddress(host, ProtocolConstants.DEFAULT_PORT), 700) }
         true
     } catch (_: Exception) {
         false
