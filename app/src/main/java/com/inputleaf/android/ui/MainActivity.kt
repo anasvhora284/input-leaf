@@ -1,6 +1,11 @@
 package com.inputleaf.android.ui
 
 import android.Manifest
+import android.content.Intent
+import com.inputleaf.android.model.ConnectionState
+import com.inputleaf.android.service.ACTION_QUICK_CONNECT
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import android.content.pm.PackageManager
 import android.graphics.Color
 import androidx.activity.SystemBarStyle
@@ -43,6 +48,7 @@ class MainActivity : ComponentActivity() {
         }
 
         viewModel.scan()
+        handleQuickConnect(intent)
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -78,6 +84,27 @@ class MainActivity : ComponentActivity() {
         }
     }
     
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleQuickConnect(intent)
+    }
+
+    /**
+     * Quick Settings tile tap (#81): connect to the last server, then go back to whatever
+     * the user was doing once it's up. On failure the app stays so the error is visible.
+     */
+    private fun handleQuickConnect(intent: Intent?) {
+        if (intent?.action != ACTION_QUICK_CONNECT) return
+        intent.action = null
+        lifecycleScope.launch {
+            if (!viewModel.connectToLastServer()) return@launch
+            withTimeoutOrNull(30_000) {
+                viewModel.connectionState.first { it is ConnectionState.Idle || it is ConnectionState.Active }
+            }?.let { moveTaskToBack(true) }
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         // Re-check Shizuku status when returning to app

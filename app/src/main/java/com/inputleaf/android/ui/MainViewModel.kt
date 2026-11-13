@@ -51,7 +51,9 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.ByteArrayOutputStream
 import java.net.InetAddress
 import java.net.NetworkInterface
@@ -614,6 +616,21 @@ class MainViewModel @JvmOverloads constructor(
         } finally {
             _isScanning.value = false
         }
+    }
+
+    /**
+     * Connect to the last server because the user asked (the Quick Settings tile, #81),
+     * whatever the auto-connect setting. False when there is no last server to connect to.
+     */
+    suspend fun connectToLastServer(): Boolean {
+        val lastIp = prefs.lastServerIp.first()?.takeIf { it.isNotBlank() } ?: return false
+        val state = _connectionState.value
+        if (state !is ConnectionState.Disconnected) return true
+        userRequestedDisconnect = false
+        // The connect itself needs the bound service; the tile can beat the binding.
+        withTimeoutOrNull(3000) { while (service == null) delay(50) }
+        autoConnect(lastIp)
+        return true
     }
 
     /** Launch auto-connect, following the server to a new IP if it moved. */
