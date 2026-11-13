@@ -166,4 +166,22 @@ class KeysymResolverTest {
         val action = KeysymResolver.resolve(0x123456, scancode = 0, isDown = true)
         assertThat(action).isEqualTo(KeysymAction.Ignore)
     }
+
+    @Test fun `keypad digits and dot type text, in both keysym forms (82)`() {
+        assertThat(KeysymResolver.resolve(0xFFB7, scancode = 71, isDown = true)).isEqualTo(KeysymAction.Text("7"))
+        assertThat(KeysymResolver.resolve(0xEFB0, scancode = 82, isDown = true)).isEqualTo(KeysymAction.Text("0"))
+        assertThat(KeysymResolver.resolve(0xFFAE, scancode = 83, isDown = true)).isEqualTo(KeysymAction.Text("."))
+        assertThat(KeysymResolver.resolve(0xFFB7, scancode = 71, isDown = false)).isEqualTo(KeysymAction.Ignore)
+    }
+
+    @Test fun `keypad digits with Ctrl held stay a key press`() {
+        val action = KeysymResolver.resolve(0xFFB1, scancode = 79, isDown = true, shortcutModifiers = true)
+        assertThat(action).isInstanceOf(KeysymAction.KeyEventAction::class.java)
+    }
+
+    @Test fun `keypad navigation and operators are not text`() {
+        assertThat(KeysymResolver.keypadText(0xFF9C)).isNull() // KP_End, Num Lock off
+        assertThat(KeysymResolver.keypadText(0xFFAB)).isNull() // KP_Add
+        assertThat(KeysymResolver.keypadText('5'.code)).isNull()
+    }
 }

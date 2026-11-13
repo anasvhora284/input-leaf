@@ -674,7 +674,7 @@ class ShizukuInputInjector internal constructor(
         isDown: Boolean,
     ) {
         val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown)
-        if (scancode != 0 && svc.injectHidKey(scancode, isDown)) {
+        if (!typesKeypadText(keysym, mask) && scancode != 0 && svc.injectHidKey(scancode, isDown)) {
             return
         }
         val shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState) ||
@@ -718,7 +718,7 @@ class ShizukuInputInjector internal constructor(
         count: Int,
     ) {
         val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown = true)
-        if (scancode != 0 && svc.injectHidKey(scancode, true)) {
+        if (!typesKeypadText(keysym, mask) && scancode != 0 && svc.injectHidKey(scancode, true)) {
             return
         }
         val shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState) ||
@@ -752,6 +752,11 @@ class ShizukuInputInjector internal constructor(
             is KeysymAction.Ignore -> Unit
         }
     }
+
+    /** Keypad digits are typed as text, not sent as a keypad key Android reads with Num Lock off (#82). */
+    private fun typesKeypadText(keysym: Int, mask: Int): Boolean =
+        KeysymResolver.keypadText(keysym) != null &&
+            !KeyMapUtils.hasShortcutModifiers(metaState) && !KeyMapUtils.protocolMaskHasShortcuts(mask)
 
     private fun injectTextOrLog(svc: IInputInjector, char: String, keysym: Int): Boolean {
         if (svc.injectText(char)) return true
