@@ -20,8 +20,10 @@ internal object TvLauncherMenu {
             .flatMap { it.findAccessibilityNodeInfosByViewId(MENU_ROW_ID).asSequence() }
             .firstOrNull { it.isFocused }
             ?: return false
-        // Only the first row is Open. A focused later row means the user moved there.
-        if (row.parent?.getChild(0) != row) return false
+        // Open is pre-selected: the first row, or the last when the menu opens above the
+        // tile and is drawn upside down (#74). Any other focused row means the user moved there.
+        val parent = row.parent ?: return false
+        if (parent.getChild(0) != row && parent.getChild(parent.childCount - 1) != row) return false
         return row.performAction(AccessibilityNodeInfo.ACTION_CLICK)
     }
 }
