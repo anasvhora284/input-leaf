@@ -330,6 +330,7 @@ class ConnectionService : Service() {
                 is ConnectResult.RejectedByUser -> {
                     conn.close()
                     coordinator.onConnectRejected(generation)
+                    dismissNotification()
                     onConnectionRejected?.invoke()
                 }
                 is ConnectResult.Failed -> {
@@ -341,6 +342,7 @@ class ConnectionService : Service() {
                             scheduleRetry(serverIp, screenName, action.delayMs, action.generation)
                         }
                         is ConnectFailureAction.Terminal -> {
+                            dismissNotification()
                             onConnectionFailed?.invoke(action.reason, action.detail)
                         }
                         ConnectFailureAction.Ignore -> Unit
@@ -358,6 +360,7 @@ class ConnectionService : Service() {
                     scheduleRetry(serverIp, screenName, action.delayMs, action.generation)
                 }
                 is ConnectFailureAction.Terminal -> {
+                    dismissNotification()
                     onConnectionFailed?.invoke(action.reason, action.detail)
                 }
                 ConnectFailureAction.Ignore -> Unit
@@ -667,6 +670,17 @@ class ConnectionService : Service() {
             connection?.close()
             connection = null
         }
+    }
+
+    /** Nothing connected and nothing retrying: take the notification down and stop the service. */
+    private fun dismissNotification() {
+        stopping = true
+        runCatching {
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        }.onFailure { error ->
+            Log.w(TAG, "Failed to stop foreground service cleanly: ${error.message}", error)
+        }
+        stopSelf()
     }
 
     fun disconnect() {

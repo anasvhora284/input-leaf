@@ -41,7 +41,12 @@ object NotificationHelper {
             .setContentText(text)
             .setContentIntent(tapIntent)
             .setOngoing(true)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Disconnect", disconnectIntent)
+            .apply {
+                // Nothing to disconnect from while waiting to reconnect.
+                if (state !is ConnectionState.Disconnected) {
+                    addAction(android.R.drawable.ic_menu_close_clear_cancel, "Disconnect", disconnectIntent)
+                }
+            }
             .build()
     }
 }
