@@ -21,6 +21,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -50,7 +51,11 @@ fun ColorPickerDialog(
     }
     val (h, s, v) = hsv.value
     val argb = android.graphics.Color.HSVToColor(floatArrayOf(h, s, v))
-    fun set(h2: Float = h, s2: Float = s, v2: Float = v) { hsv.value = listOf(h2, s2, v2) }
+    // Read the state, not the captured h/s/v: the drag handlers outlive recompositions.
+    fun set(h2: Float? = null, s2: Float? = null, v2: Float? = null) {
+        val (ch, cs, cv) = hsv.value
+        hsv.value = listOf(h2 ?: ch, s2 ?: cs, v2 ?: cv)
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -109,6 +114,7 @@ private fun GradientSlider(
     description: String,
     onChange: (Float) -> Unit,
 ) {
+    val currentOnChange by rememberUpdatedState(onChange)
     var widthPx by remember { mutableStateOf(1) }
     val thumb = 28.dp
     val thumbPx = with(LocalDensity.current) { thumb.toPx() }
@@ -119,8 +125,8 @@ private fun GradientSlider(
             .fillMaxWidth()
             .height(thumb)
             .onSizeChanged { widthPx = it.width.coerceAtLeast(1) }
-            .pointerInput(Unit) { detectTapGestures { onChange(fraction(it.x)) } }
-            .pointerInput(Unit) { detectDragGestures { change, _ -> onChange(fraction(change.position.x)) } },
+            .pointerInput(Unit) { detectTapGestures { currentOnChange(fraction(it.x)) } }
+            .pointerInput(Unit) { detectDragGestures { change, _ -> currentOnChange(fraction(change.position.x)) } },
     ) {
         Box(
             Modifier
