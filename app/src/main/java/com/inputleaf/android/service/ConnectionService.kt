@@ -186,8 +186,16 @@ class ConnectionService : Service() {
         Log.d(TAG, "Pointer speed updated to $speed")
     }
 
+    /**
+     * Set once the user disconnects, until the next connect. The state watcher below runs
+     * after [disconnect] has removed the notification and would post it again, leaving a
+     * stale "Disconnect" notification with nothing connected.
+     */
+    @Volatile private var stopping = false
+
     private fun observeState() = scope.launch {
         coordinator.state.collect { state ->
+            if (stopping) return@collect
             val notif = NotificationHelper.build(this@ConnectionService, state)
             getSystemService(android.app.NotificationManager::class.java)
                 .notify(NOTIF_ID, notif)
@@ -207,6 +215,7 @@ class ConnectionService : Service() {
             if (currentState is ConnectionState.Active && currentState.serverIp == serverIp) return
         }
 
+        stopping = false
         val plan = coordinator.startConnect(serverIp, screenName, forceReconnect = force)
         cancelPendingJobs(keepConnection = false)
         connection?.close()
@@ -661,6 +670,7 @@ class ConnectionService : Service() {
     }
 
     fun disconnect() {
+        stopping = true
         coordinator.disconnect()
         shizukuRecoveryJob?.cancel()
         shizukuRecoveryJob = null
