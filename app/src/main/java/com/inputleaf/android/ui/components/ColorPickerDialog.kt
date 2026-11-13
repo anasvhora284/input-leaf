@@ -50,10 +50,7 @@ fun ColorPickerDialog(
     }
     val (h, s, v) = hsv.value
     val argb = android.graphics.Color.HSVToColor(floatArrayOf(h, s, v))
-    // Hue and saturation do nothing at zero brightness, so moving them brings it back up.
-    fun set(h2: Float = h, s2: Float = s, v2: Float = v) {
-        hsv.value = listOf(h2, s2, if (v2 == 0f && (h2 != h || s2 != s)) 1f else v2)
-    }
+    fun set(h2: Float = h, s2: Float = s, v2: Float = v) { hsv.value = listOf(h2, s2, v2) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
