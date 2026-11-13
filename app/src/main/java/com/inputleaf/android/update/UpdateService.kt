@@ -67,8 +67,15 @@ object UpdateService {
     private val RELEASES = listOf(
         VersionChangelog(
             versionName = "1.4.6",
-            versionCode = 15,
+            versionCode = 16,
             highlights = listOf(
+                "New Quick Settings tile: tap it to connect to your last server, or to disconnect, straight from the notification shade.",
+                "The server list searches every network the phone is on, so a PC on your phone's own hotspot is found even while it is also on Wi-Fi.",
+                "With \"Auto-connect on launch\" on, Input Leaf finds your PC again when its address changes after a restart, a hotspot restart or airplane mode. This needs an encrypted (TLS) connection you have already trusted.",
+                "Choose any colour for the Accessibility cursor with a hex code, in Settings → Cursor style → Custom.",
+                "The number pad types its digits and decimal point instead of acting as Home, End and arrows.",
+                "Accessibility mode: Esc and Alt+← now go Back with Input Leap and Deskflow.",
+                "Android TV: clicking an app opens it with one click even when its menu opens above the tile.",
                 "Clipboard: text copied on the phone now reaches the PC in root mode, and with Shizuku started by root.",
                 "Clipboard: images and other non-text clips are left alone, so the phone's clipboard is never cleared by Input Leaf.",
                 "Accessibility mode: a small button on the screen edge switches to your phone's own keyboard for emoji, clipboard or voice, and back. Drag it anywhere along the edge.",
@@ -355,7 +362,7 @@ internal fun versionNameFrom(packageInfo: PackageInfo?): String =
 // [sdkInt] carries the API check (a parameter so tests can cover both branches).
 @SuppressLint("NewApi")
 internal fun versionCodeFrom(packageInfo: PackageInfo?, sdkInt: Int = Build.VERSION.SDK_INT): Long {
-    if (packageInfo == null) return 15L
+    if (packageInfo == null) return 16L
     return if (sdkInt >= Build.VERSION_CODES.P) {
         packageInfo.longVersionCode
     } else {

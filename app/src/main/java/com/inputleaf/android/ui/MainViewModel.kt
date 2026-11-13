@@ -22,6 +22,7 @@ import com.inputleaf.android.network.ClientCertificateValidationResult
 import com.inputleaf.android.network.ConnectResult
 import com.inputleaf.android.network.ConnectionTransportPolicy
 import com.inputleaf.android.network.ServerScanner
+import com.inputleaf.android.protocol.ProtocolConstants
 import com.inputleaf.android.privilege.InjectorMethodResolver
 import com.inputleaf.android.privilege.PrivilegeKind
 import com.inputleaf.android.privilege.LibSuRootAccess
@@ -44,10 +45,15 @@ import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.ByteArrayOutputStream
 import java.net.InetAddress
 import java.net.NetworkInterface
@@ -151,6 +157,7 @@ class MainViewModel @JvmOverloads constructor(
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning
     private var scanJob: Job? = null
+    private var autoConnectJob: Job? = null
     private val permissionProvider = dependencies.permissionProvider
     
     // Shizuku status
@@ -464,7 +471,7 @@ class MainViewModel @JvmOverloads constructor(
                     val currentState = service?.state?.value ?: ConnectionState.Disconnected
                     if (auto && !lastIp.isNullOrBlank() && currentState !is ConnectionState.Idle && currentState !is ConnectionState.Active) {
                         Log.i("InputLeaf", "Auto-connecting to last server: $lastIp")
-                        connect(ServerInfo(ip = lastIp))
+                        autoConnect(lastIp)
                     }
                 }
             }
@@ -493,7 +500,7 @@ class MainViewModel @JvmOverloads constructor(
                         ) {
                             _errorState.value = null
                         }
-                        connect(ServerInfo(ip = lastIp))
+                        autoConnect(lastIp)
                     }
                 }
             }
@@ -574,30 +581,102 @@ class MainViewModel @JvmOverloads constructor(
 
     fun scan() {
         if (scanJob?.isActive == true) return
-        scanJob = viewModelScope.launch(Dispatchers.IO) {
-            _isScanning.value = true
-            val ip = com.inputleaf.android.network.NetworkUtils.getLocalIpAddress(getApplication())
-            Log.d("InputLeaf", "Scanning from IP: $ip")
-            try {
-                if (ip != null) {
-                    scanner.scan(ip) { server ->
-                        if (server.name.isNotBlank() && server.name != server.ip) {
-                            viewModelScope.launch { prefs.saveServerName(server.ip, server.name) }
-                        }
-                        _discoveredServers.update { currentServers ->
-                            val existingMap = currentServers.associateBy { it.ip }.toMutableMap()
-                            existingMap[server.ip] = server
-                            existingMap.values.toList()
+        // Set before launching so a watcher (autoConnectAddress) never sees "done" before it starts.
+        _isScanning.value = true
+        scanJob = viewModelScope.launch(Dispatchers.IO) { scanAllNetworks() }
+    }
+
+    private suspend fun scanAllNetworks() {
+        _isScanning.value = true
+        val ips = com.inputleaf.android.network.NetworkUtils.getLocalIpAddresses(getApplication())
+        Log.d("InputLeaf", "Scanning from IPs: $ips")
+        try {
+            if (ips.isEmpty()) {
+                Log.e("InputLeaf", "Could not determine local IP address")
+                _discoveredServers.value = emptyList()
+                return
+            }
+            // One sweep per network, in parallel, so a second network doesn't double the wait.
+            coroutineScope {
+                ips.map { ip ->
+                    async {
+                        scanner.scan(ip) { server ->
+                            if (server.name.isNotBlank() && server.name != server.ip) {
+                                viewModelScope.launch { prefs.saveServerName(server.ip, server.name) }
+                            }
+                            _discoveredServers.update { currentServers ->
+                                val existingMap = currentServers.associateBy { it.ip }.toMutableMap()
+                                existingMap[server.ip] = server
+                                existingMap.values.toList()
+                            }
                         }
                     }
-                } else {
-                    Log.e("InputLeaf", "Could not determine local IP address")
-                    _discoveredServers.value = emptyList()
-                }
-            } finally {
-                _isScanning.value = false
+                }.awaitAll()
+            }
+        } finally {
+            _isScanning.value = false
+        }
+    }
+
+    /**
+     * Connect to the last server because the user asked (the Quick Settings tile, #81),
+     * whatever the auto-connect setting. False when there is no last server to connect to.
+     */
+    suspend fun connectToLastServer(): Boolean {
+        val lastIp = prefs.lastServerIp.first()?.takeIf { it.isNotBlank() } ?: return false
+        val state = _connectionState.value
+        if (state !is ConnectionState.Disconnected) return true
+        userRequestedDisconnect = false
+        // The connect itself needs the bound service; the tile can beat the binding.
+        withTimeoutOrNull(3000) { while (service == null) delay(50) }
+        autoConnect(lastIp)
+        return true
+    }
+
+    /** Launch auto-connect, following the server to a new IP if it moved. */
+    private fun autoConnect(lastIp: String) {
+        if (autoConnectJob?.isActive == true) return
+        autoConnectJob = viewModelScope.launch {
+            val address = autoConnectAddress(lastIp)
+            if (!userRequestedDisconnect && _connectionState.value is ConnectionState.Disconnected) {
+                connect(ServerInfo(ip = address))
             }
         }
+    }
+
+    /**
+     * The last server's IP changes after a PC reboot, a hotspot restart or airplane mode.
+     * When it no longer answers, search the local networks for the server presenting the
+     * same trusted certificate and move the saved server to its new IP. Without a saved
+     * fingerprint (plain connection) there's nothing safe to match on, so keep [lastIp].
+     */
+    private suspend fun autoConnectAddress(lastIp: String): String = withContext(Dispatchers.IO) {
+        if (isReachable(lastIp)) return@withContext lastIp
+        val trusted = prefs.fingerprintFor(lastIp).first()?.replace(":", "")?.lowercase()
+            ?: return@withContext lastIp
+        // The scan started at launch has usually found the server already: check what it
+        // has (and finds next) as it arrives, and stop at the first certificate match.
+        scan()
+        val checked = mutableSetOf(lastIp)
+        val match = combine(_discoveredServers, _isScanning, ::Pair)
+            .transformWhile { (servers, scanning) ->
+                val hit = servers.filter { checked.add(it.ip) }
+                    .firstOrNull { scanner.fingerprintOf(it.ip) == trusted }
+                if (hit != null) emit(hit)
+                hit == null && scanning
+            }
+            .firstOrNull()
+            ?: return@withContext lastIp
+        Log.i("InputLeaf", "Last server moved from $lastIp to ${match.ip} (same certificate)")
+        prefs.moveServer(lastIp, match.ip)
+        match.ip
+    }
+
+    private fun isReachable(host: String): Boolean = try {
+        java.net.Socket().use { it.connect(java.net.InetSocketAddress(host, ProtocolConstants.DEFAULT_PORT), 700) }
+        true
+    } catch (_: Exception) {
+        false
     }
 
     fun clearError() {

@@ -186,8 +186,16 @@ class ConnectionService : Service() {
         Log.d(TAG, "Pointer speed updated to $speed")
     }
 
+    /**
+     * Set once the user disconnects, until the next connect. The state watcher below runs
+     * after [disconnect] has removed the notification and would post it again, leaving a
+     * stale "Disconnect" notification with nothing connected.
+     */
+    @Volatile private var stopping = false
+
     private fun observeState() = scope.launch {
         coordinator.state.collect { state ->
+            if (stopping) return@collect
             val notif = NotificationHelper.build(this@ConnectionService, state)
             getSystemService(android.app.NotificationManager::class.java)
                 .notify(NOTIF_ID, notif)
@@ -207,6 +215,7 @@ class ConnectionService : Service() {
             if (currentState is ConnectionState.Active && currentState.serverIp == serverIp) return
         }
 
+        stopping = false
         val plan = coordinator.startConnect(serverIp, screenName, forceReconnect = force)
         cancelPendingJobs(keepConnection = false)
         connection?.close()
@@ -321,6 +330,7 @@ class ConnectionService : Service() {
                 is ConnectResult.RejectedByUser -> {
                     conn.close()
                     coordinator.onConnectRejected(generation)
+                    dismissNotification()
                     onConnectionRejected?.invoke()
                 }
                 is ConnectResult.Failed -> {
@@ -332,6 +342,7 @@ class ConnectionService : Service() {
                             scheduleRetry(serverIp, screenName, action.delayMs, action.generation)
                         }
                         is ConnectFailureAction.Terminal -> {
+                            dismissNotification()
                             onConnectionFailed?.invoke(action.reason, action.detail)
                         }
                         ConnectFailureAction.Ignore -> Unit
@@ -349,6 +360,7 @@ class ConnectionService : Service() {
                     scheduleRetry(serverIp, screenName, action.delayMs, action.generation)
                 }
                 is ConnectFailureAction.Terminal -> {
+                    dismissNotification()
                     onConnectionFailed?.invoke(action.reason, action.detail)
                 }
                 ConnectFailureAction.Ignore -> Unit
@@ -660,7 +672,19 @@ class ConnectionService : Service() {
         }
     }
 
+    /** Nothing connected and nothing retrying: take the notification down and stop the service. */
+    private fun dismissNotification() {
+        stopping = true
+        runCatching {
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        }.onFailure { error ->
+            Log.w(TAG, "Failed to stop foreground service cleanly: ${error.message}", error)
+        }
+        stopSelf()
+    }
+
     fun disconnect() {
+        stopping = true
         coordinator.disconnect()
         shizukuRecoveryJob?.cancel()
         shizukuRecoveryJob = null

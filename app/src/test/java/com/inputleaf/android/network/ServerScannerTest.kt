@@ -205,4 +205,32 @@ class ServerScannerTest {
         }
         assertThat(results).isNotNull()
     }
+
+    @Test fun `fingerprintOf reads the server certificate even when it demands a client certificate`() {
+        for (needClientAuth in listOf(false, true)) {
+            val material = com.inputleaf.android.testutil.ClientCertificateTestFixture.material()
+            val expected = (ClientCertificateValidator.validate(material.pkcs12, material.password)
+                as ClientCertificateValidationResult.Success).summary.fingerprint
+            val context = javax.net.ssl.SSLContext.getInstance("TLS").apply {
+                init(TlsFingerprintManager.keyManagers(material), null, null)
+            }
+            val server = (context.serverSocketFactory.createServerSocket(0) as javax.net.ssl.SSLServerSocket)
+                .also { it.needClientAuth = needClientAuth }
+            val accept = Thread {
+                runCatching { server.accept().use { (it as javax.net.ssl.SSLSocket).startHandshake() } }
+            }.apply { start() }
+
+            val fingerprint = ServerScanner().fingerprintOf("127.0.0.1", 2000, server.localPort)
+
+            accept.join(3000)
+            server.close()
+            material.clear()
+            assertThat(fingerprint).isEqualTo(expected)
+        }
+    }
+
+    @Test fun `fingerprintOf is null when nothing listens`() {
+        val closedPort = java.net.ServerSocket(0).use { it.localPort }
+        assertThat(ServerScanner().fingerprintOf("127.0.0.1", 500, closedPort)).isNull()
+    }
 }

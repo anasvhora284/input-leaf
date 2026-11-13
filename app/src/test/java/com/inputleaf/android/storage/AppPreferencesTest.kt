@@ -6,6 +6,8 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.google.common.truth.Truth.assertThat
+import com.inputleaf.android.service.CursorColor
+import com.inputleaf.android.service.CursorLook
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -32,6 +34,40 @@ class AppPreferencesTest {
             assertThat(prefs.savedServers.first()).containsExactly("192.168.1.10", "macbook-b.local")
             assertThat(prefs.autoConnect.first()).isFalse()
             assertThat(prefs.lastServerIp.first()).isNull()
+        }
+    }
+
+    @Test fun `moving a server carries its trust, name and star to the new address`() = runBlocking {
+        withPreferences { prefs, _ ->
+            prefs.saveLastServer("10.153.185.125")
+            prefs.saveServerName("10.153.185.125", "ansh-vhora")
+            prefs.saveFingerprint("10.153.185.125", "ab".repeat(32))
+            prefs.saveTransport("10.153.185.125", "tls")
+            prefs.toggleFavoriteServer("10.153.185.125")
+            prefs.saveServer("192.168.1.20")
+            prefs.moveServer("10.153.185.125", "10.253.18.125")
+        }
+        withPreferences { prefs, _ ->
+            assertThat(prefs.savedServers.first()).containsExactly("192.168.1.20", "10.253.18.125")
+            assertThat(prefs.lastServerIp.first()).isEqualTo("10.253.18.125")
+            assertThat(prefs.favoriteServers.first()).containsExactly("10.253.18.125")
+            assertThat(prefs.serverNames.first()).containsExactly("10.253.18.125", "ansh-vhora")
+            assertThat(prefs.allFingerprints().first()).containsExactly("10.253.18.125", "ab".repeat(32))
+            assertThat(prefs.transportFor("10.253.18.125").first()).isEqualTo("tls")
+            assertThat(prefs.transportFor("10.153.185.125").first()).isNull()
+        }
+    }
+
+    @Test fun `custom cursor colour is saved and cleared by picking a preset`() = runBlocking {
+        withPreferences { prefs, _ ->
+            prefs.saveCursorLook(CursorLook(fill = CursorColor.BLUE, customFill = 0xFFFF5722.toInt()))
+        }
+        withPreferences { prefs, _ ->
+            assertThat(prefs.cursorLook.first().customFill).isEqualTo(0xFFFF5722.toInt())
+            prefs.saveCursorLook(CursorLook(fill = CursorColor.GREEN))
+            val look = prefs.cursorLook.first()
+            assertThat(look.customFill).isNull()
+            assertThat(look.fillArgb).isEqualTo(CursorColor.GREEN.argb)
         }
     }
 
