@@ -47,6 +47,7 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
         private val KEY_CURSOR_SIZE      = stringPreferencesKey("cursor_size")
         private val KEY_CURSOR_FILL      = stringPreferencesKey("cursor_fill")
         private val KEY_CURSOR_OUTLINE   = stringPreferencesKey("cursor_outline")
+        private val KEY_CURSOR_FILL_CUSTOM = intPreferencesKey("cursor_fill_custom")
         private val KEY_POINTER_DEVICE   = stringPreferencesKey("pointer_device")
         private val KEY_SCROLL_SPEED     = intPreferencesKey("scroll_speed_percent")
         private val KEY_SERVER_NAMES     = stringPreferencesKey("server_display_names")
@@ -119,6 +120,7 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
                 size = CursorSize.fromStorage(it[KEY_CURSOR_SIZE]),
                 fill = CursorColor.fromStorage(it[KEY_CURSOR_FILL], CursorColor.BLACK),
                 outline = CursorColor.fromStorage(it[KEY_CURSOR_OUTLINE], CursorColor.WHITE),
+                customFill = it[KEY_CURSOR_FILL_CUSTOM],
             )
         }.distinctUntilChanged()
 
@@ -271,6 +273,7 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
         it[KEY_CURSOR_SIZE] = look.size.storageValue
         it[KEY_CURSOR_FILL] = look.fill.storageValue
         it[KEY_CURSOR_OUTLINE] = look.outline.storageValue
+        look.customFill?.let { c -> it[KEY_CURSOR_FILL_CUSTOM] = c } ?: it.remove(KEY_CURSOR_FILL_CUSTOM)
     }
 
     suspend fun saveScrollSpeed(percent: Int) = dataStore.edit {

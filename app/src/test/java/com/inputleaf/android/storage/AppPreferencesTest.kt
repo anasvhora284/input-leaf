@@ -6,6 +6,8 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.google.common.truth.Truth.assertThat
+import com.inputleaf.android.service.CursorColor
+import com.inputleaf.android.service.CursorLook
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -53,6 +55,19 @@ class AppPreferencesTest {
             assertThat(prefs.allFingerprints().first()).containsExactly("10.253.18.125", "ab".repeat(32))
             assertThat(prefs.transportFor("10.253.18.125").first()).isEqualTo("tls")
             assertThat(prefs.transportFor("10.153.185.125").first()).isNull()
+        }
+    }
+
+    @Test fun `custom cursor colour is saved and cleared by picking a preset`() = runBlocking {
+        withPreferences { prefs, _ ->
+            prefs.saveCursorLook(CursorLook(fill = CursorColor.BLUE, customFill = 0xFFFF5722.toInt()))
+        }
+        withPreferences { prefs, _ ->
+            assertThat(prefs.cursorLook.first().customFill).isEqualTo(0xFFFF5722.toInt())
+            prefs.saveCursorLook(CursorLook(fill = CursorColor.GREEN))
+            val look = prefs.cursorLook.first()
+            assertThat(look.customFill).isNull()
+            assertThat(look.fillArgb).isEqualTo(CursorColor.GREEN.argb)
         }
     }
 

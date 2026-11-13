@@ -34,6 +34,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import com.inputleaf.android.service.CursorColor
+import com.inputleaf.android.service.formatCursorHex
+import com.inputleaf.android.service.parseCursorHex
 import com.inputleaf.android.service.CursorHotspot
 import com.inputleaf.android.service.CursorLook
 import com.inputleaf.android.service.CursorSize
@@ -116,6 +118,7 @@ fun SettingsScreen(
     var showInputMethodDialog by remember { mutableStateOf(false) }
     var showTransportPolicyDialog by remember { mutableStateOf(false) }
     var showCursorStyleDialog by remember { mutableStateOf(false) }
+    var showCustomCursorColor by remember { mutableStateOf(false) }
     var showScrollSpeedDialog by remember { mutableStateOf(false) }
     var showLocalFingerprint by remember { mutableStateOf(false) }
     var showRegenerateConfirm by remember { mutableStateOf(false) }
@@ -709,11 +712,19 @@ fun SettingsScreen(
                         ChipRow {
                             CursorColor.entries.forEach { color ->
                                 ColorSwatch(
-                                    color = color,
-                                    selected = cursorLook.fill == color,
-                                    onClick = { onCursorLookChange(cursorLook.copy(fill = color)) },
+                                    argb = color.argb,
+                                    label = color.label,
+                                    selected = cursorLook.customFill == null && cursorLook.fill == color,
+                                    onClick = { onCursorLookChange(cursorLook.copy(fill = color, customFill = null)) },
                                 )
                             }
+                            ColorSwatch(
+                                argb = cursorLook.customFill ?: 0xFF808080.toInt(),
+                                label = "Custom colour",
+                                selected = cursorLook.customFill != null,
+                                onClick = { showCustomCursorColor = true },
+                                custom = true,
+                            )
                         }
                         Text("Outline", style = MaterialTheme.typography.labelLarge)
                         ChipRow {
@@ -733,6 +744,36 @@ fun SettingsScreen(
                     Text("Close")
                 }
             }
+        )
+    }
+
+    if (showCustomCursorColor) {
+        var hex by remember { mutableStateOf(cursorLook.customFill?.let(::formatCursorHex) ?: "#") }
+        val parsed = parseCursorHex(hex)
+        AlertDialog(
+            onDismissRequest = { showCustomCursorColor = false },
+            title = { Text("Custom cursor colour") },
+            text = {
+                OutlinedTextField(
+                    value = hex,
+                    onValueChange = { hex = it.take(7) },
+                    label = { Text("Hex colour") },
+                    placeholder = { Text("#FF5722") },
+                    singleLine = true,
+                    isError = parsed == null,
+                    supportingText = { if (parsed == null) Text("Enter 6 hex digits, like #FF5722") },
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = parsed != null,
+                    onClick = {
+                        onCursorLookChange(cursorLook.copy(customFill = parsed))
+                        showCustomCursorColor = false
+                    },
+                ) { Text("Apply") }
+            },
+            dismissButton = { TextButton(onClick = { showCustomCursorColor = false }) { Text("Cancel") } },
         )
     }
 
@@ -1004,19 +1045,21 @@ private fun ChipRow(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun ColorSwatch(color: CursorColor, selected: Boolean, onClick: () -> Unit) {
+private fun ColorSwatch(argb: Int, label: String, selected: Boolean, onClick: () -> Unit, custom: Boolean = false) {
     Surface(
         onClick = onClick,
         modifier = Modifier
             .size(40.dp)
-            .semantics { contentDescription = color.label; this.selected = selected },
+            .semantics { contentDescription = label; this.selected = selected },
         shape = CircleShape,
-        color = Color(color.argb),
+        color = Color(argb),
         border = BorderStroke(
             if (selected) 3.dp else 1.dp,
             if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
         ),
-    ) {}
+    ) {
+        if (custom) Box(contentAlignment = Alignment.Center) { Text("#", color = Color.White) }
+    }
 }
 
 private fun openUrl(context: android.content.Context, url: String) {

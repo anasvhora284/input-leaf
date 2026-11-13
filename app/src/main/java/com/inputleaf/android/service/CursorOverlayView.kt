@@ -23,12 +23,12 @@ object CursorOverlayView {
 
     private fun drawable(context: Context, look: CursorLook): Drawable {
         if (look.hotspot == CursorHotspot.LEAF) return checkNotNull(context.getDrawable(R.drawable.cursor))
-        fun layer(res: Int, color: CursorColor) =
-            checkNotNull(context.getDrawable(res)).mutate().apply { setTint(color.argb) }
+        fun layer(res: Int, argb: Int) =
+            checkNotNull(context.getDrawable(res)).mutate().apply { setTint(argb) }
         return LayerDrawable(
             arrayOf(
-                layer(R.drawable.ic_cursor_aosp_fill, look.fill),
-                layer(R.drawable.ic_cursor_aosp_outline, look.outline),
+                layer(R.drawable.ic_cursor_aosp_fill, look.fillArgb),
+                layer(R.drawable.ic_cursor_aosp_outline, look.outline.argb),
             ),
         )
     }

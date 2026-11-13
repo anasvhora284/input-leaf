@@ -11,11 +11,24 @@ data class CursorLook(
     val size: CursorSize = CursorSize.NORMAL,
     val fill: CursorColor = CursorColor.BLACK,
     val outline: CursorColor = CursorColor.WHITE,
+    /** A colour picked by hex code (#81); when set it replaces [fill]. */
+    val customFill: Int? = null,
 ) {
+    val fillArgb: Int get() = customFill ?: fill.argb
+
     val hotspot: CursorHotspot get() = CursorHotspot.forStyle(style)
 
     fun windowSizePx(density: Float): Int = CursorHotspot.windowSizePx(density * size.scale)
 }
+
+/** Parses "#RRGGBB" or "RRGGBB" (any case) to an opaque ARGB int, or null if it isn't one. */
+fun parseCursorHex(text: String): Int? {
+    val hex = text.trim().removePrefix("#")
+    if (hex.length != 6) return null
+    return hex.toIntOrNull(16)?.let { 0xFF000000.toInt() or it }
+}
+
+fun formatCursorHex(argb: Int): String = "#%06X".format(argb and 0xFFFFFF)
 
 enum class CursorSize(val storageValue: String, val label: String, val scale: Float) {
     SMALL("small", "Small", 0.75f),
