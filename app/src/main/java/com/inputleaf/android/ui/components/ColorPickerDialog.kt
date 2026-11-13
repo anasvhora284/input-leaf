@@ -44,11 +44,16 @@ fun ColorPickerDialog(
     val hsv = remember {
         val out = FloatArray(3)
         android.graphics.Color.colorToHSV(initial, out)
+        // Black (the default cursor) has no hue to show; start bright so the bars mean something.
+        if (out[2] == 0f) { out[1] = 1f; out[2] = 1f }
         mutableStateOf(out.toList())
     }
     val (h, s, v) = hsv.value
     val argb = android.graphics.Color.HSVToColor(floatArrayOf(h, s, v))
-    fun set(h2: Float = h, s2: Float = s, v2: Float = v) { hsv.value = listOf(h2, s2, v2) }
+    // Hue and saturation do nothing at zero brightness, so moving them brings it back up.
+    fun set(h2: Float = h, s2: Float = s, v2: Float = v) {
+        hsv.value = listOf(h2, s2, if (v2 == 0f && (h2 != h || s2 != s)) 1f else v2)
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
