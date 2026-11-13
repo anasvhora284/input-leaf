@@ -34,8 +34,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import com.inputleaf.android.service.CursorColor
-import com.inputleaf.android.service.formatCursorHex
-import com.inputleaf.android.service.parseCursorHex
+import com.inputleaf.android.ui.components.ColorPickerDialog
 import com.inputleaf.android.service.CursorHotspot
 import com.inputleaf.android.service.CursorLook
 import com.inputleaf.android.service.CursorSize
@@ -748,32 +747,14 @@ fun SettingsScreen(
     }
 
     if (showCustomCursorColor) {
-        var hex by remember { mutableStateOf(cursorLook.customFill?.let(::formatCursorHex) ?: "#") }
-        val parsed = parseCursorHex(hex)
-        AlertDialog(
-            onDismissRequest = { showCustomCursorColor = false },
-            title = { Text("Custom cursor colour") },
-            text = {
-                OutlinedTextField(
-                    value = hex,
-                    onValueChange = { hex = it.take(7) },
-                    label = { Text("Hex colour") },
-                    placeholder = { Text("#FF5722") },
-                    singleLine = true,
-                    isError = parsed == null,
-                    supportingText = { if (parsed == null) Text("Enter 6 hex digits, like #FF5722") },
-                )
+        ColorPickerDialog(
+            title = "Custom cursor colour",
+            initial = cursorLook.customFill ?: cursorLook.fillArgb,
+            onApply = {
+                onCursorLookChange(cursorLook.copy(customFill = it))
+                showCustomCursorColor = false
             },
-            confirmButton = {
-                TextButton(
-                    enabled = parsed != null,
-                    onClick = {
-                        onCursorLookChange(cursorLook.copy(customFill = parsed))
-                        showCustomCursorColor = false
-                    },
-                ) { Text("Apply") }
-            },
-            dismissButton = { TextButton(onClick = { showCustomCursorColor = false }) { Text("Cancel") } },
+            onDismiss = { showCustomCursorColor = false },
         )
     }
 
