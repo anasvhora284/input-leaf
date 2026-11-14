@@ -4,7 +4,8 @@ import android.view.KeyEvent
 
 /**
  * Synergy / Input Leap / Deskflow KeyButton is platform-dependent:
- * - Windows / protocol examples: Linux evdev (A = 30)
+ * - Windows: Set-1 scan code with an extended bit (A = 30, Left Win = 0x15b)
+ * - Linux evdev: native input code (A = 30, Left Meta = 125)
  * - Linux X11 and libei: X11 keycode = evdev + 8 (A = 38)
  * - macOS: Carbon virtual keycode + 1 (A = 1; zero means no physical key)
  *
@@ -14,7 +15,7 @@ import android.view.KeyEvent
  * later key — including scripts with no Latin keysym.
  */
 class ProtocolScanCodeDecoder {
-    private enum class Encoding { EVDEV, X11, MAC }
+    private enum class Encoding { EVDEV, WINDOWS, X11, MAC }
     private var encoding: Encoding? = null
     private val pressedKeys = mutableMapOf<Int, Int>()
 
@@ -34,6 +35,7 @@ class ProtocolScanCodeDecoder {
         learn(button, keysym)
         return when (encoding) {
             Encoding.EVDEV -> button
+            Encoding.WINDOWS -> WindowsScanCode.toEvdev(button)
             Encoding.X11 -> (button - X11_KEYCODE_OFFSET).coerceAtLeast(0)
             Encoding.MAC -> MacKeyCode.toEvdev(button - 1)
             // Until a known key identifies the source, avoid injecting a Mac button
@@ -43,11 +45,18 @@ class ProtocolScanCodeDecoder {
     }
 
     private fun learn(button: Int, keysym: Int) {
-        if (encoding != null) return
+        if (encoding == Encoding.X11 || encoding == Encoding.MAC || encoding == Encoding.WINDOWS) return
         val keyCode = KeyMapUtils.keysymToAndroidKeyCode(keysym)
         if (keyCode == KeyEvent.KEYCODE_UNKNOWN) return
         val expected = KeyMapUtils.keycodeToScanCode(keyCode)
         if (expected <= 0) return
+        // Ordinary Windows keys look like evdev. Upgrade that provisional choice
+        // when an extended scan code and its keysym agree; never reinterpret X11/Mac.
+        if (WindowsScanCode.matchesExtended(button, expected)) {
+            encoding = Encoding.WINDOWS
+            return
+        }
+        if (encoding != null) return
         val candidates = buildList {
             if (button == expected) add(Encoding.EVDEV)
             if (button == expected + X11_KEYCODE_OFFSET) add(Encoding.X11)
