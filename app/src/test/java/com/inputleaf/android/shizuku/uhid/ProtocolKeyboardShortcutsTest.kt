@@ -3,6 +3,10 @@ package com.inputleaf.android.shizuku.uhid
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import com.inputleaf.android.inject.ProtocolScanCodeDecoder
+import com.inputleaf.android.model.InputLeapEvent
+import com.inputleaf.android.protocol.ProtocolParser
+import java.io.ByteArrayInputStream
+import java.nio.ByteBuffer
 import org.junit.Test
 
 class ProtocolKeyboardShortcutsTest {
@@ -142,5 +146,59 @@ class ProtocolKeyboardShortcutsTest {
         session.key(35, 0, false)
         session.key(55, 0, false)
         session.assertReleased()
+    }
+
+    @Test fun `Windows keypad Enter as first key identifies Set-1 and sends keypad HID usage`() {
+        val session = KeyboardSession()
+        session.key(0x11c, 0xef8d, true)
+        session.assertHeld(0, 0x58)
+        session.key(0x11c, 0, false)
+        session.assertReleased()
+    }
+
+    @Test fun `Windows keypad slash after ordinary typing identifies Set-1 without Win`() {
+        val session = KeyboardSession()
+        session.key(30, 0x61, true)
+        session.key(30, 0, false)
+        session.key(0x135, 0xefaf, true)
+        session.assertHeld(0, 0x54)
+        session.key(0x135, 0, false)
+        session.assertReleased()
+    }
+
+    @Test fun `Num Lock off keypad Home has the same HID report on Windows and the original evdev path`() {
+        for (windows in listOf(false, true)) {
+            val session = KeyboardSession()
+            if (windows) {
+                session.key(0x15b, 0xefeb, true)
+                session.key(0x15b, 0, false)
+            } else {
+                session.key(30, 0x61, true)
+                session.key(30, 0, false)
+            }
+            // Deskflow uses KP_Home (ef95), not ordinary Home (ef50).
+            // Android Generic.kcm applies MOVE_HOME when the device Num Lock is off.
+            session.key(71, 0xef95, true)
+            session.assertHeld(0, 0x5f)
+            session.key(71, 0, false)
+            session.assertReleased()
+        }
+    }
+
+
+    @Test fun `wire keypad key down preserves the extended Windows button through HID injection`() {
+        for ((keysym, button, usage) in listOf(Triple(0xef8d, 0x11c, 0x58), Triple(0xefaf, 0x135, 0x54))) {
+            val packet = ByteBuffer.allocate(14).putInt(10)
+                .put("DKDN".toByteArray(Charsets.US_ASCII))
+                .putShort(keysym.toShort()).putShort(0).putShort(button.toShort()).array()
+            val event = ProtocolParser(ByteArrayInputStream(packet)).readNext() as InputLeapEvent.KeyDown
+            assertThat(event.scancode).isEqualTo(button)
+            assertThat(event.keyId).isEqualTo(keysym)
+            val session = KeyboardSession()
+            session.key(event.scancode, event.keyId, true)
+            session.assertHeld(0, usage)
+            session.key(event.scancode, 0, false)
+            session.assertReleased()
+        }
     }
 }

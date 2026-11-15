@@ -145,4 +145,55 @@ class ProtocolScanCodeDecoderTest {
         assertThat(mac.toEvdev(0x15b, 0xefeb)).isEqualTo(0)
         assertThat(mac.toEvdev(35, 0)).isEqualTo(23)
     }
+
+    @Test fun `unknown extended codes do not invent a physical fallback before or after Windows detection`() {
+        val decoder = ProtocolScanCodeDecoder()
+        decoder.toEvdev(30, 0x61) // The original implementation passes this prefix through as evdev.
+        val before = KeysymResolver.resolve(0, decoder.toEvdev(0x122, 0), true)
+        decoder.toEvdev(0x15b, 0xefeb)
+        val after = KeysymResolver.resolve(0, decoder.toEvdev(0x122, 0), true)
+        assertThat(before).isSameInstanceAs(KeysymAction.Ignore)
+        assertThat(after).isSameInstanceAs(KeysymAction.Ignore)
+    }
+
+
+    @Test fun `connection reset relearns X11 Mac and evdev after Windows`() {
+        for ((first, symbol, expected, latinA) in listOf(
+            listOf(37, 0xefe3, 29, 38),
+            listOf(56, 0xefeb, 125, 1),
+            listOf(29, 0xefe3, 29, 30),
+        )) {
+            val decoder = ProtocolScanCodeDecoder()
+            decoder.decodeKeyEvent(0x15b, 0xefeb, true)
+            decoder.resetForConnection()
+            assertThat(decoder.decodeKeyEvent(first, symbol, true)).isEqualTo(expected)
+            assertThat(decoder.decodeKeyEvent(latinA, 0x61, true)).isEqualTo(30)
+        }
+    }
+
+    @Test fun `Leave clears held keys but preserves the Windows format for NoSymbol events`() {
+        val decoder = ProtocolScanCodeDecoder()
+        decoder.decodeKeyEvent(0x15b, 0xefeb, true)
+        decoder.clearPressedKeys()
+        assertThat(decoder.decodeKeyEvent(0x15c, 0, true)).isEqualTo(126)
+        assertThat(decoder.decodeKeyEvent(0x15c, 0, false)).isEqualTo(126)
+    }
+
+    @Test fun `keypad Enter and divide identify the appropriate Windows X11 and Mac encoding`() {
+        for ((button, symbol, expected, latinA) in listOf(
+            listOf(0x11c, 0xef8d, 96, 30),
+            listOf(0x135, 0xefaf, 98, 30),
+            listOf(104, 0xef8d, 96, 38),
+            listOf(106, 0xefaf, 98, 38),
+            listOf(77, 0xef8d, 96, 1),
+            listOf(76, 0xefaf, 98, 1),
+        )) {
+            val decoder = ProtocolScanCodeDecoder()
+            assertThat(decoder.decodeKeyEvent(button, symbol, true)).isEqualTo(expected)
+            assertThat(decoder.decodeKeyEvent(button, 0, true)).isEqualTo(expected)
+            assertThat(decoder.decodeKeyEvent(button, 0, false)).isEqualTo(expected)
+            assertThat(decoder.decodeKeyEvent(latinA, 0x61, true)).isEqualTo(30)
+        }
+    }
+
 }

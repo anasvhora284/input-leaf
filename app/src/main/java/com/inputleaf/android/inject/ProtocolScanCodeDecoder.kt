@@ -30,6 +30,13 @@ class ProtocolScanCodeDecoder {
     @Synchronized
     fun clearPressedKeys() = pressedKeys.clear()
 
+    /** A new server connection may use a different scan-code format; Leave is not a reset. */
+    @Synchronized
+    fun resetForConnection() {
+        pressedKeys.clear()
+        encoding = null
+    }
+
     fun toEvdev(button: Int, keysym: Int): Int {
         if (button <= 0) return 0
         learn(button, keysym)
