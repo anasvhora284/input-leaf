@@ -28,12 +28,17 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     
+    // The keystore is gitignored. Without it (F-Droid signs its own builds) the APKs are
+    // left unsigned instead of failing the build.
+    val projectKeystore = file("input-leaf.jks")
     signingConfigs {
-        create("release") {
-            storeFile = file("input-leaf.jks")
-            storePassword = "inputleaf123"
-            keyAlias = "input-leaf"
-            keyPassword = "inputleaf123"
+        if (projectKeystore.exists()) {
+            create("release") {
+                storeFile = projectKeystore
+                storePassword = "inputleaf123"
+                keyAlias = "input-leaf"
+                keyPassword = "inputleaf123"
+            }
         }
     }
     
@@ -41,12 +46,12 @@ android {
         debug {
             // Use project keystore so debug APKs can always update over each other
             // regardless of which machine built them
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.findByName("release")
             enableAndroidTestCoverage = true
         }
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.findByName("release")
         }
     }
     
@@ -66,9 +71,16 @@ android {
         }
     }
     
+    // Google's encrypted dependency list in the APK is not open source, and F-Droid rejects it.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
     splits {
         abi {
-            isEnable = true
+            // -PnoAbiSplits builds the single universal APK, which F-Droid needs (one APK per versionCode).
+            isEnable = !project.hasProperty("noAbiSplits")
             reset()
             include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
             isUniversalApk = true
