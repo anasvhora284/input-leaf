@@ -17,6 +17,7 @@ import com.inputleaf.android.inject.KeyMapUtils
 import com.inputleaf.android.inject.KeysymAction
 import com.inputleaf.android.inject.KeysymInjection
 import com.inputleaf.android.inject.KeysymResolver
+import com.inputleaf.android.inject.KeysymUnicodeTable
 import com.inputleaf.android.inject.ProtocolScanCodeDecoder
 import com.inputleaf.android.model.InputLeapEvent
 import com.inputleaf.android.privilege.PrivilegeKind
@@ -32,6 +33,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 
 private const val TAG = "ShizukuInputInjector"
+private const val ALT_GR_KEY_ID = 0xEF7E
+private const val ISO_LEVEL3_SHIFT = 0xFE03
+private const val PROTOCOL_MASK_ALT_GR = 0x0020
 
 class ShizukuInputInjector internal constructor(
     screenWidth: Int,
@@ -79,6 +83,9 @@ class ShizukuInputInjector internal constructor(
 
     private var metaState = 0
     private val scanCodeDecoder = ProtocolScanCodeDecoder()
+    private var altGrHeld = false
+    /** Buttons pressed as AltGr characters; their release skips the HID keyboard too. */
+    private val altGrButtons = mutableSetOf<Int>()
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -152,6 +159,7 @@ class ShizukuInputInjector internal constructor(
     override fun isAvailable(): Boolean = host.isAvailable()
 
     override fun onNewConnection() {
+        clearPressedKeys()
         scanCodeDecoder.resetForConnection()
         metaState = 0
     }
@@ -219,6 +227,7 @@ class ShizukuInputInjector internal constructor(
      */
     fun disconnect(stopService: Boolean) {
         Log.i(TAG, "Disconnect injector=$id stopService=$stopService bound=$isBound")
+        clearPressedKeys()
         scanCodeDecoder.resetForConnection()
         metaState = 0
         if (isBound || service != null) {
@@ -245,7 +254,7 @@ class ShizukuInputInjector internal constructor(
     }
 
     override fun setHidKeyboardAttached(attached: Boolean) {
-        if (!attached) scanCodeDecoder.clearPressedKeys()
+        if (!attached) clearPressedKeys()
         if (service == null) {
             Log.w(TAG, "HID keyboard attach=$attached skipped; ${host.kind} service not bound")
             return
@@ -679,8 +688,9 @@ class ShizukuInputInjector internal constructor(
         button: Int,
         isDown: Boolean,
     ) {
+        val altGrChar = typesAltGrChar(keysym, mask, button, isDown)
         val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown)
-        if (!typesKeypadText(keysym, mask) && scancode != 0 && svc.injectHidKey(scancode, isDown)) {
+        if (!altGrChar && !typesKeypadText(keysym, mask) && scancode != 0 && svc.injectHidKey(scancode, isDown)) {
             return
         }
         val shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState) ||
@@ -724,7 +734,9 @@ class ShizukuInputInjector internal constructor(
         count: Int,
     ) {
         val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown = true)
-        if (!typesKeypadText(keysym, mask) && scancode != 0 && svc.injectHidKey(scancode, true)) {
+        if (button !in altGrButtons && !typesKeypadText(keysym, mask) && scancode != 0 &&
+            svc.injectHidKey(scancode, true)
+        ) {
             return
         }
         val shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState) ||
@@ -763,6 +775,28 @@ class ShizukuInputInjector internal constructor(
     private fun typesKeypadText(keysym: Int, mask: Int): Boolean =
         KeysymResolver.keypadText(keysym) != null &&
             !KeyMapUtils.hasShortcutModifiers(metaState) && !KeyMapUtils.protocolMaskHasShortcuts(mask)
+
+    private fun clearPressedKeys() {
+        scanCodeDecoder.clearPressedKeys()
+        altGrHeld = false
+        altGrButtons.clear()
+    }
+
+    /**
+     * A character typed with AltGr skips the HID keyboard (#82). A Windows server sends
+     * AltGr as a held Left Ctrl plus a Right Alt the HID keyboard can't press, so the
+     * HID key came out as Ctrl+key. The server already sends the composed character.
+     */
+    private fun typesAltGrChar(keysym: Int, mask: Int, button: Int, isDown: Boolean): Boolean {
+        if (keysym == ALT_GR_KEY_ID || keysym == ISO_LEVEL3_SHIFT) altGrHeld = isDown
+        if (!isDown) return altGrButtons.remove(button)
+        val altGr = altGrHeld || mask and PROTOCOL_MASK_ALT_GR != 0
+        if (!altGr || KeysymUnicodeTable.lookup(keysym) == null || KeyMapUtils.protocolMaskHasShortcuts(mask)) {
+            return false
+        }
+        altGrButtons += button
+        return true
+    }
 
     private fun injectTextOrLog(svc: IInputInjector, char: String, keysym: Int): Boolean {
         if (svc.injectText(char)) return true
