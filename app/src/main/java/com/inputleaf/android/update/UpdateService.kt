@@ -55,6 +55,9 @@ data class VersionChangelog(
 
 object UpdateService {
 
+    internal const val FDROID_UPDATES_MESSAGE =
+        "Input Leaf was installed from F-Droid, which delivers updates itself. Open the F-Droid app to check for a new version."
+
     internal const val GITHUB_API_LATEST_RELEASE =
         "https://api.github.com/repos/anasvhora284/input-leaf/releases/latest"
     /** /releases/latest never returns a pre-release, so that channel reads the list. */
@@ -182,6 +185,8 @@ object UpdateService {
     ): UpdateCheckResult {
         val currentVersion = getCurrentVersion(context)
         val isFdroid = getInstallSource(context) == InstallSource.FDROID
+        // F-Droid delivers its own updates, so an F-Droid install never contacts GitHub.
+        if (isFdroid) return UpdateCheckResult.Error(FDROID_UPDATES_MESSAGE)
         return checkUpdate(currentVersion, isFdroid, openConnection, channel)
     }
 
