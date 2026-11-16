@@ -1,0 +1,8 @@
+• New Quick Settings tile to connect or disconnect
+• Finds servers on every network, including your hotspot
+• Follows your PC to a new address (auto-connect on)
+• Custom cursor colour picker
+• Number pad types digits
+• Esc and Alt+Left go Back in Accessibility mode
+• Android TV: one click opens apps
+• Fixed a stale Disconnect notification
