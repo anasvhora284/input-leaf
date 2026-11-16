@@ -50,7 +50,9 @@ android {
             enableAndroidTestCoverage = true
         }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.findByName("release")
         }
     }
@@ -68,6 +70,9 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging = true
+            // Stripping depends on the build machine's NDK; unstripped libraries make the
+            // APK reproducible, so F-Droid can publish our signed build.
+            keepDebugSymbols += "**/*.so"
         }
     }
     
@@ -120,7 +125,6 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material.icons.extended)
     implementation(libs.datastore.preferences)
-    implementation(libs.device.names)
     implementation(libs.coroutines.android)
     
     // Shizuku for privileged input injection without root
