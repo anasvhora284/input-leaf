@@ -100,6 +100,21 @@ class ShizukuAltGrTest {
         verify(service, never()).injectKeyEvent(anyInt(), eq(KeyEvent.KEYCODE_C), anyInt(), anyInt())
     }
 
+    @Test
+    fun `keypad digits press the top-row keys and Num Lock is not forwarded`() {
+        val injector = connectedInjector()
+
+        injector.press(NUM_LOCK_KEY, NUM_LOCK, 77)
+        injector.release(NUM_LOCK_KEY, NUM_LOCK, 77)
+        injector.press(KP_7, NUM_LOCK, 79)
+        injector.release(KP_7, NUM_LOCK, 79)
+
+        verify(service, never()).injectHidKey(anyInt(), anyBoolean())
+        verify(service, never()).injectText(anyString())
+        verify(service).injectKeyEvent(eq(KeyEvent.ACTION_DOWN), eq(KeyEvent.KEYCODE_7), anyInt(), anyInt())
+        verify(service).injectKeyEvent(eq(KeyEvent.ACTION_UP), eq(KeyEvent.KEYCODE_7), anyInt(), anyInt())
+    }
+
     private class Host(val service: IInputInjector) : PrivilegedUserServiceHost {
         private val binder: IBinder = mock(IBinder::class.java).also {
             `when`(it.queryLocalInterface(anyString())).thenReturn(service)
@@ -123,5 +138,7 @@ class ShizukuAltGrTest {
         const val CONTROL = 0x0002
         const val ALT = 0x0004
         const val NUM_LOCK = 0x2000
+        const val NUM_LOCK_KEY = 0xEF7F
+        const val KP_7 = 0xEFB7
     }
 }

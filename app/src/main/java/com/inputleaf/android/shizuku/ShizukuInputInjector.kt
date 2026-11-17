@@ -35,6 +35,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 private const val TAG = "ShizukuInputInjector"
 private const val ALT_GR_KEY_ID = 0xEF7E
 private const val ISO_LEVEL3_SHIFT = 0xFE03
+private const val NUM_LOCK_KEY_ID = 0xEF7F
 private const val PROTOCOL_MASK_ALT_GR = 0x0020
 
 class ShizukuInputInjector internal constructor(
@@ -688,6 +689,10 @@ class ShizukuInputInjector internal constructor(
         button: Int,
         isDown: Boolean,
     ) {
+        // The server's Num Lock already picks digits or navigation for each keypad key.
+        // Pressing it on the HID keyboard toggles Android's own Num Lock, which starts
+        // off while the PC's is on, so the two stay opposite and the key seems dead (#82).
+        if (keysym == NUM_LOCK_KEY_ID) return
         val altGrChar = typesAltGrChar(keysym, mask, button, isDown)
         val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown)
         if (!altGrChar && !typesKeypadText(keysym, mask) && scancode != 0 && svc.injectHidKey(scancode, isDown)) {
@@ -733,6 +738,7 @@ class ShizukuInputInjector internal constructor(
         button: Int,
         count: Int,
     ) {
+        if (keysym == NUM_LOCK_KEY_ID) return
         val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown = true)
         if (button !in altGrButtons && !typesKeypadText(keysym, mask) && scancode != 0 &&
             svc.injectHidKey(scancode, true)

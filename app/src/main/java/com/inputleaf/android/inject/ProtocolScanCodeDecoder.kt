@@ -39,6 +39,9 @@ class ProtocolScanCodeDecoder {
 
     fun toEvdev(button: Int, keysym: Int): Int {
         if (button <= 0) return 0
+        // With Num Lock off the server sends KP_Home etc. As a keypad key Android only
+        // reaches Home through a fallback many text boxes ignore, so press the real key (#82).
+        KEYPAD_NAVIGATION[keysym or 0x1000]?.let { return it }
         learn(button, keysym)
         return when (encoding) {
             Encoding.EVDEV -> button
@@ -75,5 +78,19 @@ class ProtocolScanCodeDecoder {
 
     companion object {
         const val X11_KEYCODE_OFFSET = 8
+
+        /** X11 keypad navigation keysym to the evdev code of the dedicated key. */
+        private val KEYPAD_NAVIGATION = mapOf(
+            0xFF95 to 102, // KP_Home -> Home
+            0xFF96 to 105, // KP_Left
+            0xFF97 to 103, // KP_Up
+            0xFF98 to 106, // KP_Right
+            0xFF99 to 108, // KP_Down
+            0xFF9A to 104, // KP_Page_Up
+            0xFF9B to 109, // KP_Page_Down
+            0xFF9C to 107, // KP_End
+            0xFF9E to 110, // KP_Insert
+            0xFF9F to 111, // KP_Delete
+        )
     }
 }
