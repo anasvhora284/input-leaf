@@ -261,6 +261,18 @@ class ShizukuInputInjector internal constructor(
         }
     }
 
+    override fun releaseHeldInput() {
+        clearPressedKeys()
+        metaState = 0
+        remote("Failed to release held input", Unit) { s ->
+            s.releaseHidKeys()
+            if (hidMouse.attached && hidMouse.buttons() != 0) {
+                hidMouse.setButtons(0)
+                s.injectHidMouse(0, 0, 0, 0)
+            }
+        }
+    }
+
     override fun setHidKeyboardAttached(attached: Boolean) {
         if (!attached) clearPressedKeys()
         if (service == null) {

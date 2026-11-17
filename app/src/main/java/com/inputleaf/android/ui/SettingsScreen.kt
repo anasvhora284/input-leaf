@@ -68,6 +68,7 @@ fun SettingsScreen(
     cursorLook: CursorLook,
     pointerDevice: PointerDevice,
     scrollSpeed: Int = ScrollSpeed.DEFAULT,
+    keepDevicesAttached: Boolean = false,
     shizukuAvailable: Boolean,
     rootGranted: Boolean,
     rootUsable: Boolean,
@@ -85,6 +86,7 @@ fun SettingsScreen(
     onCursorLookChange: (CursorLook) -> Unit,
     onPointerDeviceChange: (PointerDevice) -> Unit,
     onScrollSpeedChange: (Int) -> Unit = {},
+    onKeepDevicesAttachedChange: (Boolean) -> Unit = {},
     onRequestOverlayPermission: () -> Unit,
     onDeleteFingerprint: (String) -> Unit,
     onImportClientCertificate: () -> Unit,
@@ -265,6 +267,17 @@ fun SettingsScreen(
                     ) {
                         Text("Pointer device")
                     }
+                }
+                if (usesPrivilegedInput) row { shapes ->
+                    SettingsSwitchRow(
+                        icon = Icons.Rounded.Keyboard,
+                        title = "Keep mouse and keyboard attached",
+                        subtitle = "Attach once per connection instead of every time the cursor comes over. " +
+                            "Apps stop reloading their layout, but the on-screen keyboard stays hidden while connected.",
+                        checked = keepDevicesAttached,
+                        onCheckedChange = onKeepDevicesAttachedChange,
+                        shapes = shapes,
+                    )
                 }
                 row { shapes ->
                     SettingsRow(

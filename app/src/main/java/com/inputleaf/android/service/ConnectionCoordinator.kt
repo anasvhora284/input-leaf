@@ -73,6 +73,20 @@ class ConnectionCoordinator {
     var mouseEnabled: Boolean = true
     var keyboardEnabled: Boolean = true
     var absolutePointer: Boolean = false
+    /** The user's choice to keep the virtual keyboard and mouse for the whole session (#90). */
+    var keepDevicesAttached: Boolean = false
+
+    /**
+     * Whether the virtual keyboard and mouse should exist now. Normally only while the
+     * pointer is on this screen; with [keepDevicesAttached], for the whole session too, but
+     * only for an injector that creates real devices ([createsDevices]): Accessibility mode
+     * would otherwise keep its own keyboard switched in and hide the on-screen keyboard.
+     */
+    fun wantsInputDevices(createsDevices: Boolean): Boolean = when (state.value) {
+        is ConnectionState.Active -> true
+        is ConnectionState.Idle -> keepDevicesAttached && createsDevices
+        else -> false
+    }
 
     var screenWidth: Int = 0
         private set

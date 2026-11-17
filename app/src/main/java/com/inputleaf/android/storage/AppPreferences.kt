@@ -34,6 +34,7 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
         private val KEY_THEME_MODE       = stringPreferencesKey("theme_mode")
         private val KEY_ONBOARDING_DONE  = booleanPreferencesKey("onboarding_complete")
         private val KEY_MOUSE_ENABLED    = booleanPreferencesKey("mouse_enabled")
+        private val KEY_KEEP_DEVICES_ATTACHED = booleanPreferencesKey("keep_devices_attached")
         private val KEY_KEYBOARD_ENABLED = booleanPreferencesKey("keyboard_enabled")
         private val KEY_FAVORITE_SERVERS = stringPreferencesKey("favorite_servers")
         // Fingerprints stored as "ip:fingerprint" joined by newline
@@ -103,6 +104,10 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
 
     val mouseEnabled: Flow<Boolean> =
         dataStore.data.map { it[KEY_MOUSE_ENABLED] ?: true }
+
+    /** Keep the virtual keyboard and mouse for the whole session, not just while the pointer is here (#90). */
+    val keepDevicesAttached: Flow<Boolean> =
+        dataStore.data.map { it[KEY_KEEP_DEVICES_ATTACHED] ?: false }
 
     val keyboardEnabled: Flow<Boolean> =
         dataStore.data.map { it[KEY_KEYBOARD_ENABLED] ?: true }
@@ -254,6 +259,10 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
 
     suspend fun saveMouseEnabled(enabled: Boolean) = dataStore.edit {
         it[KEY_MOUSE_ENABLED] = enabled
+    }
+
+    suspend fun saveKeepDevicesAttached(keep: Boolean) = dataStore.edit {
+        it[KEY_KEEP_DEVICES_ATTACHED] = keep
     }
 
     suspend fun saveKeyboardEnabled(enabled: Boolean) = dataStore.edit {

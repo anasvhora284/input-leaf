@@ -221,4 +221,12 @@ class AppPreferencesTest {
         assertThat(AppPreferences.getDefaultScreenName("Special @#$ Name")).isEqualTo("special--name")
         assertThat(AppPreferences.getDefaultScreenName(null)).isEqualTo("android-phone")
     }
+
+    @Test fun `keep devices attached is off by default and survives reopening (90)`() = runBlocking {
+        withPreferences { prefs, _ ->
+            assertThat(prefs.keepDevicesAttached.first()).isFalse()
+            prefs.saveKeepDevicesAttached(true)
+        }
+        withPreferences { prefs, _ -> assertThat(prefs.keepDevicesAttached.first()).isTrue() }
+    }
 }

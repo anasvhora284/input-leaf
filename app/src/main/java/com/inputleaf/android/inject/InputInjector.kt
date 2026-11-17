@@ -15,6 +15,9 @@ interface InputInjector {
     fun privilegeKind(): PrivilegeKind = PrivilegeKind.NONE
     fun setHidKeyboardAttached(attached: Boolean) {}
     fun setHidMouseAttached(attached: Boolean) {}
+
+    /** Release held keys and buttons when the pointer leaves but the devices stay attached. */
+    fun releaseHeldInput() {}
     fun usesNativePointer(): Boolean = false
     fun nativePointerState(): NativePointerState = NativePointerState.NONE
     fun expectsNativePointer(): Boolean = false
