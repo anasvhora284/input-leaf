@@ -98,7 +98,7 @@ class UpdateServiceTest {
             versionCode = 42
         }
         assertThat(versionCodeFrom(packageInfo)).isEqualTo(42L)
-        assertThat(versionCodeFrom(null)).isEqualTo(15L)
+        assertThat(versionCodeFrom(null)).isEqualTo(16L)
     }
 
     @Test
@@ -338,20 +338,17 @@ class UpdateServiceTest {
     }
 
     @Test
-    fun checkUpdate_returnsFdroidUpdateThroughContext() = runTest {
+    fun checkUpdate_neverContactsGithubOnAnFdroidInstall() = runTest {
         val context = mockFdroidContext(versionName = "1.0.0")
-        val connection = TestHttpURLConnection(
-            url = URL("http://example.com"),
-            responseBody = """{"tag_name":"v2.0.0","body":"F-Droid release","html_url":""}""",
-        )
+        var opened = false
 
-        val result = UpdateService.checkUpdate(context, openConnection = { connection })
+        val result = UpdateService.checkUpdate(context, openConnection = {
+            opened = true
+            throw AssertionError("F-Droid installs must not open a connection")
+        })
 
-        assertThat(result).isInstanceOf(UpdateCheckResult.UpdateAvailable::class.java)
-        val update = result as UpdateCheckResult.UpdateAvailable
-        assertThat(update.updateUrl).isEqualTo(UpdateService.FDROID_MARKET_URI)
-        assertThat(update.isFdroid).isTrue()
-        assertThat(connection.disconnectCalled).isTrue()
+        assertThat(opened).isFalse()
+        assertThat(result).isEqualTo(UpdateCheckResult.Error(UpdateService.FDROID_UPDATES_MESSAGE))
     }
 
     @Test

@@ -94,6 +94,36 @@ class ServerScanner {
         return probePlain(host, timeoutMs, assumePlain = false, port = port)
     }
 
+    /**
+     * SHA-256 fingerprint of the certificate the TLS server at [host] presents, or null if
+     * it doesn't answer with TLS. Captured during the handshake, so it works even when the
+     * server goes on to reject us for not sending a client certificate.
+     */
+    fun fingerprintOf(
+        host: String,
+        timeoutMs: Int = 1000,
+        port: Int = ProtocolConstants.DEFAULT_PORT,
+    ): String? {
+        var presented: X509Certificate? = null
+        val capture = object : X509TrustManager {
+            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
+                presented = chain.firstOrNull()
+            }
+        }
+        val context = SSLContext.getInstance("TLS").apply { init(null, arrayOf(capture), null) }
+        try {
+            (context.socketFactory.createSocket() as SSLSocket).use { socket ->
+                socket.connect(InetSocketAddress(host, port), timeoutMs)
+                socket.soTimeout = timeoutMs
+                socket.startHandshake()
+            }
+        } catch (_: Exception) {
+        }
+        return presented?.let(TlsFingerprintManager::fingerprintOf)
+    }
+
     internal fun probeTls(
         host: String,
         timeoutMs: Int,

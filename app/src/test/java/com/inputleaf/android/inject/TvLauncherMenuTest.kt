@@ -28,6 +28,14 @@ class TvLauncherMenuTest {
     }
 
     @Test
+    fun `opens the app when the menu opens above the tile with Open last`() {
+        val (root, rows) = menu(focusedRow = 4)
+
+        assertThat(TvLauncherMenu.confirmOpen(listOf(root))).isTrue()
+        verify(rows[4]).performAction(AccessibilityNodeInfo.ACTION_CLICK)
+    }
+
+    @Test
     fun `leaves a row the user moved to alone`() {
         val (root, rows) = menu(focusedRow = 2)
 
@@ -57,6 +65,8 @@ class TvLauncherMenuTest {
             }
         }
         `when`(parent.getChild(0)).thenReturn(rows[0])
+        `when`(parent.childCount).thenReturn(rows.size)
+        `when`(parent.getChild(rows.size - 1)).thenReturn(rows.last())
         val root = mock(AccessibilityNodeInfo::class.java)
         `when`(root.findAccessibilityNodeInfosByViewId(rowId)).thenReturn(rows)
         return root to rows

@@ -47,8 +47,13 @@ internal object AccessibilityKeyPolicy {
     private const val KEYSYM_ESCAPE = 0xFF1B
     private const val KEYSYM_LEFT = 0xFF51
 
-    /** True for a key Input Leaf handles as Back; press and release are both consumed. */
-    fun isBackKey(keysym: Int, mask: Int): Boolean =
-        keysym == KEYSYM_ESCAPE ||
-            (keysym == KEYSYM_LEFT && mask and KeyMapUtils.PROTOCOL_MASK_ALT != 0)
+    /**
+     * True for a key Input Leaf handles as Back; press and release are both consumed.
+     * Input Leap and Deskflow send function keys as 0xEFxx, X11 as 0xFFxx (#73).
+     */
+    fun isBackKey(keysym: Int, mask: Int): Boolean {
+        val key = if (keysym in 0xEF00..0xEFFF) keysym + 0x1000 else keysym
+        return key == KEYSYM_ESCAPE ||
+            (key == KEYSYM_LEFT && mask and KeyMapUtils.PROTOCOL_MASK_ALT != 0)
+    }
 }

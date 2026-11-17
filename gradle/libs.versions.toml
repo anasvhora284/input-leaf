@@ -12,7 +12,6 @@ datastore = "1.2.1"
 coroutines = "1.11.0"
 shizuku = "13.1.5"
 libsu = "6.0.0"
-deviceNames = "2.1.1"
 androidStub = "4.1.1.4"
 junit = "4.13.2"
 # compose-ui-test-junit4 pulls Espresso 3.5.0 transitively, which reflects on the
@@ -46,7 +45,6 @@ shizuku-api = { module = "dev.rikka.shizuku:api", version.ref = "shizuku" }
 shizuku-provider = { module = "dev.rikka.shizuku:provider", version.ref = "shizuku" }
 libsu-core = { module = "com.github.topjohnwu.libsu:core", version.ref = "libsu" }
 libsu-service = { module = "com.github.topjohnwu.libsu:service", version.ref = "libsu" }
-device-names = { module = "com.jaredrummler:android-device-names", version.ref = "deviceNames" }
 android-stub = { module = "com.google.android:android", version.ref = "androidStub" }
 junit = { module = "junit:junit", version.ref = "junit" }
 espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "espresso" }

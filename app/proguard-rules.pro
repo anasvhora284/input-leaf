@@ -1,24 +1,18 @@
-# Keep Compose and Material3 classes
--dontwarn kotlin.**
--dontwarn kotlinx.**
+# Libraries ship their own consumer rules (Compose, coroutines, DataStore, libsu).
+# These are only the classes started or looked up by name.
 
-# Keep Shizuku API
--keep class rikka.shizuku.** { *; }
--keep class moe.shizuku.** { *; }
+# Started by class name in a root/shell app_process, not through the manifest.
+-keep class com.inputleaf.android.shizuku.StandaloneInjectorMain { public static void main(java.lang.String[]); }
+-keep class com.inputleaf.android.shizuku.ClipboardHelperMain { public static void main(java.lang.String[]); }
 
-# Keep AIDL interfaces
--keep class com.inputleaf.android.service.IInputInjector** { *; }
+# Shizuku creates the UserService and libsu the RootService by class name.
+-keep class com.inputleaf.android.shizuku.InputInjectorService { <init>(...); }
+-keep class com.inputleaf.android.privilege.RootInputInjectorService { <init>(); }
 
-# Keep data classes
--keep class com.inputleaf.android.model.** { *; }
+# StandaloneInjectorLauncher calls the private Shizuku.newProcess by reflection.
+-keepclassmembers class rikka.shizuku.Shizuku {
+    private static java.lang.Process newProcess(java.lang.String[], java.lang.String[], java.lang.String);
+}
 
-# Keep Compose
--keep class androidx.compose.** { *; }
--dontwarn androidx.compose.**
-
-# Keep R8 from removing things needed at runtime
--keepattributes *Annotation*
--keepattributes RuntimeVisibleAnnotations
-
-# Keep application classes
--keep class com.inputleaf.android.** { *; }
+# libsu's root launcher (assets/main.jar) loads this class by its literal name.
+-keep class com.topjohnwu.superuser.internal.RootServerMain { *; }

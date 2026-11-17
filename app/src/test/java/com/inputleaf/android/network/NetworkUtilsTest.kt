@@ -36,4 +36,40 @@ class NetworkUtilsTest {
         assertThat(NetworkUtils.isPrivateIP("256.1.1.1")).isFalse()
         assertThat(NetworkUtils.isPrivateIP("10.0.0.256")).isFalse()
     }
+
+    @Test
+    fun `scanAddresses includes the hotspot as well as Wi-Fi`() {
+        // OnePlus on office Wi-Fi (wlan0) while hosting a hotspot (wlan1) for the PC.
+        val ips = NetworkUtils.scanAddresses(
+            listOf(
+                "rmnet_data2" to listOf("192.0.0.2"),
+                "wlan1" to listOf("10.153.185.185"),
+                "wlan0" to listOf("192.168.30.207"),
+            ),
+        )
+        assertThat(ips).containsExactly("192.168.30.207", "10.153.185.185").inOrder()
+    }
+
+    @Test
+    fun `scanAddresses skips cellular and public addresses on unknown interfaces`() {
+        val ips = NetworkUtils.scanAddresses(
+            listOf(
+                "rmnet0" to listOf("10.20.30.40"),
+                "tun0" to listOf("100.64.0.2"),
+                "eth1" to listOf("172.16.5.9"),
+            ),
+        )
+        assertThat(ips).containsExactly("172.16.5.9")
+    }
+
+    @Test
+    fun `scanAddresses keeps any address on Wi-Fi and scans each subnet once`() {
+        val ips = NetworkUtils.scanAddresses(
+            listOf(
+                "wlan0" to listOf("100.70.1.5"),
+                "ap0" to listOf("100.70.1.9"),
+            ),
+        )
+        assertThat(ips).containsExactly("100.70.1.5")
+    }
 }

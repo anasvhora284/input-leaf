@@ -55,6 +55,9 @@ data class VersionChangelog(
 
 object UpdateService {
 
+    internal const val FDROID_UPDATES_MESSAGE =
+        "Input Leaf was installed from F-Droid, which delivers updates itself. Open the F-Droid app to check for a new version."
+
     internal const val GITHUB_API_LATEST_RELEASE =
         "https://api.github.com/repos/anasvhora284/input-leaf/releases/latest"
     /** /releases/latest never returns a pre-release, so that channel reads the list. */
@@ -67,8 +70,15 @@ object UpdateService {
     private val RELEASES = listOf(
         VersionChangelog(
             versionName = "1.4.6",
-            versionCode = 15,
+            versionCode = 16,
             highlights = listOf(
+                "New Quick Settings tile: tap it to connect to your last server, or to disconnect, straight from the notification shade.",
+                "The server list searches every network the phone is on, so a PC on your phone's own hotspot is found even while it is also on Wi-Fi.",
+                "With \"Auto-connect on launch\" on, Input Leaf finds your PC again when its address changes after a restart, a hotspot restart or airplane mode. This needs an encrypted (TLS) connection you have already trusted.",
+                "Choose any colour for the Accessibility cursor with a hex code, in Settings → Cursor style → Custom.",
+                "The number pad types its digits and decimal point instead of acting as Home, End and arrows.",
+                "Accessibility mode: Esc and Alt+← now go Back with Input Leap and Deskflow.",
+                "Android TV: clicking an app opens it with one click even when its menu opens above the tile.",
                 "Clipboard: text copied on the phone now reaches the PC in root mode, and with Shizuku started by root.",
                 "Clipboard: images and other non-text clips are left alone, so the phone's clipboard is never cleared by Input Leaf.",
                 "Accessibility mode: a small button on the screen edge switches to your phone's own keyboard for emoji, clipboard or voice, and back. Drag it anywhere along the edge.",
@@ -175,6 +185,8 @@ object UpdateService {
     ): UpdateCheckResult {
         val currentVersion = getCurrentVersion(context)
         val isFdroid = getInstallSource(context) == InstallSource.FDROID
+        // F-Droid delivers its own updates, so an F-Droid install never contacts GitHub.
+        if (isFdroid) return UpdateCheckResult.Error(FDROID_UPDATES_MESSAGE)
         return checkUpdate(currentVersion, isFdroid, openConnection, channel)
     }
 
@@ -355,7 +367,7 @@ internal fun versionNameFrom(packageInfo: PackageInfo?): String =
 // [sdkInt] carries the API check (a parameter so tests can cover both branches).
 @SuppressLint("NewApi")
 internal fun versionCodeFrom(packageInfo: PackageInfo?, sdkInt: Int = Build.VERSION.SDK_INT): Long {
-    if (packageInfo == null) return 15L
+    if (packageInfo == null) return 16L
     return if (sdkInt >= Build.VERSION_CODES.P) {
         packageInfo.longVersionCode
     } else {

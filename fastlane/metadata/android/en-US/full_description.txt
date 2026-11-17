@@ -1,0 +1,23 @@
+Input Leaf turns your Android phone or tablet into an extra screen in your desktop setup. Move your PC's mouse off the edge of the monitor and it glides onto your phone; the keyboard follows. It is a client for <b>Input Leap</b> and <b>Deskflow</b> (and compatible Synergy/Barrier-style servers) on Windows, macOS and Linux.
+
+<b>Three ways to inject input</b>
+• <b>Shizuku</b>: native, low-latency mouse and keyboard without root.
+• <b>Root</b>: the same native path, using su directly.
+• <b>Accessibility</b>: no setup beyond one permission, with its own on-screen cursor and keyboard, a button to switch to your phone's keyboard, and a choice of cursor style, size and colour.
+
+<b>Features</b>
+• Finds servers on every network the phone is on, including its own hotspot
+• Follows your PC when its address changes (with auto-connect and an encrypted connection you have already trusted)
+• Quick Settings tile to connect or disconnect from the notification shade
+• Full mouse: left, right, middle and side buttons, smooth scrolling with adjustable speed
+• Full keyboard: modifiers, shortcuts, number pad, and non-Latin scripts
+• Clipboard sharing in both directions
+• TLS encryption with trust-on-first-use certificate pinning
+• Android TV support: click apps on the launcher, scroll and navigate with the mouse
+• Material 3 design with dynamic colour, light and dark themes
+• 100% local: nothing leaves your network, no accounts, no ads, no tracking
+
+<b>Good to know</b>
+Shizuku or root is recommended for the smoothest mouse. On Android 10 and below, Shizuku has to be started from a computer after every restart; Accessibility mode needs no computer at all. The app checks GitHub for new releases only on builds that were not installed from F-Droid, and F-Droid builds update through F-Droid.
+
+Input Leaf is free software under the Apache License 2.0.

@@ -28,4 +28,18 @@ class CursorLookTest {
         assertThat(wx + tx).isWithin(1f).of(500f)
         assertThat(wy + ty).isWithin(1f).of(300f)
     }
+
+    @Test
+    fun customColourParsesHexAndOverridesThePreset() {
+        assertThat(parseCursorHex("#FF5722")).isEqualTo(0xFFFF5722.toInt())
+        assertThat(parseCursorHex(" ff5722 ")).isEqualTo(0xFFFF5722.toInt())
+        listOf("", "#", "#FF572", "#FF57223", "#GG0000", "red").forEach {
+            assertThat(parseCursorHex(it)).isNull()
+        }
+        assertThat(formatCursorHex(0xFFFF5722.toInt())).isEqualTo("#FF5722")
+
+        assertThat(CursorLook(fill = CursorColor.GREEN).fillArgb).isEqualTo(CursorColor.GREEN.argb)
+        assertThat(CursorLook(fill = CursorColor.GREEN, customFill = 0xFF112233.toInt()).fillArgb)
+            .isEqualTo(0xFF112233.toInt())
+    }
 }

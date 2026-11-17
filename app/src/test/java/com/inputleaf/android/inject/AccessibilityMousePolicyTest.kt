@@ -64,6 +64,10 @@ class AccessibilityMousePolicyTest {
     fun `escape and alt left are back keys`() {
         assertThat(AccessibilityKeyPolicy.isBackKey(0xFF1B, mask = 0)).isTrue()
         assertThat(AccessibilityKeyPolicy.isBackKey(0xFF51, mask = KeyMapUtils.PROTOCOL_MASK_ALT)).isTrue()
+        // Input Leap / Deskflow send the 0xEFxx form (#73).
+        assertThat(AccessibilityKeyPolicy.isBackKey(0xEF1B, mask = 0)).isTrue()
+        assertThat(AccessibilityKeyPolicy.isBackKey(0xEF51, mask = KeyMapUtils.PROTOCOL_MASK_ALT)).isTrue()
+        assertThat(AccessibilityKeyPolicy.isBackKey(0xEF51, mask = 0)).isFalse()
         // Plain Left and other keys still reach the text field.
         assertThat(AccessibilityKeyPolicy.isBackKey(0xFF51, mask = 0)).isFalse()
         assertThat(AccessibilityKeyPolicy.isBackKey('a'.code, mask = KeyMapUtils.PROTOCOL_MASK_ALT)).isFalse()

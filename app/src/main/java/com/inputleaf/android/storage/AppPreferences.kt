@@ -47,6 +47,7 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
         private val KEY_CURSOR_SIZE      = stringPreferencesKey("cursor_size")
         private val KEY_CURSOR_FILL      = stringPreferencesKey("cursor_fill")
         private val KEY_CURSOR_OUTLINE   = stringPreferencesKey("cursor_outline")
+        private val KEY_CURSOR_FILL_CUSTOM = intPreferencesKey("cursor_fill_custom")
         private val KEY_POINTER_DEVICE   = stringPreferencesKey("pointer_device")
         private val KEY_SCROLL_SPEED     = intPreferencesKey("scroll_speed_percent")
         private val KEY_SERVER_NAMES     = stringPreferencesKey("server_display_names")
@@ -119,6 +120,7 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
                 size = CursorSize.fromStorage(it[KEY_CURSOR_SIZE]),
                 fill = CursorColor.fromStorage(it[KEY_CURSOR_FILL], CursorColor.BLACK),
                 outline = CursorColor.fromStorage(it[KEY_CURSOR_OUTLINE], CursorColor.WHITE),
+                customFill = it[KEY_CURSOR_FILL_CUSTOM],
             )
         }.distinctUntilChanged()
 
@@ -271,6 +273,7 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
         it[KEY_CURSOR_SIZE] = look.size.storageValue
         it[KEY_CURSOR_FILL] = look.fill.storageValue
         it[KEY_CURSOR_OUTLINE] = look.outline.storageValue
+        look.customFill?.let { c -> it[KEY_CURSOR_FILL_CUSTOM] = c } ?: it.remove(KEY_CURSOR_FILL_CUSTOM)
     }
 
     suspend fun saveScrollSpeed(percent: Int) = dataStore.edit {
@@ -286,6 +289,27 @@ class AppPreferences internal constructor(private val dataStore: DataStore<Prefe
             it[KEY_CONNECTION_TRANSPORT_POLICY] = policy.storageValue
             it.remove(KEY_LEGACY_TLS_ENABLED)
         }
+
+    /**
+     * Re-keys everything stored for a server that came back at a new address (same TLS
+     * certificate found at [to]): saved entry, star, name, fingerprint, transport and
+     * last-server move to [to], and [from] is forgotten.
+     */
+    suspend fun moveServer(from: String, to: String) = dataStore.edit { prefs ->
+        if (from == to) return@edit
+        prefs[KEY_SAVED_SERVERS] = savedServerAddresses(prefs) - from + to
+        val favorites = prefs[KEY_FAVORITE_SERVERS]?.split("\n")?.filter { it.isNotBlank() }.orEmpty()
+        if (from in favorites) {
+            prefs[KEY_FAVORITE_SERVERS] = (favorites - from + to).distinct().joinToString("\n")
+        }
+        for (key in listOf(KEY_SERVER_NAMES, KEY_FINGERPRINTS, KEY_TRANSPORT_MODES)) {
+            val records = prefs[key]?.lineSequence()?.mapNotNull { ServerRecordCodec.decode(it) }?.toList() ?: continue
+            val moved = records.firstOrNull { it.first == from } ?: continue
+            prefs[key] = (records.filterNot { it.first == from || it.first == to } + (to to moved.second))
+                .joinToString("\n") { (srv, value) -> ServerRecordCodec.encode(srv, value) }
+        }
+        if (prefs[KEY_LAST_SERVER_IP] == from) prefs[KEY_LAST_SERVER_IP] = to
+    }
 
     suspend fun toggleFavoriteServer(ip: String) = dataStore.edit { prefs ->
         rememberServer(prefs, ip)
