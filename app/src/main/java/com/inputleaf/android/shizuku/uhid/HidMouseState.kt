@@ -91,15 +91,32 @@ internal class HidMouseState(
         }
     }
 
+    /** The last Enter; where the injector's own warp puts a new device ([HidMouseEnterWarp]). */
+    private var enterX: Int = 0
+    private var enterY: Int = 0
+
     /**
      * @param newDevice true when the UHID device was actually created (not idempotent reopen).
+     * @param warpedToEnter true when the injector already warped it to the last Enter. The
+     * model then starts there, not at centre: the attached phase is published in the same
+     * step, so a move racing in plans from where the pointer really is (#88).
      */
-    fun completeAttach(newDevice: Boolean) {
+    fun completeAttach(newDevice: Boolean, warpedToEnter: Boolean = false, nowMs: Long = 0L) {
         synchronized(lock) {
-            attached = true
-            usable = true
-            phase = AttachPhase.ATTACHED
-            if (newDevice) {
+            if (warpedToEnter) {
+                cookedX = enterX
+                cookedY = enterY
+                needsCenterSeed = false
+                lastHidMoveAt = nowMs
+                lastWasEdgePulse = false
+                // The warp ended against every edge the Enter lies on.
+                edgeFlags = MouseEdgeAnchor.Flags(
+                    minX = enterX == 0,
+                    maxX = enterX == maxX,
+                    minY = enterY == 0,
+                    maxY = enterY == maxY,
+                )
+            } else if (newDevice) {
                 cookedX = centerX()
                 cookedY = centerY()
                 needsCenterSeed = true
@@ -107,6 +124,9 @@ internal class HidMouseState(
                 lastWasEdgePulse = false
                 edgeFlags = MouseEdgeAnchor.Flags()
             }
+            attached = true
+            usable = true
+            phase = AttachPhase.ATTACHED
         }
     }
 
@@ -164,6 +184,8 @@ internal class HidMouseState(
         val ty = clampY(y)
         synchronized(lock) {
             storeTargetLocked(tx, ty)
+            enterX = tx
+            enterY = ty
             lastWasEdgePulse = false
             edgeFlags = MouseEdgeAnchor.Flags()
         }

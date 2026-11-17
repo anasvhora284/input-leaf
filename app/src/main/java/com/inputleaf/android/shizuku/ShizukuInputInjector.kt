@@ -325,7 +325,7 @@ class ShizukuInputInjector internal constructor(
                     hidMouse.updatePointerTarget(target.first, target.second)
                     sendPen(s, target.first, target.second, inRange = true)
                 } else {
-                    finishPendingSnap(s, sendHid = true)
+                    finishPendingSnap(s)
                 }
             }
             return
@@ -349,16 +349,22 @@ class ShizukuInputInjector internal constructor(
                 return
             }
             if (svc.openVirtualMouse()) {
-                hidMouse.completeAttach(newDevice = newDevice)
-                clientClosedMouse = false
-                publishNativePointerState(NativePointerState.ACTIVE)
                 // Only the privileged process knows whether this call created the device
                 // and emitted the Enter warp. A warm root daemon returns through the
                 // idempotent branch without warping, and guessing from app state strands
-                // the cursor.
+                // the cursor. Ask before publishing ATTACHED: a move handled in between
+                // planned from centre and sent the warp a second time (#88).
                 val daemonWarped = runCatching { svc.consumeEnterWarpApplied() }.getOrDefault(false)
+                hidMouse.completeAttach(
+                    newDevice = newDevice,
+                    warpedToEnter = daemonWarped,
+                    nowMs = SystemClock.uptimeMillis(),
+                )
+                clientClosedMouse = false
+                publishNativePointerState(NativePointerState.ACTIVE)
                 Log.i(TAG, "HID mouse attached (newDevice=$newDevice daemonWarped=$daemonWarped)")
-                finishPendingSnap(svc, sendHid = !daemonWarped)
+                // From the Enter (warped) or centre (not): send what's left to the latest target.
+                finishPendingSnap(svc)
             } else {
                 hidMouse.markUnusable()
                 hidMouse.detach()
@@ -401,7 +407,7 @@ class ShizukuInputInjector internal constructor(
                     hidMouse.updatePointerTarget(x, y)
                     sendPen(s, x, y, inRange = true)
                 } else {
-                    finishPendingSnap(s, sendHid = true)
+                    finishPendingSnap(s)
                 }
             }
         }
@@ -418,26 +424,19 @@ class ShizukuInputInjector internal constructor(
         remote("Failed to clear HID mouse enter on injector", Unit) { it.onHidMouseLeave() }
     }
 
-    /**
-     * @param sendHid false when the injector already emitted this warp itself, so the
-     * cooked model advances without replaying the reports and doubling the movement.
-     */
-    private fun finishPendingSnap(svc: IInputInjector, sendHid: Boolean = true) {
+    private fun finishPendingSnap(svc: IInputInjector) {
         val target = hidMouse.peekPendingSnap() ?: return
         hidMouse.updatePointerTarget(target.first, target.second)
         Log.i(
             TAG,
             "HID mouse snap to ${target.first},${target.second} from ${hidMouse.cookedX},${hidMouse.cookedY} " +
-                "centerSeed=${hidMouse.needsCenterSeed()} sendHid=$sendHid",
+                "centerSeed=${hidMouse.needsCenterSeed()}",
         )
         val now = SystemClock.uptimeMillis()
         val plans = MouseEdgeAnchor.planSnap(hidMouse.plannerInput(now), pointerSpeed)
         for (plan in plans) {
             if (plan.isNoOp) continue
-            if (sendHid) {
-                val sent = svc.injectHidMouse(plan.hidX, plan.hidY, hidMouse.buttons(), 0)
-                if (!sent) return
-            }
+            if (!svc.injectHidMouse(plan.hidX, plan.hidY, hidMouse.buttons(), 0)) return
             hidMouse.applySuccessfulPlan(plan, now)
         }
         val (errX, errY) = hidMouse.errorToTarget(target.first, target.second)

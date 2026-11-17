@@ -324,8 +324,9 @@ class InputInjectorService : IInputInjector.Stub {
             mouse = hidMouse
             val pending = mouseEnterWarp.pending
             if (pending != null) awaitAndroidDevice(MOUSE_DEVICE_NAME)
-            val plans = mouseEnterWarp.applyIfPending(hidMouse)
-            lastOpenWarpApplied = pending != null && mouseEnterWarp.pending == null
+            // Holds mouseLock through the warp's pause, so no other report lands mid-warp.
+            val warp = mouseEnterWarp.applyIfPending(hidMouse)
+            lastOpenWarpApplied = warp.complete
             android.util.Log.i(
                 "InputInjectorService",
                 "HID mouse connected in ${android.os.SystemClock.uptimeMillis() - startedAt}ms pid=${android.os.Process.myPid()}",
@@ -333,10 +334,8 @@ class InputInjectorService : IInputInjector.Stub {
             if (pending != null) {
                 android.util.Log.i(
                     "InputInjectorService",
-                    "HID mouse enter warp from ${(pending.maxX) / 2},${(pending.maxY) / 2} " +
-                        "to ${pending.x},${pending.y} speed=${pending.pointerSpeed} " +
-                        "${if (lastOpenWarpApplied) "applied after UHID ready" else "kept pending"} " +
-                        "hidReports=${plans.count { !it.isNoOp }}",
+                    "HID mouse enter warp via corner to ${pending.x},${pending.y} speed=${pending.pointerSpeed} " +
+                        "${if (lastOpenWarpApplied) "applied" else "incomplete"} hidReports=${warp.written}",
                 )
             }
             true

@@ -276,4 +276,22 @@ class HidMouseStateTest {
         }
         return plans
     }
+
+    @Test fun `a mouse the injector warped starts at the enter, so a racing move plans from there (88)`() {
+        val state = HidMouseState(1239, 2771)
+        state.onEnter(310, 0)
+        state.beginAttach()
+
+        state.completeAttach(newDevice = true, warpedToEnter = true, nowMs = 1_000L)
+
+        assertThat(state.cookedX).isEqualTo(310)
+        assertThat(state.cookedY).isEqualTo(0)
+        assertThat(state.needsCenterSeed()).isFalse()
+        assertThat(state.edgeFlags.minY).isTrue()
+        assertThat(state.edgeFlags.minX).isFalse()
+        // A move to just below the entry is a small step, not the 309 px warp again.
+        state.updatePointerTarget(310, 5)
+        val plan = MouseEdgeAnchor.plan(state.plannerInput(1_010L), -1)
+        assertThat(kotlin.math.abs(plan.hidX)).isLessThan(5)
+    }
 }
