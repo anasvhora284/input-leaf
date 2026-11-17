@@ -29,6 +29,8 @@ import com.inputleaf.android.shizuku.uhid.MouseEdgeAnchor
 import com.inputleaf.android.shizuku.uhid.WheelNotchAccumulator
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -201,7 +203,12 @@ class ShizukuInputInjector internal constructor(
             }
             // OrNull so only this bind's own timeout counts as one; a caller's
             // cancellation or enclosing timeout must not flip the host's fallback.
-            val connected = withTimeoutOrNull(host.bindTimeoutMs) { deferred.await() }
+            // Await off the main thread: Shizuku completes the bind from inside its loop
+            // over the service's connections, and a Main.immediate caller resumed inline
+            // there unbound the previous injector mid-loop (ConcurrentModificationException).
+            val connected = withContext(Dispatchers.Default) {
+                withTimeoutOrNull(host.bindTimeoutMs) { deferred.await() }
+            }
             if (connected == null) {
                 Log.e(TAG, "${host.kind} service bind timeout")
                 runCatching { host.onBindTimeout(serviceConnection) }
