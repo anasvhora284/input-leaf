@@ -26,6 +26,8 @@ object KeyMapUtils {
                 KeyEvent.KEYCODE_DEL,
                 KeyEvent.KEYCODE_TAB,
                 KeyEvent.KEYCODE_ENTER,
+                KeyEvent.KEYCODE_NUMPAD_ENTER,
+                KeyEvent.KEYCODE_NUMPAD_DIVIDE,
                 KeyEvent.KEYCODE_SPACE,
                 KeyEvent.KEYCODE_DPAD_UP,
                 KeyEvent.KEYCODE_DPAD_LEFT,
@@ -299,6 +301,8 @@ object KeyMapUtils {
             KeyEvent.KEYCODE_DEL    -> 14
             KeyEvent.KEYCODE_TAB    -> 15
             KeyEvent.KEYCODE_ENTER  -> 28
+            KeyEvent.KEYCODE_NUMPAD_ENTER -> 96
+            KeyEvent.KEYCODE_NUMPAD_DIVIDE -> 98
             KeyEvent.KEYCODE_SPACE  -> 57
 
             KeyEvent.KEYCODE_DPAD_UP    -> 103
