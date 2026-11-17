@@ -84,6 +84,38 @@ class InputInjectorServiceEnterTest {
     }
 
     @Test
+    fun `the enter warp waits until Android lists the new mouse (88)`() {
+        val output = ByteArrayOutputStream()
+        val channel = UhidChannel.forTesting(output)
+        var checks = 0
+        var warpBytesWhenListed = -1
+        val service = InputInjectorService(openChannel = { channel }, androidHasDevice = { name ->
+            assertThat(name).isEqualTo("Input Leaf Mouse HID")
+            checks++
+            (checks >= 3).also { listed -> if (listed && warpBytesWhenListed < 0) warpBytesWhenListed = input2Offsets(output.toByteArray()).size }
+        })
+
+        service.onHidMouseEnter(0, 100, 1079, 2413, 0)
+        assertThat(service.openVirtualMouse()).isTrue()
+
+        assertThat(warpBytesWhenListed).isEqualTo(0)
+        assertThat(input2Offsets(output.toByteArray())).isNotEmpty()
+        assertThat(service.consumeEnterWarpApplied()).isTrue()
+    }
+
+    @Test
+    fun `the enter warp still goes out when Android never lists the mouse`() {
+        val output = ByteArrayOutputStream()
+        val channel = UhidChannel.forTesting(output)
+        val service = InputInjectorService(openChannel = { channel }, androidHasDevice = { false })
+
+        service.onHidMouseEnter(0, 100, 1079, 2413, 0)
+        assertThat(service.openVirtualMouse()).isTrue()
+
+        assertThat(input2Offsets(output.toByteArray())).isNotEmpty()
+    }
+
+    @Test
     fun `leave before attach drops enter so CREATE2 does not warp`() {
         val output = ByteArrayOutputStream()
         val channel = UhidChannel.forTesting(output)

@@ -29,6 +29,12 @@ class InputInjectorService : IInputInjector.Stub {
      */
     private val ownsProcess: Boolean
 
+    /**
+     * Whether Android lists the named input device yet; null skips the wait (tests, or an
+     * input manager that can't list devices).
+     */
+    private val androidHasDevice: (String) -> Boolean?
+
     /** Shizuku instantiates this by reflection; the process exists only for this stub. */
     constructor() : this(ownsProcess = true, openChannel = { UhidChannel.openHandle() }) {
         InjectorProcess.killOrphanedSiblings()
@@ -36,9 +42,18 @@ class InputInjectorService : IInputInjector.Stub {
 
     constructor(ownsProcess: Boolean) : this(ownsProcess, { UhidChannel.openHandle() })
 
-    internal constructor(ownsProcess: Boolean = false, openChannel: () -> UhidChannel?) {
+    private constructor(ownsProcess: Boolean, openChannel: () -> UhidChannel?) :
+        this(ownsProcess, androidHasDevice = null, openChannel = openChannel)
+
+    /** [androidHasDevice] null asks this process's input manager; tests pass their own. */
+    internal constructor(
+        ownsProcess: Boolean = false,
+        androidHasDevice: ((String) -> Boolean?)? = { null },
+        openChannel: () -> UhidChannel?,
+    ) {
         this.openChannel = openChannel
         this.ownsProcess = ownsProcess
+        this.androidHasDevice = androidHasDevice ?: { name -> HiddenInputManager.hasDevice(inputManager, name) }
     }
 
     /**
@@ -65,6 +80,8 @@ class InputInjectorService : IInputInjector.Stub {
     companion object {
         private const val KEYBOARD_DEVICE_NAME = "Input Leaf Keyboard HID"
         private const val MOUSE_DEVICE_NAME = "Input Leaf Mouse HID"
+        private const val ANDROID_DEVICE_TIMEOUT_MS = 1_000L
+        private const val ANDROID_DEVICE_POLL_MS = 10L
         private const val VENDOR_ID = 0x1209
         private const val PRODUCT_KEYBOARD = 0x0001
         private const val PRODUCT_MOUSE = 0x0002
@@ -306,6 +323,7 @@ class InputInjectorService : IInputInjector.Stub {
             val hidMouse = HidMouse(channel)
             mouse = hidMouse
             val pending = mouseEnterWarp.pending
+            if (pending != null) awaitAndroidDevice(MOUSE_DEVICE_NAME)
             val plans = mouseEnterWarp.applyIfPending(hidMouse)
             lastOpenWarpApplied = pending != null && mouseEnterWarp.pending == null
             android.util.Log.i(
@@ -328,6 +346,24 @@ class InputInjectorService : IInputInjector.Stub {
             runCatching { channel.close() }
             false
         }
+    }
+
+    /**
+     * The kernel reports the new device ready before InputReader has opened it, and a warp
+     * sent in that gap is dropped: the pointer then appears at the screen centre (#88).
+     * Wait, bounded, until Android lists the device.
+     */
+    private fun awaitAndroidDevice(name: String) {
+        val startedAt = System.nanoTime()
+        fun elapsedMs() = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
+        while (androidHasDevice(name) == false && elapsedMs() < ANDROID_DEVICE_TIMEOUT_MS) {
+            Thread.sleep(ANDROID_DEVICE_POLL_MS)
+        }
+        android.util.Log.i(
+            "InputInjectorService",
+            "$name listed by Android after ${elapsedMs()}ms " +
+                "(registered=${androidHasDevice(name)})",
+        )
     }
 
     override fun closeVirtualMouse() {
