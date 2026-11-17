@@ -1,6 +1,7 @@
 package com.inputleaf.android.network
 
 import android.app.Application
+import android.content.Context
 import android.net.wifi.WifiManager
 import android.util.Log
 import java.net.NetworkInterface
@@ -17,10 +18,13 @@ object NetworkUtils {
      * hotspot at the same time (wlan0 + wlan1 on OnePlus), and the server may only be
      * reachable on the hotspot, so every network is returned, not just the first.
      */
-    fun getLocalIpAddresses(app: Application): List<String> {
+    fun getLocalIpAddresses(
+        app: Application,
+        // Tests pass an empty list to reach the WifiManager fallback.
+        interfaces: () -> List<NetworkInterface> = { NetworkInterface.getNetworkInterfaces()?.toList().orEmpty() },
+    ): List<String> {
         try {
-            val interfaces = NetworkInterface.getNetworkInterfaces()?.toList() ?: emptyList()
-            val candidates = interfaces
+            val candidates = interfaces()
                 .filter { it.isUp && !it.isLoopback }
                 .map { iface -> iface.name to listOfNotNull(getIPv4FromInterface(iface)) }
             candidates.filter { it.second.isNotEmpty() }
@@ -76,7 +80,7 @@ object NetworkUtils {
     @Suppress("DEPRECATION")
     private fun getWifiManagerIp(app: Application): String? {
         return try {
-            val wm = app.getSystemService(WifiManager::class.java)
+            val wm = app.getSystemService(Context.WIFI_SERVICE) as WifiManager
             val ipInt = wm.connectionInfo.ipAddress
             if (ipInt == 0) return null
             "${ipInt and 0xFF}.${(ipInt shr 8) and 0xFF}.${(ipInt shr 16) and 0xFF}.${(ipInt shr 24) and 0xFF}"

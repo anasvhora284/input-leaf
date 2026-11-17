@@ -233,4 +233,9 @@ class ServerScannerTest {
         val closedPort = java.net.ServerSocket(0).use { it.localPort }
         assertThat(ServerScanner().fingerprintOf("127.0.0.1", 500, closedPort)).isNull()
     }
+
+    @Test fun `fingerprintOf uses the default port and timeout`() {
+        // TEST-NET-1 never answers, so the default one-second timeout ends the probe.
+        assertThat(ServerScanner().fingerprintOf("192.0.2.1")).isNull()
+    }
 }
