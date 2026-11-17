@@ -99,4 +99,101 @@ class ProtocolScanCodeDecoderTest {
         assertThat(action).isInstanceOf(KeysymAction.KeyEventAction::class.java)
         assertThat((action as KeysymAction.KeyEventAction).keyCode).isEqualTo(KeyEvent.KEYCODE_A)
     }
+
+    @Test fun `Windows extended Win upgrades the shared evdev prefix after Latin typing`() {
+        val decoder = ProtocolScanCodeDecoder()
+        assertThat(decoder.toEvdev(30, 0x61)).isEqualTo(30)
+        assertThat(decoder.toEvdev(0x15b, 0xefeb)).isEqualTo(125)
+        assertThat(decoder.toEvdev(0x15c, 0)).isEqualTo(126)
+        assertThat(decoder.toEvdev(0x14b, 0)).isEqualTo(105)
+        assertThat(decoder.toEvdev(23, 0x0a85)).isEqualTo(23)
+        assertThat(decoder.toEvdev(0x1ff, 0)).isEqualTo(0)
+    }
+
+    @Test fun `Windows right Ctrl can identify Set-1 before Win is pressed`() {
+        val decoder = ProtocolScanCodeDecoder()
+        assertThat(decoder.toEvdev(0x11d, 0xefe4)).isEqualTo(97)
+        assertThat(decoder.toEvdev(0x15b, 0)).isEqualTo(125)
+        assertThat(decoder.toEvdev(0x138, 0)).isEqualTo(100)
+    }
+
+    @Test fun `Windows Win release and repeat stay paired when symbols are absent`() {
+        val decoder = ProtocolScanCodeDecoder()
+        decoder.toEvdev(30, 0x61)
+        repeat(2) {
+            assertThat(decoder.decodeKeyEvent(0x15b, 0xefeb, true)).isEqualTo(125)
+            assertThat(decoder.decodeKeyEvent(0x15b, 0, true)).isEqualTo(125)
+            assertThat(decoder.decodeKeyEvent(0x15b, 0, false)).isEqualTo(125)
+        }
+    }
+
+    @Test fun `Linux evdev Meta remains evdev and does not select Windows`() {
+        val decoder = ProtocolScanCodeDecoder()
+        decoder.toEvdev(30, 0x61)
+        assertThat(decoder.toEvdev(125, 0xefeb)).isEqualTo(125)
+        assertThat(decoder.toEvdev(126, 0xefec)).isEqualTo(126)
+        assertThat(decoder.toEvdev(133, 0)).isEqualTo(133)
+    }
+
+    @Test fun `established X11 and Mac encodings are not reclassified by Windows shaped events`() {
+        val x11 = ProtocolScanCodeDecoder()
+        x11.toEvdev(38, 0x61)
+        assertThat(x11.toEvdev(0x15b, 0xefeb)).isEqualTo(0x15b - 8)
+        assertThat(x11.toEvdev(31, 0)).isEqualTo(23)
+        val mac = ProtocolScanCodeDecoder()
+        mac.toEvdev(56, 0xefeb)
+        assertThat(mac.toEvdev(0x15b, 0xefeb)).isEqualTo(0)
+        assertThat(mac.toEvdev(35, 0)).isEqualTo(23)
+    }
+
+    @Test fun `unknown extended codes do not invent a physical fallback before or after Windows detection`() {
+        val decoder = ProtocolScanCodeDecoder()
+        decoder.toEvdev(30, 0x61) // The original implementation passes this prefix through as evdev.
+        val before = KeysymResolver.resolve(0, decoder.toEvdev(0x122, 0), true)
+        decoder.toEvdev(0x15b, 0xefeb)
+        val after = KeysymResolver.resolve(0, decoder.toEvdev(0x122, 0), true)
+        assertThat(before).isSameInstanceAs(KeysymAction.Ignore)
+        assertThat(after).isSameInstanceAs(KeysymAction.Ignore)
+    }
+
+
+    @Test fun `connection reset relearns X11 Mac and evdev after Windows`() {
+        for ((first, symbol, expected, latinA) in listOf(
+            listOf(37, 0xefe3, 29, 38),
+            listOf(56, 0xefeb, 125, 1),
+            listOf(29, 0xefe3, 29, 30),
+        )) {
+            val decoder = ProtocolScanCodeDecoder()
+            decoder.decodeKeyEvent(0x15b, 0xefeb, true)
+            decoder.resetForConnection()
+            assertThat(decoder.decodeKeyEvent(first, symbol, true)).isEqualTo(expected)
+            assertThat(decoder.decodeKeyEvent(latinA, 0x61, true)).isEqualTo(30)
+        }
+    }
+
+    @Test fun `Leave clears held keys but preserves the Windows format for NoSymbol events`() {
+        val decoder = ProtocolScanCodeDecoder()
+        decoder.decodeKeyEvent(0x15b, 0xefeb, true)
+        decoder.clearPressedKeys()
+        assertThat(decoder.decodeKeyEvent(0x15c, 0, true)).isEqualTo(126)
+        assertThat(decoder.decodeKeyEvent(0x15c, 0, false)).isEqualTo(126)
+    }
+
+    @Test fun `keypad Enter and divide identify the appropriate Windows X11 and Mac encoding`() {
+        for ((button, symbol, expected, latinA) in listOf(
+            listOf(0x11c, 0xef8d, 96, 30),
+            listOf(0x135, 0xefaf, 98, 30),
+            listOf(104, 0xef8d, 96, 38),
+            listOf(106, 0xefaf, 98, 38),
+            listOf(77, 0xef8d, 96, 1),
+            listOf(76, 0xefaf, 98, 1),
+        )) {
+            val decoder = ProtocolScanCodeDecoder()
+            assertThat(decoder.decodeKeyEvent(button, symbol, true)).isEqualTo(expected)
+            assertThat(decoder.decodeKeyEvent(button, 0, true)).isEqualTo(expected)
+            assertThat(decoder.decodeKeyEvent(button, 0, false)).isEqualTo(expected)
+            assertThat(decoder.decodeKeyEvent(latinA, 0x61, true)).isEqualTo(30)
+        }
+    }
+
 }
