@@ -62,6 +62,11 @@ class AccessibilityInputInjector(
         }
     }
 
+    override fun onNewConnection() {
+        scanCodeDecoder.resetForConnection()
+        metaState = 0
+    }
+
     override suspend fun connect(): Boolean {
         if (!isAvailable()) {
             Log.e(TAG, "Accessibility service not enabled in settings")
@@ -84,7 +89,8 @@ class AccessibilityInputInjector(
     }
 
     override fun disconnect() {
-        scanCodeDecoder.clearPressedKeys()
+        scanCodeDecoder.resetForConnection()
+        metaState = 0
         Log.d(TAG, "disconnect called")
         ImeSwitcher.restore(context)
     }

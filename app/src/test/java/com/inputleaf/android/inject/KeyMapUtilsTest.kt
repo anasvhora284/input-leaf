@@ -105,4 +105,14 @@ class KeyMapUtilsTest {
         assertThat(KeyMapUtils.keycodeToScanCode(KeyEvent.KEYCODE_UNKNOWN)).isEqualTo(0)
         assertThat(KeyMapUtils.scancodeToAndroidKeyCode(69)).isEqualTo(KeyEvent.KEYCODE_UNKNOWN)
     }
+
+    @Test fun `keypad Enter and divide map both directions without aliasing the main keyboard`() {
+        assertThat(KeyMapUtils.keycodeToScanCode(KeyEvent.KEYCODE_NUMPAD_ENTER)).isEqualTo(96)
+        assertThat(KeyMapUtils.keycodeToScanCode(KeyEvent.KEYCODE_NUMPAD_DIVIDE)).isEqualTo(98)
+        assertThat(KeyMapUtils.scancodeToAndroidKeyCode(96)).isEqualTo(KeyEvent.KEYCODE_NUMPAD_ENTER)
+        assertThat(KeyMapUtils.scancodeToAndroidKeyCode(98)).isEqualTo(KeyEvent.KEYCODE_NUMPAD_DIVIDE)
+        assertThat(KeyMapUtils.keycodeToScanCode(KeyEvent.KEYCODE_ENTER)).isEqualTo(28)
+        assertThat(KeyMapUtils.keycodeToScanCode(KeyEvent.KEYCODE_SLASH)).isEqualTo(53)
+    }
+
 }

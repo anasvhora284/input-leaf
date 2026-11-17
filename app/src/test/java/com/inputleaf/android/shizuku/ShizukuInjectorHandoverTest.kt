@@ -2,7 +2,9 @@ package com.inputleaf.android.shizuku
 
 import android.content.ServiceConnection
 import android.os.IBinder
+import android.view.KeyEvent
 import com.google.common.truth.Truth.assertThat
+import com.inputleaf.android.model.InputLeapEvent
 import com.inputleaf.android.privilege.PrivilegeKind
 import com.inputleaf.android.privilege.PrivilegedUserServiceHost
 import com.inputleaf.android.service.sharesPrivilegedService
@@ -10,7 +12,10 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.ArgumentMatchers.anyBoolean
+import org.mockito.ArgumentMatchers.anyInt
 import org.mockito.ArgumentMatchers.anyString
+import org.mockito.Mockito.clearInvocations
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
@@ -127,4 +132,61 @@ class ShizukuInjectorHandoverTest {
         }
         override fun onBindTimeout(connection: ServiceConnection) = Unit
     }
+
+    @Test fun `reusing a disconnected Windows injector relearns X11 on its next connection`() = runBlocking<Unit> {
+        val host = RecordingHost(PrivilegeKind.SHIZUKU)
+        `when`(host.service.injectHidKey(anyInt(), anyBoolean())).thenReturn(true)
+        val injector = ShizukuInputInjector(100, 100, host)
+        assertThat(injector.connect()).isTrue()
+        injector.send(InputLeapEvent.KeyDown(0xefeb, 0, 0x15b))
+        injector.disconnect(stopService = false)
+        assertThat(injector.connect()).isTrue()
+        clearInvocations(host.service)
+
+        injector.send(InputLeapEvent.KeyDown(0x61, 0, 38))
+
+        verify(host.service).injectHidKey(30, true)
+        verify(host.service, never()).injectHidKey(38, true)
+    }
+
+    @Test fun `an unmapped Windows media code still reaches recognized keysym injection`() = runBlocking<Unit> {
+        val host = RecordingHost(PrivilegeKind.SHIZUKU)
+        `when`(host.service.injectHidKey(anyInt(), anyBoolean())).thenReturn(true)
+        val injector = ShizukuInputInjector(100, 100, host)
+        assertThat(injector.connect()).isTrue()
+        injector.send(InputLeapEvent.KeyDown(0xefeb, 0, 0x15b))
+        clearInvocations(host.service)
+
+        injector.send(InputLeapEvent.KeyDown(0x1008ff14, 0, 0x122))
+
+        verify(host.service).injectKeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, 0, 0)
+    }
+
+
+    @Test fun `a new network session on the same bound injector forgets Windows encoding`() = runBlocking<Unit> {
+        val host = RecordingHost(PrivilegeKind.SHIZUKU)
+        `when`(host.service.injectHidKey(anyInt(), anyBoolean())).thenReturn(true)
+        val injector = ShizukuInputInjector(100, 100, host)
+        assertThat(injector.connect()).isTrue()
+        injector.send(InputLeapEvent.KeyDown(0xefeb, 0, 0x15b))
+        injector.onNewConnection()
+        clearInvocations(host.service)
+        injector.send(InputLeapEvent.KeyDown(0xefeb, 0, 56)) // Mac Command
+        injector.send(InputLeapEvent.KeyDown(0x61, 0, 1)) // Mac A
+        verify(host.service).injectHidKey(125, true)
+        verify(host.service).injectHidKey(30, true)
+    }
+
+    @Test fun `cursor Leave preserves the decoder on an existing connection`() = runBlocking<Unit> {
+        val host = RecordingHost(PrivilegeKind.SHIZUKU)
+        `when`(host.service.injectHidKey(anyInt(), anyBoolean())).thenReturn(true)
+        val injector = ShizukuInputInjector(100, 100, host)
+        assertThat(injector.connect()).isTrue()
+        injector.send(InputLeapEvent.KeyDown(0xefeb, 0, 0x15b))
+        injector.setHidKeyboardAttached(false)
+        clearInvocations(host.service)
+        injector.send(InputLeapEvent.KeyDown(0, 0, 0x15c))
+        verify(host.service).injectHidKey(126, true)
+    }
+
 }

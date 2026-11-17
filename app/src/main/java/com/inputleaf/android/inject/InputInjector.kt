@@ -7,6 +7,9 @@ interface InputInjector {
     suspend fun connect(): Boolean
     fun send(event: InputLeapEvent)
     fun disconnect()
+
+    /** Called after each new server handshake, before input events from that connection. */
+    fun onNewConnection() {}
     fun isAvailable(): Boolean
     val name: String
     fun privilegeKind(): PrivilegeKind = PrivilegeKind.NONE

@@ -309,6 +309,7 @@ class ConnectionService : Service() {
             when (result) {
                 is ConnectResult.Ok -> {
                     connection = conn
+                    injector?.onNewConnection()
                     if (result.banner.name.isNotBlank()) {
                         prefs.saveServerName(serverIp, result.banner.name)
                     }

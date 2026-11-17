@@ -151,6 +151,11 @@ class ShizukuInputInjector internal constructor(
 
     override fun isAvailable(): Boolean = host.isAvailable()
 
+    override fun onNewConnection() {
+        scanCodeDecoder.resetForConnection()
+        metaState = 0
+    }
+
     override suspend fun connect(): Boolean {
         if (!isAvailable()) {
             Log.e(TAG, "${host.kind} not available or permission not granted")
@@ -214,7 +219,8 @@ class ShizukuInputInjector internal constructor(
      */
     fun disconnect(stopService: Boolean) {
         Log.i(TAG, "Disconnect injector=$id stopService=$stopService bound=$isBound")
-        scanCodeDecoder.clearPressedKeys()
+        scanCodeDecoder.resetForConnection()
+        metaState = 0
         if (isBound || service != null) {
             try {
                 runCatching { service?.releaseHidKeys() }
