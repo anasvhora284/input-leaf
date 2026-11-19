@@ -57,6 +57,11 @@ android {
         }
     }
     
+    testOptions {
+        // Exercise the real FileProvider declaration and its restricted paths in Robolectric.
+        unitTests.isIncludeAndroidResources = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

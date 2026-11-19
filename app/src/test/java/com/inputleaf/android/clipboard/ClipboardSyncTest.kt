@@ -114,6 +114,6 @@ class ClipboardSyncTest {
         val blob = ClipboardCodec.marshallText(text)
         sync.onServerEvent(InputLeapEvent.ClipboardData(0, 0, 1, blob.size.toString().toByteArray()))
         sync.onServerEvent(InputLeapEvent.ClipboardData(0, 0, 2, blob))
-        return sync.onServerEvent(InputLeapEvent.ClipboardData(0, 0, 3, ByteArray(0)))
+        return sync.onServerEvent(InputLeapEvent.ClipboardData(0, 0, 3, ByteArray(0)))?.text
     }
 }

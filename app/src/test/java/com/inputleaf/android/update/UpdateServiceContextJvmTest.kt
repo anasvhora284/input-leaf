@@ -15,6 +15,7 @@ import org.mockito.Mockito.mock
 import org.mockito.Mockito.spy
 import org.mockito.Mockito.`when`
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
@@ -25,7 +26,10 @@ class UpdateServiceContextJvmTest {
 
     @Test
     fun getCurrentVersion_readsInstalledVersion() {
-        assertThat(UpdateService.getCurrentVersion(context)).isEqualTo("1.4.5")
+        val installed = context.packageManager.getPackageInfo(context.packageName, 0)
+        installed.versionName = "9.8.7-test"
+        shadowOf(context.packageManager).installPackage(installed)
+        assertThat(UpdateService.getCurrentVersion(context)).isEqualTo("9.8.7-test")
     }
 
     @Test
