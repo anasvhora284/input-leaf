@@ -4,11 +4,13 @@ import android.os.ParcelFileDescriptor
 import android.system.OsConstants
 import android.system.StructPollfd
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import java.io.ByteArrayOutputStream
 import java.io.PipedInputStream
 import java.io.PipedOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Test
@@ -288,6 +290,7 @@ class UhidChannelReadinessTest {
         val input = PipedInputStream(kernel, 8192)
         clock.watch(input)
         val polls = AtomicInteger()
+        val polled = CountDownLatch(1)
         val pipe = ParcelFileDescriptor.createPipe()
 
         val channel = UhidChannel.forTesting(
@@ -296,13 +299,20 @@ class UhidChannelReadinessTest {
             UhidReadinessConfig(
                 openTimeoutMs = 40,
                 presenceTimeoutMs = 40,
-                sleeper = clock::sleep,
+                sleeper = { ms ->
+                    // The empty pipe cannot synchronize reader startup through TestClock.watch.
+                    // Observe POLLERR before advancing the virtual timeout window.
+                    assertWithMessage("Reader must poll before virtual time advances")
+                        .that(polled.await(5, TimeUnit.SECONDS)).isTrue()
+                    clock.sleep(ms)
+                },
                 nanoTime = clock::nanoTime,
             ),
             readPfd = pipe[0],
             poll = { fds, _ ->
                 polls.incrementAndGet()
                 fds[0].revents = OsConstants.POLLERR.toShort()
+                polled.countDown()
                 1
             },
         )
