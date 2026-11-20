@@ -1,12 +1,15 @@
 package com.inputleaf.android.clipboard
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.Build
 import androidx.core.content.FileProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.ext.junit.rules.ActivityScenarioRule
+import androidx.test.rule.GrantPermissionRule
 import com.inputleaf.android.ui.MainActivity
 import com.inputleaf.android.protocol.ProtocolParser
 import com.inputleaf.android.protocol.ProtocolWriter
@@ -23,10 +26,23 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.Rule
 import org.junit.runner.RunWith
+import org.junit.rules.RuleChain
+import org.junit.rules.TestRule
 
 @RunWith(AndroidJUnit4::class)
 class DeviceClipboardDeviceTest {
-    @get:Rule val activity = ActivityScenarioRule(MainActivity::class.java)
+    private val activity = ActivityScenarioRule(MainActivity::class.java)
+
+    // Grant before launch so the notification dialog cannot take clipboard focus.
+    private val notificationPermission: TestRule =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            GrantPermissionRule.grant(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            RuleChain.emptyRuleChain()
+        }
+
+    @get:Rule
+    val ruleChain: RuleChain = RuleChain.outerRule(notificationPermission).around(activity)
     private lateinit var context: Context
     private lateinit var manager: ClipboardManager
     private lateinit var directory: File
