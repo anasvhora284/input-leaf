@@ -4,10 +4,13 @@ import android.app.Application
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.Bitmap
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.inputleaf.android.R
 import java.io.File
+import java.io.IOException
+import java.io.OutputStream
 import java.nio.ByteBuffer
 import javax.imageio.ImageIO
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +23,12 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.eq
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.mockStatic
+import org.mockito.Mockito.verify
+import org.mockito.Mockito.`when`
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.xmlpull.v1.XmlPullParser
@@ -63,6 +72,46 @@ class DeviceClipboardTest {
         assertThat(manager.primaryClip!!.getItemAt(0).text.toString()).isEqualTo("keep me")
         device.apply(ClipboardContent(text = "fallback", bitmap = ByteBuffer.wrap(byteArrayOf(1)))) { true }
         assertThat(manager.primaryClip!!.getItemAt(0).text.toString()).isEqualTo("fallback")
+    }
+
+    @Test fun `bitmap allocation failure preserves the clipboard and reports an IO failure`() = runTest {
+        val allocationFailure = OutOfMemoryError("test allocation failure")
+        mockStatic(Bitmap::class.java).use { bitmaps ->
+            bitmaps.`when`<Bitmap> {
+                Bitmap.createBitmap(any(IntArray::class.java), eq(2), eq(2), eq(Bitmap.Config.ARGB_8888))
+            }.thenThrow(allocationFailure)
+            val error = try {
+                DeviceClipboard(context).apply(ClipboardContent(bitmap = ByteBuffer.wrap(ClipboardFixtures.dib()))) { true }
+                null
+            } catch (error: IOException) {
+                error
+            }
+            assertThat(error).isNotNull()
+            assertThat(error!!.cause).isSameInstanceAs(allocationFailure)
+            assertThat(manager.primaryClip!!.getItemAt(0).text.toString()).isEqualTo("keep me")
+            assertThat(directory.listFiles()?.toList().orEmpty()).isEmpty()
+        }
+    }
+
+    @Test fun `failed PNG encoding removes the partial file and preserves the clipboard`() = runTest {
+        val bitmap = mock(Bitmap::class.java)
+        `when`(bitmap.compress(eq(Bitmap.CompressFormat.PNG), eq(100), any(OutputStream::class.java)))
+            .thenReturn(false)
+        mockStatic(Bitmap::class.java).use { bitmaps ->
+            bitmaps.`when`<Bitmap> {
+                Bitmap.createBitmap(any(IntArray::class.java), eq(2), eq(2), eq(Bitmap.Config.ARGB_8888))
+            }.thenReturn(bitmap)
+            val error = try {
+                DeviceClipboard(context).apply(ClipboardContent(bitmap = ByteBuffer.wrap(ClipboardFixtures.dib()))) { true }
+                null
+            } catch (error: IllegalStateException) {
+                error
+            }
+            assertThat(error).isNotNull()
+            assertThat(manager.primaryClip!!.getItemAt(0).text.toString()).isEqualTo("keep me")
+            assertThat(directory.listFiles()?.toList().orEmpty()).isEmpty()
+            verify(bitmap).recycle()
+        }
     }
 
     @Test fun `provider metadata is private grantable and shares only the image cache`() {
