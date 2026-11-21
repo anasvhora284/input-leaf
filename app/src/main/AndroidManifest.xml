@@ -87,6 +87,17 @@
                 android:resource="@xml/method" />
         </service>
         
+        <!-- Android grants readers temporary access to the image URI on the clipboard. -->
+        <provider
+            android:name=".clipboard.ClipboardImageProvider"
+            android:authorities="${applicationId}.clipboard"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/clipboard_paths"/>
+        </provider>
+
         <!-- Shizuku provider for privileged input injection -->
         <provider
             android:name="rikka.shizuku.ShizukuProvider"

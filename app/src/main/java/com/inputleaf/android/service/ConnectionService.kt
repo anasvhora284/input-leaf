@@ -1,7 +1,6 @@
 package com.inputleaf.android.service
 
 import android.app.Service
-import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.content.res.Configuration
@@ -19,7 +18,9 @@ import android.provider.Settings
 import android.util.Log
 import android.view.WindowManager
 import androidx.core.app.ServiceCompat
+import com.inputleaf.android.clipboard.ClipboardReceiver
 import com.inputleaf.android.clipboard.ClipboardSync
+import com.inputleaf.android.clipboard.DeviceClipboard
 import com.inputleaf.android.inject.AccessibilityInputService
 import com.inputleaf.android.inject.NativePointerState
 import com.inputleaf.android.inject.PointerDevice
@@ -67,7 +68,20 @@ class ConnectionService : Service() {
     private var retryJob: Job? = null
     private var activePolicy = ConnectionTransportPolicy.AUTO
     private var cursorOverlayEnabled = false
-    private val clipboardSync = ClipboardSync()
+    private val clipboardSync = ClipboardSync { Log.w(TAG, it) }
+    private val deviceClipboard by lazy {
+        DeviceClipboard(this, onRejected = { Log.w(TAG, it) }) {
+            lastAppClipTimestamp = getSystemService(ClipboardManager::class.java)
+                ?.primaryClipDescription?.timestamp ?: lastAppClipTimestamp
+            Log.i(TAG, "Server clipboard applied")
+        }
+    }
+    private val clipboardReceiver by lazy {
+        ClipboardReceiver(
+            scope, clipboardSync, coordinator::isCurrentGeneration, deviceClipboard::apply,
+            { Log.w(TAG, "Could not apply server clipboard", it) },
+        )
+    }
     @Volatile private var lastAppClipTimestamp = Long.MIN_VALUE
     @Volatile private var scrollSpeedPercent = ScrollSpeed.DEFAULT
     private var shizukuRecoveryJob: Job? = null
@@ -105,6 +119,15 @@ class ConnectionService : Service() {
     override fun onCreate() {
         super.onCreate()
         prefs = AppPreferences(this)
+        scope.launch(Dispatchers.IO) {
+            try {
+                deviceClipboard.clearUnusedImages()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Log.w(TAG, "Could not clean old clipboard images", error)
+            }
+        }
         NotificationHelper.createChannel(this)
         observeState()
 
@@ -218,6 +241,7 @@ class ConnectionService : Service() {
         stopping = false
         val plan = coordinator.startConnect(serverIp, screenName, forceReconnect = force)
         cancelPendingJobs(keepConnection = false)
+        clipboardSync.beginSession(serverIp)
         connection?.close()
         connection = null
 
@@ -395,9 +419,7 @@ class ConnectionService : Service() {
                         sendClipboardOnLeave(conn)
                     }
                     is CoordinatorEventResult.Clipboard -> {
-                        clipboardSync.onServerEvent(result.event)?.let { text ->
-                            scope.launch { setDeviceClipboard(text) }
-                        }
+                        clipboardReceiver.accept(result.event, generation)
                     }
                     is CoordinatorEventResult.KeepAlive -> {
                         conn.sendKeepAlive()
@@ -419,6 +441,7 @@ class ConnectionService : Service() {
                         dispatchInput(result.event)
                     }
                     is CoordinatorEventResult.Disconnected -> {
+                        clipboardReceiver.reset()
                         cancelLeaveDebounce()
                         applyCursorOverlay()
                         setHidKeyboardAttached(false)
@@ -514,15 +537,6 @@ class ConnectionService : Service() {
         lastAppClipTimestamp = stamp
         manager.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()
     }.getOrNull()
-
-    private fun setDeviceClipboard(text: String) {
-        runCatching {
-            val manager = getSystemService(ClipboardManager::class.java) ?: return
-            manager.setPrimaryClip(ClipData.newPlainText("Input Leaf", text))
-            lastAppClipTimestamp = manager.primaryClipDescription?.timestamp ?: lastAppClipTimestamp
-            Log.i(TAG, "Clipboard from server applied (${text.length} chars)")
-        }.onFailure { Log.w(TAG, "Could not set the clipboard", it) }
-    }
 
     private fun scheduleLeave(generation: Int) {
         leaveDebounceJob?.cancel()
@@ -658,6 +672,7 @@ class ConnectionService : Service() {
     }
 
     private fun cancelPendingJobs(keepConnection: Boolean) {
+        clipboardReceiver.reset()
         retryJob?.cancel()
         retryJob = null
         cancelLeaveDebounce()
