@@ -1,8 +1,9 @@
 package com.inputleaf.android.clipboard
 
+import java.io.IOException
 import java.nio.ByteBuffer
 
-/** Incoming clipboard formats. Images take precedence when text is also present. */
+/** Incoming clipboard formats. Text and image representations can coexist. */
 data class ClipboardContent(val text: String? = null, val bitmap: ByteBuffer? = null)
 
 /** Input Leap / Deskflow's big-endian format count, followed by (format, size, bytes). */
@@ -48,7 +49,14 @@ object ClipboardCodec {
 }
 
 /** Reassembles DCLP start/data/end chunks into one marshalled clipboard. */
-class ClipboardAssembler(private val maxBytes: Int = MAX_BYTES) {
+class ClipboardAssembler internal constructor(
+    private val maxBytes: Int,
+    private val allocate: (Int) -> ByteArray,
+    private val onRejected: (String) -> Unit,
+) {
+    constructor(maxBytes: Int = MAX_BYTES, onRejected: (String) -> Unit = {}) :
+        this(maxBytes, { ByteArray(it) }, onRejected)
+
     private var expected = -1L
     private var buffer: ByteArray? = null
     private var received = 0
@@ -65,7 +73,17 @@ class ClipboardAssembler(private val maxBytes: Int = MAX_BYTES) {
             MARK_START -> {
                 reset()
                 expected = String(data, Charsets.US_ASCII).trim('\u0000').trim().toLongOrNull() ?: -1L
-                buffer = if (expected in 0..maxBytes.toLong()) ByteArray(expected.toInt()) else null
+                if (expected !in 0..maxBytes.toLong()) {
+                    onRejected("Clipboard transfer rejected: declared bytes=$expected; limit=$maxBytes")
+                    reset()
+                    return null
+                }
+                try {
+                    buffer = allocate(expected.toInt())
+                } catch (error: OutOfMemoryError) {
+                    reset()
+                    throw IOException("Insufficient memory for clipboard transfer", error)
+                }
             }
             MARK_DATA -> buffer?.let {
                 if (received.toLong() + data.size > expected) {

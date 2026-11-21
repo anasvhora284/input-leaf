@@ -49,7 +49,7 @@ class ConnectionCoordinator {
     private val _state = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     val state: StateFlow<ConnectionState> = _state
 
-    private var connectGeneration: Int = 0
+    @Volatile private var connectGeneration: Int = 0
     val generation: Int get() = connectGeneration
 
     private var retryAttempt: Int = 0

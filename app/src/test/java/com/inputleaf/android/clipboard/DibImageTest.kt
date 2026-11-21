@@ -35,6 +35,60 @@ class DibImageTest {
         }
     }
 
+    @Test fun `standard bitfields locate pixels in every supported header and orientation`() {
+        for (header in listOf(40, 52, 56, 108, 124)) for (topDown in listOf(false, true)) {
+            val bytes = ClipboardFixtures.dib(depth = 32, headerSize = header, topDown = topDown,
+                paletteEntries = 2, bitfields = true)
+            assertThat(DibImage.decode(ByteBuffer.wrap(bytes))!!.pixels).isEqualTo(ClipboardFixtures.colors)
+        }
+    }
+
+    @Test fun `explicit standard alpha is preserved and absent alpha stays opaque`() {
+        val translucent = intArrayOf(0x7fff0000, 0x0000ff00, 0x800000ff.toInt(), 0xffffffff.toInt())
+        for (header in listOf(56, 108, 124)) for (topDown in listOf(false, true)) {
+            val bytes = ClipboardFixtures.dib(depth = 32, headerSize = header, topDown = topDown,
+                bitfields = true, alpha = true, pixelColors = translucent)
+            assertThat(DibImage.decode(ByteBuffer.wrap(bytes))!!.pixels).isEqualTo(translucent)
+            ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).putInt(52, 0)
+            assertThat(DibImage.decode(ByteBuffer.wrap(bytes))!!.pixels)
+                .isEqualTo(translucent.map { it or 0xff000000.toInt() }.toIntArray())
+        }
+    }
+
+    @Test fun `unsupported masks and truncated bitfields are rejected with one useful reason`() {
+        for ((offset, value) in listOf(40 to 0x000000ff, 44 to 0, 48 to 0x000000f0, 52 to 0x0f000000)) {
+            val bytes = ClipboardFixtures.dib(depth = 32, headerSize = 56, bitfields = true)
+            ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).putInt(offset, value)
+            val reasons = mutableListOf<String>()
+            assertThat(DibImage.decode(ByteBuffer.wrap(bytes), reasons::add)).isNull()
+            assertThat(reasons).hasSize(1)
+            assertThat(reasons.single()).contains("bitfield mask")
+        }
+        val bytes = ClipboardFixtures.dib(depth = 32, bitfields = true)
+        for (size in 40 until bytes.size) {
+            val reasons = mutableListOf<String>()
+            assertThat(DibImage.decode(ByteBuffer.wrap(bytes.copyOf(size)), reasons::add)).isNull()
+            assertThat(reasons).hasSize(1)
+            assertThat(reasons.single()).contains("truncated")
+        }
+    }
+
+    @Test fun `unsupported compression dimensions and headers report metadata without payloads`() {
+        for ((offset, value, reason) in listOf(Triple(16, 1, "compression=1"),
+            Triple(4, 8193, "dimensions=8193"), Triple(0, 125, "header=125"))) {
+            val bytes = ClipboardFixtures.dib()
+            ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).putInt(offset, value)
+            val reasons = mutableListOf<String>()
+            assertThat(DibImage.decode(ByteBuffer.wrap(bytes), reasons::add)).isNull()
+            assertThat(reasons).hasSize(1)
+            assertThat(reasons.single()).contains(reason)
+            assertThat(reasons.single()).contains("bytes=${bytes.size}")
+        }
+        val reasons = mutableListOf<String>()
+        assertThat(DibImage.decode(ByteBuffer.wrap(ClipboardFixtures.dib()), reasons::add)).isNotNull()
+        assertThat(reasons).isEmpty()
+    }
+
     @Test fun `read-only payload views honor their offset without changing the caller buffer`() {
         val dib = ClipboardFixtures.dib()
         val source = ByteBuffer.allocate(dib.size + 17).put(ByteArray(17)).put(dib)

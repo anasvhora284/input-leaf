@@ -1,6 +1,7 @@
 package com.inputleaf.android.clipboard
 
 import com.inputleaf.android.model.InputLeapEvent
+import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -45,7 +46,12 @@ internal class ClipboardReceiver(
             (event is InputLeapEvent.ClipboardData && event.id == ClipboardSync.PRIMARY &&
                 event.mark == ClipboardAssembler.MARK_START)
         ) revision++
-        sync.onServerEvent(event)?.let { pending.trySend(Update(it, session, revision)) }
+        try {
+            sync.onServerEvent(event)?.let { pending.trySend(Update(it, session, revision)) }
+        } catch (error: IOException) {
+            sync.reset()
+            onFailure(error)
+        }
     }
 
     @Synchronized

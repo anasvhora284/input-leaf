@@ -110,6 +110,39 @@ class ClipboardSyncTest {
         assertThat(String(data.data)).isEqualTo("abc")
     }
 
+    @Test fun `reconnecting to the same server retains deduplication but switching servers clears it`() {
+        val sync = ClipboardSync()
+        sync.beginSession("server-a")
+        feed(sync, "from the PC")
+        sync.reset()
+        assertThat(sync.onLeave("from the PC")).isNull()
+        sync.beginSession("server-a")
+        assertThat(sync.onLeave("from the PC")).isNull()
+        sync.beginSession("server-b")
+        assertThat(sync.onLeave("from the PC")).isEqualTo("from the PC")
+        assertThat(sync.onLeave("from the PC")).isNull()
+    }
+
+    @Test fun `an image clears obsolete text deduplication while a mixed clipboard retains its text`() {
+        val sync = ClipboardSync()
+        feed(sync, "same text")
+        ClipboardFixtures.events(ClipboardFixtures.blob(2 to ClipboardFixtures.dib())).forEach(sync::onServerEvent)
+        assertThat(sync.onLeave("same text")).isEqualTo("same text")
+        ClipboardFixtures.events(ClipboardFixtures.blob(0 to "caption".toByteArray(), 2 to ClipboardFixtures.dib()))
+            .forEach(sync::onServerEvent)
+        assertThat(sync.onLeave("caption")).isNull()
+    }
+
+    @Test fun `oversized transfer reports once without allocating or accepting leftover chunks`() {
+        val reasons = mutableListOf<String>()
+        val assembler = ClipboardAssembler(10, { error("oversized input must not allocate") }, reasons::add)
+        assembler.accept(1, "11".toByteArray())
+        assembler.accept(2, byteArrayOf(1))
+        assertThat(assembler.accept(3, byteArrayOf())).isNull()
+        assertThat(reasons).hasSize(1)
+        assertThat(reasons.single()).contains("declared bytes=11; limit=10")
+    }
+
     private fun feed(sync: ClipboardSync, text: String): String? {
         val blob = ClipboardCodec.marshallText(text)
         sync.onServerEvent(InputLeapEvent.ClipboardData(0, 0, 1, blob.size.toString().toByteArray()))

@@ -68,15 +68,17 @@ class ConnectionService : Service() {
     private var retryJob: Job? = null
     private var activePolicy = ConnectionTransportPolicy.AUTO
     private var cursorOverlayEnabled = false
-    private val clipboardSync = ClipboardSync()
-    private val clipboardReceiver by lazy {
-        val device = DeviceClipboard(this) {
+    private val clipboardSync = ClipboardSync { Log.w(TAG, it) }
+    private val deviceClipboard by lazy {
+        DeviceClipboard(this, onRejected = { Log.w(TAG, it) }) {
             lastAppClipTimestamp = getSystemService(ClipboardManager::class.java)
                 ?.primaryClipDescription?.timestamp ?: lastAppClipTimestamp
             Log.i(TAG, "Server clipboard applied")
         }
+    }
+    private val clipboardReceiver by lazy {
         ClipboardReceiver(
-            scope, clipboardSync, coordinator::isCurrentGeneration, device::apply,
+            scope, clipboardSync, coordinator::isCurrentGeneration, deviceClipboard::apply,
             { Log.w(TAG, "Could not apply server clipboard", it) },
         )
     }
@@ -117,6 +119,15 @@ class ConnectionService : Service() {
     override fun onCreate() {
         super.onCreate()
         prefs = AppPreferences(this)
+        scope.launch(Dispatchers.IO) {
+            try {
+                deviceClipboard.clearUnusedImages()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Log.w(TAG, "Could not clean old clipboard images", error)
+            }
+        }
         NotificationHelper.createChannel(this)
         observeState()
 
@@ -230,6 +241,7 @@ class ConnectionService : Service() {
         stopping = false
         val plan = coordinator.startConnect(serverIp, screenName, forceReconnect = force)
         cancelPendingJobs(keepConnection = false)
+        clipboardSync.beginSession(serverIp)
         connection?.close()
         connection = null
 

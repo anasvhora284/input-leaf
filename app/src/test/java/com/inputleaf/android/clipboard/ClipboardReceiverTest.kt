@@ -79,4 +79,31 @@ class ClipboardReceiverTest {
         assertThat(failures).hasSize(1)
         assertThat(applied).containsExactly("next")
     }
+    @Test fun `allocation failure is reported once and subsequent text and images recover`() = runTest {
+        val oom = OutOfMemoryError("injected allocation failure")
+        var allocations = 0
+        val assembler = ClipboardAssembler(ClipboardAssembler.MAX_BYTES, { size ->
+            if (++allocations == 1) throw oom
+            ByteArray(size)
+        }, {})
+        val failures = mutableListOf<Exception>()
+        val applied = mutableListOf<String>()
+        val receiver = ClipboardReceiver(backgroundScope, ClipboardSync(assembler), { true }, { clip, _ ->
+            applied += clip.text ?: "image"
+        }, failures::add, StandardTestDispatcher(testScheduler))
+        fun send(blob: ByteArray) = ClipboardFixtures.events(blob).forEach { receiver.accept(it, 1) }
+        send(ClipboardFixtures.blob(2 to ClipboardFixtures.dib()))
+        runCurrent()
+        assertThat(failures).hasSize(1)
+        assertThat(failures.single()).isInstanceOf(IOException::class.java)
+        assertThat(failures.single().cause).isSameInstanceAs(oom)
+        assertThat(applied).isEmpty()
+        send(ClipboardCodec.marshallText("after failure"))
+        runCurrent()
+        send(ClipboardFixtures.blob(2 to ClipboardFixtures.dib()))
+        runCurrent()
+        assertThat(applied).containsExactly("after failure", "image").inOrder()
+        assertThat(failures).hasSize(1)
+    }
+
 }

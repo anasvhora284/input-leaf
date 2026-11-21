@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.ContextWrapper
 import android.graphics.Bitmap
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
@@ -112,6 +113,31 @@ class DeviceClipboardTest {
             assertThat(directory.listFiles()?.toList().orEmpty()).isEmpty()
             verify(bitmap).recycle()
         }
+    }
+
+    @Test fun `unreadable clipboard leaves cached images intact`() = runTest {
+        directory.mkdirs()
+        val cached = File(directory, "clip-old.png").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        val clipboard = mock(ClipboardManager::class.java)
+        val wrapped = object : ContextWrapper(context) {
+            override fun getSystemService(name: String): Any? =
+                if (name == Context.CLIPBOARD_SERVICE) clipboard else super.getSystemService(name)
+        }
+        `when`(clipboard.primaryClip).thenReturn(null)
+        DeviceClipboard(wrapped).clearUnusedImages()
+        assertThat(cached.exists()).isTrue()
+        `when`(clipboard.primaryClip).thenThrow(SecurityException("background clipboard access denied"))
+        DeviceClipboard(wrapped).clearUnusedImages()
+        assertThat(cached.exists()).isTrue()
+    }
+
+    @Test fun `a rejected image reports its reason and preserves the old clipboard`() = runTest {
+        val reasons = mutableListOf<String>()
+        DeviceClipboard(context, onRejected = reasons::add)
+            .apply(ClipboardContent(bitmap = ByteBuffer.wrap(byteArrayOf(1)))) { true }
+        assertThat(reasons).hasSize(1)
+        assertThat(reasons.single()).contains("truncated DIB header")
+        assertThat(manager.primaryClip!!.getItemAt(0).text.toString()).isEqualTo("keep me")
     }
 
     @Test fun `provider metadata is private grantable and shares only the image cache`() {
