@@ -39,6 +39,18 @@ class ClipboardSyncTest {
     }
 
     @Test
+    fun `an empty bitmap next to text is no image`() {
+        // Deskflow on Linux sends this with every text copy.
+        val text = "plain".toByteArray()
+        val blob = ByteBuffer.allocate(4 + 8 + text.size + 8)
+            .putInt(2).putInt(0).putInt(text.size).put(text)
+            .putInt(2).putInt(0).array()
+        val content = ClipboardCodec.unmarshall(blob)!!
+        assertThat(content.text).isEqualTo("plain")
+        assertThat(content.bitmap).isNull()
+    }
+
+    @Test
     fun `chunks reassemble and only a complete transfer is returned`() {
         val blob = ClipboardCodec.marshallText("chunked text")
         val assembler = ClipboardAssembler()
