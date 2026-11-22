@@ -187,8 +187,8 @@ class AccessibilityInputInjector(
 
     private fun handleKeyEvent(keysym: Int, mask: Int, button: Int, isDown: Boolean) {
         val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown)
-        if (AccessibilityKeyPolicy.isBackKey(keysym, mask)) {
-            if (isDown) AccessibilityInputService.getInstance()?.performGlobalBack()
+        AccessibilityKeyPolicy.globalAction(keysym, mask)?.let { action ->
+            if (isDown) AccessibilityInputService.getInstance()?.performGlobalAction(action)
             return
         }
         val ime = keyboard()
@@ -233,7 +233,7 @@ class AccessibilityInputInjector(
     private fun handleKeyRepeat(keysym: Int, mask: Int, button: Int, count: Int) {
         val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown = true)
         // A held Esc must not fire Back again for every repeat.
-        if (AccessibilityKeyPolicy.isBackKey(keysym, mask)) return
+        if (AccessibilityKeyPolicy.globalAction(keysym, mask) != null) return
         val ime = keyboard()
         if (ime == null) {
             Log.w(TAG, "InputLeafIME not running, dropping KeyRepeat")

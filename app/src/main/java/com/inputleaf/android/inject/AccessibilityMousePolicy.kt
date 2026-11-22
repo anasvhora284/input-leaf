@@ -1,5 +1,7 @@
 package com.inputleaf.android.inject
 
+import android.accessibilityservice.AccessibilityService
+
 internal enum class AccessibilityMouseAction {
     NONE,
     TOUCH_DOWN,
@@ -39,21 +41,36 @@ internal object AccessibilityMousePolicy {
 }
 
 /**
- * Keys the Accessibility engine turns into Android's global Back. Its keyboard goes
+ * Keys the Accessibility engine turns into Android's global actions. Its keyboard goes
  * through Input Leaf's IME, which only reaches text fields, so without this Esc does
- * nothing on a launcher or in most apps (#64).
+ * nothing on a launcher or in most apps (#64), and system shortcuts can't work (#86).
  */
 internal object AccessibilityKeyPolicy {
+    private const val KEYSYM_TAB = 0xFF09
     private const val KEYSYM_ESCAPE = 0xFF1B
     private const val KEYSYM_LEFT = 0xFF51
+    private const val KEYSYM_PRINT = 0xFF61
+    private const val WIN = KeyMapUtils.PROTOCOL_MASK_META or KeyMapUtils.PROTOCOL_MASK_SUPER
 
     /**
-     * True for a key Input Leaf handles as Back; press and release are both consumed.
-     * Input Leap and Deskflow send function keys as 0xEFxx, X11 as 0xFFxx (#73).
+     * The AccessibilityService.GLOBAL_ACTION_* a key triggers, or null for a normal key;
+     * press, repeat and release are all consumed. Input Leap and Deskflow send function
+     * keys as 0xEFxx, X11 as 0xFFxx (#73).
      */
-    fun isBackKey(keysym: Int, mask: Int): Boolean {
+    fun globalAction(keysym: Int, mask: Int): Int? {
         val key = if (keysym in 0xEF00..0xEFFF) keysym + 0x1000 else keysym
-        return key == KEYSYM_ESCAPE ||
-            (key == KEYSYM_LEFT && mask and KeyMapUtils.PROTOCOL_MASK_ALT != 0)
+        val alt = mask and KeyMapUtils.PROTOCOL_MASK_ALT != 0
+        val win = mask and WIN != 0
+        return when {
+            key == KEYSYM_ESCAPE -> AccessibilityService.GLOBAL_ACTION_BACK
+            key == KEYSYM_LEFT && alt -> AccessibilityService.GLOBAL_ACTION_BACK
+            key == KEYSYM_TAB && alt -> AccessibilityService.GLOBAL_ACTION_RECENTS
+            key == KEYSYM_PRINT -> AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT
+            !win -> null
+            key == 'n'.code || key == 'N'.code -> AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS
+            key == 'a'.code || key == 'A'.code -> AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS
+            key == 'l'.code || key == 'L'.code -> AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN
+            else -> null
+        }
     }
 }
