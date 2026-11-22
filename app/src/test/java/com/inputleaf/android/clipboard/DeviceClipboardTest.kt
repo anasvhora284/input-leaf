@@ -1,0 +1,157 @@
+package com.inputleaf.android.clipboard
+
+import android.app.Application
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.ContextWrapper
+import android.graphics.Bitmap
+import androidx.test.core.app.ApplicationProvider
+import com.google.common.truth.Truth.assertThat
+import com.inputleaf.android.R
+import java.io.File
+import java.io.IOException
+import java.io.OutputStream
+import java.nio.ByteBuffer
+import javax.imageio.ImageIO
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.eq
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.mockStatic
+import org.mockito.Mockito.verify
+import org.mockito.Mockito.`when`
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import org.xmlpull.v1.XmlPullParser
+
+@OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [28, 34], application = Application::class)
+class DeviceClipboardTest {
+    private lateinit var context: Context
+    private lateinit var manager: ClipboardManager
+    private lateinit var directory: File
+
+    @Before fun setUp() {
+        Dispatchers.setMain(UnconfinedTestDispatcher())
+        context = ApplicationProvider.getApplicationContext()
+        manager = context.getSystemService(ClipboardManager::class.java)
+        directory = File(context.cacheDir, DeviceClipboard.DIRECTORY)
+        directory.deleteRecursively()
+        manager.setPrimaryClip(ClipData.newPlainText("previous", "keep me"))
+    }
+
+    @After fun tearDown() {
+        manager.clearPrimaryClip()
+        directory.deleteRecursively()
+        Dispatchers.resetMain()
+    }
+
+    @Test fun `DIB conversion writes an actual PNG with the expected dimensions and colors`() {
+        val image = DibImage.decode(ByteBuffer.wrap(ClipboardFixtures.dib()))!!
+        val file = DeviceClipboard(context).writePng(image)
+        val png = ImageIO.read(file)
+        assertThat(png.width).isEqualTo(2)
+        assertThat(png.height).isEqualTo(2)
+        assertThat(png.getRGB(0, 0, 2, 2, null, 0, 2)).isEqualTo(ClipboardFixtures.colors)
+        assertThat(file.parentFile).isEqualTo(directory)
+    }
+
+    @Test fun `invalid image preserves the clipboard and text fallback remains available`() = runTest {
+        val device = DeviceClipboard(context)
+        device.apply(ClipboardContent(bitmap = ByteBuffer.wrap(byteArrayOf(1)))) { true }
+        assertThat(manager.primaryClip!!.getItemAt(0).text.toString()).isEqualTo("keep me")
+        device.apply(ClipboardContent(text = "fallback", bitmap = ByteBuffer.wrap(byteArrayOf(1)))) { true }
+        assertThat(manager.primaryClip!!.getItemAt(0).text.toString()).isEqualTo("fallback")
+    }
+
+    @Test fun `bitmap allocation failure preserves the clipboard and reports an IO failure`() = runTest {
+        val allocationFailure = OutOfMemoryError("test allocation failure")
+        mockStatic(Bitmap::class.java).use { bitmaps ->
+            bitmaps.`when`<Bitmap> {
+                Bitmap.createBitmap(any(IntArray::class.java), eq(2), eq(2), eq(Bitmap.Config.ARGB_8888))
+            }.thenThrow(allocationFailure)
+            val error = try {
+                DeviceClipboard(context).apply(ClipboardContent(bitmap = ByteBuffer.wrap(ClipboardFixtures.dib()))) { true }
+                null
+            } catch (error: IOException) {
+                error
+            }
+            assertThat(error).isNotNull()
+            assertThat(error!!.cause).isSameInstanceAs(allocationFailure)
+            assertThat(manager.primaryClip!!.getItemAt(0).text.toString()).isEqualTo("keep me")
+            assertThat(directory.listFiles()?.toList().orEmpty()).isEmpty()
+        }
+    }
+
+    @Test fun `failed PNG encoding removes the partial file and preserves the clipboard`() = runTest {
+        val bitmap = mock(Bitmap::class.java)
+        `when`(bitmap.compress(eq(Bitmap.CompressFormat.PNG), eq(100), any(OutputStream::class.java)))
+            .thenReturn(false)
+        mockStatic(Bitmap::class.java).use { bitmaps ->
+            bitmaps.`when`<Bitmap> {
+                Bitmap.createBitmap(any(IntArray::class.java), eq(2), eq(2), eq(Bitmap.Config.ARGB_8888))
+            }.thenReturn(bitmap)
+            val error = try {
+                DeviceClipboard(context).apply(ClipboardContent(bitmap = ByteBuffer.wrap(ClipboardFixtures.dib()))) { true }
+                null
+            } catch (error: IllegalStateException) {
+                error
+            }
+            assertThat(error).isNotNull()
+            assertThat(manager.primaryClip!!.getItemAt(0).text.toString()).isEqualTo("keep me")
+            assertThat(directory.listFiles()?.toList().orEmpty()).isEmpty()
+            verify(bitmap).recycle()
+        }
+    }
+
+    @Test fun `unreadable clipboard leaves cached images intact`() = runTest {
+        directory.mkdirs()
+        val cached = File(directory, "clip-old.png").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        val clipboard = mock(ClipboardManager::class.java)
+        val wrapped = object : ContextWrapper(context) {
+            override fun getSystemService(name: String): Any? =
+                if (name == Context.CLIPBOARD_SERVICE) clipboard else super.getSystemService(name)
+        }
+        `when`(clipboard.primaryClip).thenReturn(null)
+        DeviceClipboard(wrapped).clearUnusedImages()
+        assertThat(cached.exists()).isTrue()
+        `when`(clipboard.primaryClip).thenThrow(SecurityException("background clipboard access denied"))
+        DeviceClipboard(wrapped).clearUnusedImages()
+        assertThat(cached.exists()).isTrue()
+    }
+
+    @Test fun `a rejected image reports its reason and preserves the old clipboard`() = runTest {
+        val reasons = mutableListOf<String>()
+        DeviceClipboard(context, onRejected = reasons::add)
+            .apply(ClipboardContent(bitmap = ByteBuffer.wrap(byteArrayOf(1)))) { true }
+        assertThat(reasons).hasSize(1)
+        assertThat(reasons.single()).contains("truncated DIB header")
+        assertThat(manager.primaryClip!!.getItemAt(0).text.toString()).isEqualTo("keep me")
+    }
+
+    @Test fun `provider metadata is private grantable and shares only the image cache`() {
+        val info = context.packageManager.resolveContentProvider("${context.packageName}.clipboard", 0)!!
+        assertThat(info.exported).isFalse()
+        assertThat(info.grantUriPermissions).isTrue()
+        val paths = mutableListOf<Pair<String, String>>()
+        context.resources.getXml(R.xml.clipboard_paths).use { xml ->
+            while (xml.next() != XmlPullParser.END_DOCUMENT) {
+                if (xml.eventType == XmlPullParser.START_TAG && xml.name != "paths") {
+                    paths += xml.name to xml.getAttributeValue(null, "path")
+                }
+            }
+        }
+        assertThat(paths).containsExactly("cache-path" to "clipboard-images/")
+    }
+}
