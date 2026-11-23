@@ -81,6 +81,9 @@ class AccessibilityMousePolicyTest {
             assertThat(action('n'.code, win)).isEqualTo(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS)
             assertThat(action('A'.code, win)).isEqualTo(AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS)
             assertThat(action('l'.code, win)).isEqualTo(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN)
+            val shift = KeyMapUtils.PROTOCOL_MASK_SHIFT
+            assertThat(action('S'.code, win or shift)).isEqualTo(AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT)
+            assertThat(action('s'.code, win)).isNull()
         }
     }
 

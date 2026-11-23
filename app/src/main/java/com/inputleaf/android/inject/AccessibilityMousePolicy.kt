@@ -61,6 +61,7 @@ internal object AccessibilityKeyPolicy {
         val key = if (keysym in 0xEF00..0xEFFF) keysym + 0x1000 else keysym
         val alt = mask and KeyMapUtils.PROTOCOL_MASK_ALT != 0
         val win = mask and WIN != 0
+        val shift = mask and KeyMapUtils.PROTOCOL_MASK_SHIFT != 0
         return when {
             key == KEYSYM_ESCAPE -> AccessibilityService.GLOBAL_ACTION_BACK
             key == KEYSYM_LEFT && alt -> AccessibilityService.GLOBAL_ACTION_BACK
@@ -70,6 +71,8 @@ internal object AccessibilityKeyPolicy {
             key == 'n'.code || key == 'N'.code -> AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS
             key == 'a'.code || key == 'A'.code -> AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS
             key == 'l'.code || key == 'L'.code -> AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN
+            // Windows' snipping shortcut; X11 sends the shifted 'S'.
+            (key == 's'.code || key == 'S'.code) && shift -> AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT
             else -> null
         }
     }

@@ -396,7 +396,7 @@ class ShizukuInputInjector internal constructor(
         hidMouse.onEnter(x, y)
         Log.i(
             TAG,
-            "HID mouse enter $x,$y phase=${hidMouse.phase} cooked=${hidMouse.cookedX},${hidMouse.cookedY}",
+            "HID mouse enter $x,$y phase=${hidMouse.phase} cooked=${"%.1f,%.1f".format(hidMouse.cookedX, hidMouse.cookedY)}",
         )
         // Hand the coords to the injector so a CREATE2 can warp there itself. Warping
         // from here loses the race against AOSP seeding the new pointer at centre.
