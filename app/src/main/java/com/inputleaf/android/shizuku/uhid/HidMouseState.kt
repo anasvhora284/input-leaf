@@ -35,11 +35,14 @@ internal class HidMouseState(
     var protocolY: Int = 0
         private set
 
-    /** Open-loop estimate of Android's cooked pointer position. */
-    var cookedX: Int = centerX()
+    /** Open-loop estimate of Android's cooked pointer position, in fractional pixels. */
+    var cookedX: Double = centerX().toDouble()
         private set
-    var cookedY: Int = centerY()
+    var cookedY: Double = centerY().toDouble()
         private set
+
+    /** Android's acceleration state for the reports this device has sent. */
+    private val velocity = PointerVelocityModel()
 
     /** Latest enter/DMMV target retained while attach is in flight. */
     var pendingSnapX: Int? = null
@@ -58,13 +61,7 @@ internal class HidMouseState(
     var needsCenterSeed: Boolean = false
         private set
 
-    var lastHidMoveAt: Long = 0L
-        private set
-
     var edgeFlags: MouseEdgeAnchor.Flags = MouseEdgeAnchor.Flags()
-        private set
-
-    var lastWasEdgePulse: Boolean = false
         private set
 
     fun maxXExclusive(): Int = maxX
@@ -101,14 +98,14 @@ internal class HidMouseState(
      * model then starts there, not at centre: the attached phase is published in the same
      * step, so a move racing in plans from where the pointer really is (#88).
      */
-    fun completeAttach(newDevice: Boolean, warpedToEnter: Boolean = false, nowMs: Long = 0L) {
+    fun completeAttach(newDevice: Boolean, warpedToEnter: Boolean = false) {
         synchronized(lock) {
+            // The warp ends with a pause that clears Android's tracker; a new device has none.
+            if (warpedToEnter || newDevice) velocity.reset()
             if (warpedToEnter) {
-                cookedX = enterX
-                cookedY = enterY
+                cookedX = enterX.toDouble()
+                cookedY = enterY.toDouble()
                 needsCenterSeed = false
-                lastHidMoveAt = nowMs
-                lastWasEdgePulse = false
                 // The warp ended against every edge the Enter lies on.
                 edgeFlags = MouseEdgeAnchor.Flags(
                     minX = enterX == 0,
@@ -117,11 +114,9 @@ internal class HidMouseState(
                     maxY = enterY == maxY,
                 )
             } else if (newDevice) {
-                cookedX = centerX()
-                cookedY = centerY()
+                cookedX = centerX().toDouble()
+                cookedY = centerY().toDouble()
                 needsCenterSeed = true
-                lastHidMoveAt = 0L
-                lastWasEdgePulse = false
                 edgeFlags = MouseEdgeAnchor.Flags()
             }
             attached = true
@@ -136,7 +131,6 @@ internal class HidMouseState(
             phase = AttachPhase.DETACHED
             buttons = 0
             needsCenterSeed = false
-            lastWasEdgePulse = false
             edgeFlags = MouseEdgeAnchor.Flags()
             // Drop the pre-leave target only. A newer Enter/DMMV (targetEpoch > leaveEpoch)
             // must survive so attach can snap to it after a drain-ordered close.
@@ -169,8 +163,6 @@ internal class HidMouseState(
             targetEpoch = 0
             leaveEpoch = -1
             needsCenterSeed = false
-            lastHidMoveAt = 0L
-            lastWasEdgePulse = false
             edgeFlags = MouseEdgeAnchor.Flags()
         }
     }
@@ -186,7 +178,6 @@ internal class HidMouseState(
             storeTargetLocked(tx, ty)
             enterX = tx
             enterY = ty
-            lastWasEdgePulse = false
             edgeFlags = MouseEdgeAnchor.Flags()
         }
     }
@@ -242,29 +233,28 @@ internal class HidMouseState(
 
     fun needsCenterSeed(): Boolean = synchronized(lock) { needsCenterSeed }
 
-    fun applySuccessfulMove(plan: MousePointerCompensation.HidMovePlan, nowMs: Long) {
-        val (dx, dy) = plan.cookedDelta()
+    /**
+     * Books a sent report. With [settingsSpeed], a move is re-predicted at its real write
+     * time: the plan guessed that time, and on fast moves a millisecond changes Android's
+     * gain, so the next report then corrects what this one missed (#88).
+     */
+    fun applySuccessfulPlan(plan: MouseEdgeAnchor.Plan, sentAtNs: Long, settingsSpeed: Int? = null) {
         synchronized(lock) {
-            cookedX = (cookedX + dx).coerceIn(0, maxX)
-            cookedY = (cookedY + dy).coerceIn(0, maxY)
-            lastHidMoveAt = nowMs
-            lastWasEdgePulse = false
-            needsCenterSeed = false
-        }
-    }
-
-    fun applySuccessfulPlan(plan: MouseEdgeAnchor.Plan, nowMs: Long) {
-        synchronized(lock) {
-            cookedX = plan.cookedXAfter
-            cookedY = plan.cookedYAfter
+            if (settingsSpeed != null && !plan.isEdgePulse) {
+                val (dx, dy) = velocity.predict(sentAtNs, plan.hidX.toDouble(), plan.hidY.toDouble(), settingsSpeed)
+                cookedX = (cookedX + dx).coerceIn(0.0, maxX.toDouble())
+                cookedY = (cookedY + dy).coerceIn(0.0, maxY.toDouble())
+            } else {
+                cookedX = plan.cookedXAfter
+                cookedY = plan.cookedYAfter
+            }
+            velocity.record(sentAtNs, plan.hidX, plan.hidY)
             edgeFlags = plan.flagsAfter
-            lastHidMoveAt = nowMs
-            lastWasEdgePulse = plan.isEdgePulse
             needsCenterSeed = false
         }
     }
 
-    fun plannerInput(nowMs: Long): MouseEdgeAnchor.Input {
+    fun plannerInput(nowNs: Long): MouseEdgeAnchor.Input {
         synchronized(lock) {
             return MouseEdgeAnchor.Input(
                 targetX = protocolX,
@@ -275,15 +265,9 @@ internal class HidMouseState(
                 maxY = maxY,
                 flags = edgeFlags,
                 preferTangentialFirst = needsCenterSeed,
-                lastWasEdgePulse = lastWasEdgePulse,
-                dtMs = if (lastHidMoveAt == 0L) 0L else nowMs - lastHidMoveAt,
+                velocity = velocity,
+                nowNs = nowNs,
             )
-        }
-    }
-
-    fun movementDtMs(nowMs: Long): Long {
-        synchronized(lock) {
-            return if (lastHidMoveAt == 0L) 0L else nowMs - lastHidMoveAt
         }
     }
 
@@ -295,13 +279,13 @@ internal class HidMouseState(
 
     fun buttons(): Int = synchronized(lock) { buttons }
 
-    fun errorToTarget(targetX: Int, targetY: Int): Pair<Int, Int> {
+    fun errorToTarget(targetX: Int, targetY: Int): Pair<Double, Double> {
         synchronized(lock) {
             return Pair(targetX - cookedX, targetY - cookedY)
         }
     }
 
-    fun cookedPosition(): Pair<Int, Int> = synchronized(lock) { Pair(cookedX, cookedY) }
+    fun cookedPosition(): Pair<Double, Double> = synchronized(lock) { Pair(cookedX, cookedY) }
 
     fun isAttachedOrAttaching(): Boolean = synchronized(lock) {
         phase == AttachPhase.ATTACHED || phase == AttachPhase.ATTACHING
@@ -321,16 +305,15 @@ internal class HidMouseState(
             pendingSnapX = pendingSnapX?.let { MousePointerCompensation.scaleCoord(it, oldMaxX, newMaxX) }
             pendingSnapY = pendingSnapY?.let { MousePointerCompensation.scaleCoord(it, oldMaxY, newMaxY) }
             if (phase == AttachPhase.ATTACHED) {
-                cookedX = MousePointerCompensation.scaleCoord(cookedX, oldMaxX, newMaxX)
-                cookedY = MousePointerCompensation.scaleCoord(cookedY, oldMaxY, newMaxY)
+                if (oldMaxX > 0) cookedX = (cookedX * newMaxX / oldMaxX).coerceIn(0.0, newMaxX.toDouble())
+                if (oldMaxY > 0) cookedY = (cookedY * newMaxY / oldMaxY).coerceIn(0.0, newMaxY.toDouble())
             } else {
-                cookedX = newMaxX / 2
-                cookedY = newMaxY / 2
+                cookedX = (newMaxX / 2).toDouble()
+                cookedY = (newMaxY / 2).toDouble()
             }
             maxX = newMaxX
             maxY = newMaxY
             edgeFlags = MouseEdgeAnchor.Flags()
-            lastWasEdgePulse = false
         }
     }
 }

@@ -40,11 +40,10 @@ class HidMouseStateTest {
     fun `idempotent attach does not reseed cooked estimate`() {
         val state = HidMouseState(maxX = 1079, maxY = 2413)
         state.completeAttach(newDevice = true)
+        state.clearCenterSeed()
         val before = state.cookedPosition()
-        state.applySuccessfulMove(
-            MousePointerCompensation.planHidMove(100, 0, 0, dtMs = 0L),
-            nowMs = 1L,
-        )
+        state.updatePointerTarget(700, 1206)
+        state.applySuccessfulPlan(MouseEdgeAnchor.plan(state.plannerInput(0L), 0), 0L)
         val afterMove = state.cookedPosition()
         state.completeAttach(newDevice = false)
         assertThat(state.cookedPosition()).isEqualTo(afterMove)
@@ -58,46 +57,34 @@ class HidMouseStateTest {
         state.updatePointerTarget(540, 1200)
         state.resizeDisplay(newMaxX = 1919, newMaxY = 1079)
         assertThat(state.protocolX).isEqualTo(960)
-        assertThat(state.cookedX).isEqualTo(958)
+        assertThat(state.cookedX).isWithin(0.5).of(539.0 * 1919 / 1079)
         assertThat(state.edgeFlags).isEqualTo(MouseEdgeAnchor.Flags())
     }
 
     @Test
-    fun `movement timing preserved across pointer speed updates`() {
+    fun `successful move advances cooked estimate by Android's fractional move`() {
         val state = HidMouseState(maxX = 1079, maxY = 2413)
         state.completeAttach(newDevice = true)
-        state.applySuccessfulMove(
-            MousePointerCompensation.planHidMove(100, 50, 0, dtMs = 0L),
-            nowMs = 50L,
-        )
-        val before = state.cookedPosition()
-        assertThat(state.movementDtMs(nowMs = 100L)).isEqualTo(50L)
-        assertThat(state.cookedPosition()).isEqualTo(before)
+        state.clearCenterSeed()
+        state.updatePointerTarget(539, 1006)
+        val plan = MouseEdgeAnchor.plan(state.plannerInput(0L), 0)
+        state.applySuccessfulPlan(plan, 0L)
+        // 98 counts at the base gain of 2.0416 px.
+        assertThat(state.cookedY).isWithin(0.001).of(1206 - 98 * 2.0416)
     }
 
     @Test
-    fun `successful move advances cooked estimate only when applied`() {
-        val state = HidMouseState(maxX = 1079, maxY = 2413)
-        state.completeAttach(newDevice = true)
-        val plan = MousePointerCompensation.planHidMove(0, -200, 0, dtMs = 0L)
-        state.applySuccessfulMove(plan, nowMs = 100L)
-        val (_, cookedY) = state.cookedPosition()
-        assertThat(cookedY).isEqualTo(1206 - 200)
-    }
-
-    @Test
-    fun `applySuccessfulPlan updates cooked flags and last pulse on success only`() {
+    fun `applySuccessfulPlan updates cooked and flags on success only`() {
         val state = HidMouseState(maxX = 1079, maxY = 2413)
         state.completeAttach(newDevice = true)
         state.clearCenterSeed()
         state.updatePointerTarget(0, 200)
-        val plan = MouseEdgeAnchor.plan(state.plannerInput(nowMs = 5L), 0)
+        val plan = MouseEdgeAnchor.plan(state.plannerInput(nowNs = 5L), 0)
         assertThat(plan.isEdgePulse).isTrue()
         assertThat(state.edgeFlags.minX).isFalse()
-        state.applySuccessfulPlan(plan, nowMs = 5L)
-        assertThat(state.cookedX).isEqualTo(0)
+        state.applySuccessfulPlan(plan, sentAtNs = 5L)
+        assertThat(state.cookedX).isEqualTo(0.0)
         assertThat(state.edgeFlags.minX).isTrue()
-        assertThat(state.lastWasEdgePulse).isTrue()
     }
 
     @Test
@@ -106,7 +93,7 @@ class HidMouseStateTest {
         state.onEnter(0, 0)
         state.completeAttach(newDevice = true)
         state.snap()
-        assertThat(state.cookedX).isEqualTo(0)
+        assertThat(state.cookedX).isEqualTo(0.0)
         assertThat(state.edgeFlags.minX).isTrue()
 
         state.markLeave()
@@ -123,7 +110,7 @@ class HidMouseStateTest {
         state.onEnter(0, 0)
         state.completeAttach(newDevice = true)
         state.snap()
-        assertThat(state.cookedPosition()).isEqualTo(Pair(0, 0))
+        assertThat(state.cookedPosition()).isEqualTo(Pair(0.0, 0.0))
 
         state.markLeave()
         state.detach()
@@ -132,7 +119,7 @@ class HidMouseStateTest {
         state.onEnter(1079, 2413)
         state.beginAttach()
         state.completeAttach(newDevice = true)
-        assertThat(state.cookedPosition()).isEqualTo(Pair(state.centerX(), state.centerY()))
+        assertThat(state.cookedPosition()).isEqualTo(Pair(state.centerX().toDouble(), state.centerY().toDouble()))
         assertThat(state.peekPendingSnap()).isEqualTo(Pair(1079, 2413))
         assertThat(state.edgeFlags).isEqualTo(MouseEdgeAnchor.Flags())
         assertThat(state.needsCenterSeed()).isTrue()
@@ -140,7 +127,7 @@ class HidMouseStateTest {
         val plans = state.snap()
         assertThat(plans.any { it.isEdgePulse && it.hidX == HidMouse.MAX_DELTA }).isTrue()
         assertThat(plans.any { it.isEdgePulse && it.hidY == HidMouse.MAX_DELTA }).isTrue()
-        assertThat(state.cookedPosition()).isEqualTo(Pair(1079, 2413))
+        assertThat(state.cookedPosition()).isEqualTo(Pair(1079.0, 2413.0))
         assertThat(state.peekPendingSnap()).isNull()
     }
 
@@ -160,11 +147,11 @@ class HidMouseStateTest {
 
         state.beginAttach()
         state.completeAttach(newDevice = true)
-        assertThat(state.cookedPosition()).isEqualTo(Pair(state.centerX(), state.centerY()))
+        assertThat(state.cookedPosition()).isEqualTo(Pair(state.centerX().toDouble(), state.centerY().toDouble()))
         assertThat(state.peekPendingSnap()).isEqualTo(Pair(1079, 2000))
         state.snap()
-        assertThat(state.cookedX).isEqualTo(1079)
-        assertThat(state.cookedY).isAtLeast(1500)
+        assertThat(state.cookedX).isEqualTo(1079.0)
+        assertThat(state.cookedY).isAtLeast(1500.0)
     }
 
     @Test
@@ -174,7 +161,7 @@ class HidMouseStateTest {
         state.completeAttach(newDevice = true)
         state.snap()
         val leftTop = state.cookedPosition()
-        assertThat(leftTop).isEqualTo(Pair(0, 0))
+        assertThat(leftTop).isEqualTo(Pair(0.0, 0.0))
 
         state.markLeave()
         state.onEnter(1079, 1800)
@@ -183,12 +170,12 @@ class HidMouseStateTest {
         assertThat(state.needsCenterSeed()).isFalse()
         assertThat(state.edgeFlags).isEqualTo(MouseEdgeAnchor.Flags())
 
-        val plans = MouseEdgeAnchor.planSnap(state.plannerInput(nowMs = 20L), 0)
+        val plans = MouseEdgeAnchor.planSnap(state.plannerInput(nowNs = 20L), 0)
         assertThat(plans.any { it.hidX == HidMouse.MAX_DELTA }).isTrue()
         plans.filter { !it.isNoOp }.forEach { state.applySuccessfulPlan(it, 20L) }
-        assertThat(state.cookedX).isEqualTo(1079)
-        assertThat(state.cookedY).isAtLeast(1000)
-        assertThat(state.cookedY).isNotEqualTo(0)
+        assertThat(state.cookedX).isEqualTo(1079.0)
+        assertThat(state.cookedY).isAtLeast(1000.0)
+        assertThat(state.cookedY).isNotEqualTo(0.0)
     }
 
     @Test
@@ -227,7 +214,7 @@ class HidMouseStateTest {
         state.beginAttach()
         state.completeAttach(newDevice = true)
         assertThat(state.edgeFlags).isEqualTo(MouseEdgeAnchor.Flags())
-        val plans = MouseEdgeAnchor.planSnap(state.plannerInput(nowMs = 1L), 0)
+        val plans = MouseEdgeAnchor.planSnap(state.plannerInput(nowNs = 1L), 0)
         assertThat(plans.any { it.hidX == HidMouse.MAX_DELTA }).isTrue()
         assertThat(plans.any { it.hidY == HidMouse.MAX_DELTA }).isTrue()
         assertThat(plans.none { it.hidX == HidMouse.MIN_DELTA }).isTrue()
@@ -244,23 +231,23 @@ class HidMouseStateTest {
         state.detach()
 
         state.resizeDisplay(newMaxX = 2413, newMaxY = 1079)
-        assertThat(state.cookedPosition()).isEqualTo(Pair(1206, 539))
+        assertThat(state.cookedPosition()).isEqualTo(Pair(1206.0, 539.0))
         assertThat(state.edgeFlags).isEqualTo(MouseEdgeAnchor.Flags())
         assertThat(state.peekPendingSnap()).isNull()
 
         state.onEnter(2413, 1079)
         state.beginAttach()
         state.completeAttach(newDevice = true)
-        assertThat(state.cookedPosition()).isEqualTo(Pair(1206, 539))
+        assertThat(state.cookedPosition()).isEqualTo(Pair(1206.0, 539.0))
         assertThat(state.peekPendingSnap()).isEqualTo(Pair(2413, 1079))
         state.snap()
-        assertThat(state.cookedPosition()).isEqualTo(Pair(2413, 1079))
+        assertThat(state.cookedPosition()).isEqualTo(Pair(2413.0, 1079.0))
     }
 
-    private fun HidMouseState.snap(nowMs: Long = 1L): List<MouseEdgeAnchor.Plan> {
-        val plans = MouseEdgeAnchor.planSnap(plannerInput(nowMs), 0)
+    private fun HidMouseState.snap(nowNs: Long = 1L): List<MouseEdgeAnchor.Plan> {
+        val plans = MouseEdgeAnchor.planSnap(plannerInput(nowNs), 0)
         for (plan in plans) {
-            if (!plan.isNoOp) applySuccessfulPlan(plan, nowMs)
+            if (!plan.isNoOp) applySuccessfulPlan(plan, nowNs)
         }
         val target = peekPendingSnap() ?: return plans
         val (errX, errY) = errorToTarget(target.first, target.second)
@@ -271,7 +258,8 @@ class HidMouseStateTest {
             maxXExclusive(),
             maxYExclusive(),
         )
-        if (errX == 0 && errY == 0 && !stillEdge) {
+        val halfCount = MousePointerCompensation.firstSegmentGain(0) / 2
+        if (kotlin.math.abs(errX) < halfCount && kotlin.math.abs(errY) < halfCount && !stillEdge) {
             consumePendingSnap()
         }
         return plans
@@ -282,16 +270,32 @@ class HidMouseStateTest {
         state.onEnter(310, 0)
         state.beginAttach()
 
-        state.completeAttach(newDevice = true, warpedToEnter = true, nowMs = 1_000L)
+        state.completeAttach(newDevice = true, warpedToEnter = true)
 
-        assertThat(state.cookedX).isEqualTo(310)
-        assertThat(state.cookedY).isEqualTo(0)
+        assertThat(state.cookedX).isEqualTo(310.0)
+        assertThat(state.cookedY).isEqualTo(0.0)
         assertThat(state.needsCenterSeed()).isFalse()
         assertThat(state.edgeFlags.minY).isTrue()
         assertThat(state.edgeFlags.minX).isFalse()
         // A move to just below the entry is a small step, not the 309 px warp again.
         state.updatePointerTarget(310, 5)
-        val plan = MouseEdgeAnchor.plan(state.plannerInput(1_010L), -1)
+        val plan = MouseEdgeAnchor.plan(state.plannerInput(10_000_000L), -1)
         assertThat(kotlin.math.abs(plan.hidX)).isLessThan(5)
+    }
+
+    @Test fun `a move is booked at its real write time, not the planned one (88)`() {
+        val state = HidMouseState(maxX = 1079, maxY = 2413)
+        state.completeAttach(newDevice = true)
+        state.clearCenterSeed()
+        state.updatePointerTarget(700, 1206)
+        state.applySuccessfulPlan(MouseEdgeAnchor.plan(state.plannerInput(0L), 0), 0L, 0)
+        state.updatePointerTarget(900, 1206)
+        val plan = MouseEdgeAnchor.plan(state.plannerInput(2_000_000L), 0)
+        val before = state.cookedX
+        // Planned 2 ms after the last report, at a fast-move gain; written 45 ms later,
+        // after Android's 40 ms reset, so it moved at the base gain.
+        state.applySuccessfulPlan(plan, 45_000_000L, 0)
+        assertThat(state.cookedX - before).isWithin(0.001).of(plan.hidX * 2.0416)
+        assertThat(plan.cookedXAfter - before).isGreaterThan(plan.hidX * 2.0416 + 1)
     }
 }

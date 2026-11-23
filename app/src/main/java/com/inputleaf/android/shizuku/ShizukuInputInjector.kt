@@ -26,6 +26,7 @@ import com.inputleaf.android.privilege.ShizukuUserServiceHost
 import com.inputleaf.android.shizuku.uhid.HidMouse
 import com.inputleaf.android.shizuku.uhid.HidMouseState
 import com.inputleaf.android.shizuku.uhid.MouseEdgeAnchor
+import com.inputleaf.android.shizuku.uhid.MousePointerCompensation
 import com.inputleaf.android.shizuku.uhid.WheelNotchAccumulator
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -355,10 +356,11 @@ class ShizukuInputInjector internal constructor(
                 // the cursor. Ask before publishing ATTACHED: a move handled in between
                 // planned from centre and sent the warp a second time (#88).
                 val daemonWarped = runCatching { svc.consumeEnterWarpApplied() }.getOrDefault(false)
+                runCatching { svc.cursorScale }.getOrNull()?.takeIf { it > 0.0 }
+                    ?.let { MousePointerCompensation.cursorScale = it }
                 hidMouse.completeAttach(
                     newDevice = newDevice,
                     warpedToEnter = daemonWarped,
-                    nowMs = SystemClock.uptimeMillis(),
                 )
                 clientClosedMouse = false
                 publishNativePointerState(NativePointerState.ACTIVE)
@@ -429,16 +431,15 @@ class ShizukuInputInjector internal constructor(
         hidMouse.updatePointerTarget(target.first, target.second)
         Log.i(
             TAG,
-            "HID mouse snap to ${target.first},${target.second} from ${hidMouse.cookedX},${hidMouse.cookedY} " +
+            "HID mouse snap to ${target.first},${target.second} from ${"%.1f,%.1f".format(hidMouse.cookedX, hidMouse.cookedY)} " +
                 "centerSeed=${hidMouse.needsCenterSeed()}",
         )
-        val now = SystemClock.uptimeMillis()
-        val plans = MouseEdgeAnchor.planSnap(hidMouse.plannerInput(now), pointerSpeed)
+        val plans = MouseEdgeAnchor.planSnap(hidMouse.plannerInput(expectedWriteAt()), pointerSpeed)
         for (plan in plans) {
             if (plan.isNoOp) continue
-            if (!svc.injectHidMouse(plan.hidX, plan.hidY, hidMouse.buttons(), 0)) return
-            hidMouse.applySuccessfulPlan(plan, now)
+            if (!sendPlan(svc, plan)) return
         }
+        // Done once what's left is under a report's smallest step (one count can be ~3 px).
         val (errX, errY) = hidMouse.errorToTarget(target.first, target.second)
         val stillEdge = MouseEdgeAnchor.needsEdgePulse(
             hidMouse.edgeFlags,
@@ -447,7 +448,9 @@ class ShizukuInputInjector internal constructor(
             hidMouse.maxXExclusive(),
             hidMouse.maxYExclusive(),
         )
-        if (errX == 0 && errY == 0 && !stillEdge) {
+        val halfCount = MousePointerCompensation.firstSegmentGain(pointerSpeed) / 2
+        val settled = kotlin.math.abs(errX) < halfCount && kotlin.math.abs(errY) < halfCount
+        if (settled && !stillEdge) {
             hidMouse.consumePendingSnap()
         }
     }
@@ -587,14 +590,25 @@ class ShizukuInputInjector internal constructor(
 
     private fun moveHidToProtocolTarget(targetX: Int, targetY: Int, svc: IInputInjector): Boolean {
         hidMouse.updatePointerTarget(targetX, targetY)
-        val now = SystemClock.uptimeMillis()
-        val plan = MouseEdgeAnchor.plan(hidMouse.plannerInput(now), pointerSpeed)
-        if (plan.isNoOp) return true
-        val sent = svc.injectHidMouse(plan.hidX, plan.hidY, hidMouse.buttons(), 0)
-        if (sent) {
-            hidMouse.applySuccessfulPlan(plan, now)
-        }
-        return sent
+        val plan = MouseEdgeAnchor.plan(hidMouse.plannerInput(expectedWriteAt()), pointerSpeed)
+        return plan.isNoOp || sendPlan(svc, plan)
+    }
+
+    /**
+     * How long a report takes from here to the injector's write, averaged. Android's speed
+     * fit is sensitive to a millisecond, so the model is fed the write times (#88).
+     */
+    private var writeLatencyNs = 1_500_000L
+
+    private fun expectedWriteAt(): Long = System.nanoTime() + writeLatencyNs
+
+    private fun sendPlan(svc: IInputInjector, plan: MouseEdgeAnchor.Plan): Boolean {
+        val calledAt = System.nanoTime()
+        val writtenAt = svc.moveHidMouse(plan.hidX, plan.hidY, hidMouse.buttons())
+        if (writtenAt == 0L) return false
+        writeLatencyNs += (writtenAt - calledAt - writeLatencyNs) / 5
+        hidMouse.applySuccessfulPlan(plan, writtenAt, pointerSpeed)
+        return true
     }
 
     override fun send(event: InputLeapEvent) {

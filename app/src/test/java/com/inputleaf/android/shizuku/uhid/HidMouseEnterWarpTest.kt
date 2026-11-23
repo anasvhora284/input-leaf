@@ -40,8 +40,8 @@ class HidMouseEnterWarpTest {
         assertThat(sink.reports).hasSize(2)
         assertThat(shortLe(sink.reports[0], 1)).isEqualTo(HidMouse.MIN_DELTA)
         assertThat(shortLe(sink.reports[0], 3)).isEqualTo(HidMouse.MIN_DELTA)
-        assertThat(sleeps).containsExactly(HidMouseEnterWarp.SETTLE_MS)
-        assertThat(HidMouseEnterWarp.SETTLE_MS).isGreaterThan(100L)
+        assertThat(sleeps).containsExactly(HidMouseEnterWarp.SETTLE_MS, HidMouseEnterWarp.SETTLE_MS)
+        assertThat(HidMouseEnterWarp.SETTLE_MS * 1_000_000).isGreaterThan(PointerVelocityModel.ASSUME_STOPPED_NS)
         assertThat(shortLe(sink.reports[1], 1)).isGreaterThan(0)
         assertThat(shortLe(sink.reports[1], 3)).isEqualTo(0)
     }
@@ -57,7 +57,7 @@ class HidMouseEnterWarpTest {
         assertThat(sink.reports).hasSize(1)
         assertThat(shortLe(sink.reports[0], 1)).isEqualTo(HidMouse.MAX_DELTA)
         assertThat(shortLe(sink.reports[0], 3)).isEqualTo(HidMouse.MAX_DELTA)
-        assertThat(sleeps).isEmpty()
+        assertThat(sleeps).containsExactly(HidMouseEnterWarp.SETTLE_MS)
     }
 
     @Test
@@ -83,6 +83,20 @@ class HidMouseEnterWarpTest {
                     assertThat(y).isWithin(gain / 2 + 0.01).of(ty.toDouble())
                 }
             }
+        }
+    }
+
+    @Test
+    fun `the move off the corner uses Android's cursor scale (88)`() {
+        // OnePlus Nord 4: enter at 310 went to 610 when the plan ignored XScale 1.75.
+        MousePointerCompensation.cursorScale = 1.75
+        try {
+            val plan = HidMouseEnterWarp.plan(HidMouseEnterWarp.Pending(310, 0, 1239, 2771, -1))
+            val landed = plan[1].first * MousePointerCompensation.firstSegmentGain(-1)
+            assertThat(landed).isWithin(2.0).of(310.0)
+            assertThat(plan[1].first).isEqualTo(96)
+        } finally {
+            MousePointerCompensation.cursorScale = 1.0
         }
     }
 

@@ -3,6 +3,7 @@ package com.inputleaf.android.shizuku
 import android.os.Build
 import com.google.common.truth.Truth.assertThat
 import com.inputleaf.android.shizuku.uhid.HidMouse
+import com.inputleaf.android.shizuku.uhid.MousePointerCompensation
 import com.inputleaf.android.shizuku.uhid.UhidChannel
 import com.inputleaf.android.shizuku.uhid.UhidProtocol
 import com.inputleaf.android.shizuku.uhid.UhidReadinessConfig
@@ -68,6 +69,7 @@ class InputInjectorServiceEnterTest {
 
         service.onHidMouseEnter(0, 100, 1079, 2413, 0)
         assertThat(service.injectHidMouse(1, 0, 0, 0)).isFalse()
+        assertThat(service.moveHidMouse(1, 0, 0)).isEqualTo(0L)
 
         assertThat(service.openVirtualMouse()).isTrue()
         assertThat(clock.elapsedMs()).isLessThan(400)
@@ -101,6 +103,34 @@ class InputInjectorServiceEnterTest {
         assertThat(warpBytesWhenListed).isEqualTo(0)
         assertThat(input2Offsets(output.toByteArray())).isNotEmpty()
         assertThat(service.consumeEnterWarpApplied()).isTrue()
+    }
+
+    @Test
+    fun `the cursor scale is read once Android lists the mouse, and kept (88)`() {
+        val channel = UhidChannel.forTesting(ByteArrayOutputStream())
+        var reads = 0
+        var listed = false
+        val service = InputInjectorService(
+            openChannel = { channel },
+            androidHasDevice = { listed = true; true },
+            readCursorScale = { name ->
+                assertThat(name).isEqualTo("Input Leaf Mouse HID")
+                assertThat(listed).isTrue()
+                reads++
+                1.75
+            },
+        )
+        try {
+            assertThat(service.cursorScale).isEqualTo(0.0)
+            assertThat(service.openVirtualMouse()).isTrue()
+            assertThat(service.cursorScale).isEqualTo(1.75)
+            assertThat(MousePointerCompensation.cursorScale).isEqualTo(1.75)
+            service.closeVirtualMouse()
+            assertThat(service.openVirtualMouse()).isTrue()
+            assertThat(reads).isEqualTo(1)
+        } finally {
+            MousePointerCompensation.cursorScale = 1.0
+        }
     }
 
     @Test

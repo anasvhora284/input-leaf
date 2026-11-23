@@ -142,4 +142,17 @@ interface IInputInjector {
      * app may not.
      */
     String readClipboardTextIfChanged();
+
+    /**
+     * The XScale Android applies to the virtual mouse's counts (1.75 on OnePlus's Android 16),
+     * read once the mouse is listed. 0 when unknown (#88).
+     */
+    double getCursorScale();
+
+    /**
+     * Send a relative motion report through the HID mouse. Returns System.nanoTime() just
+     * before the write (Android timestamps the event within microseconds), or 0 when the
+     * mouse is not open. The app's acceleration model needs that time (#88).
+     */
+    long moveHidMouse(int dx, int dy, int buttons);
 }

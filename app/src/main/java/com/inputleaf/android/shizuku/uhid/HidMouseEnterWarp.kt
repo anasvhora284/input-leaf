@@ -8,7 +8,8 @@ package com.inputleaf.android.shizuku.uhid
  * old position when another mouse kept it), and a relative move is only predictable
  * when Android's velocity tracker has no recent samples. So the warp is a pulse into
  * the corner nearest the target (position now known whatever it was), a pause that
- * outlasts the tracker's window, then one move off the corner at the base gain (#88).
+ * clears the tracker, then one move off the corner at the base gain (#88), and another
+ * pause so the app's first move also starts on a clear tracker.
  */
 internal class HidMouseEnterWarp(
     private val sleepMs: (Long) -> Unit = { Thread.sleep(it) },
@@ -50,10 +51,10 @@ internal class HidMouseEnterWarp(
         pending = null
         val reports = plan(target)
         for ((index, report) in reports.withIndex()) {
-            if (index > 0) sleepMs(SETTLE_MS)
             if (!mouse.move(report.first, report.second, 0, 0)) {
                 return Result(written = index, complete = false)
             }
+            sleepMs(SETTLE_MS)
         }
         return Result(written = reports.size, complete = true)
     }
@@ -61,8 +62,12 @@ internal class HidMouseEnterWarp(
     data class Result(val written: Int, val complete: Boolean)
 
     companion object {
-        /** Longer than the velocity tracker's 100 ms window and its 40 ms stop reset. */
-        const val SETTLE_MS = 120L
+        /**
+         * Longer than VelocityTracker's 40 ms ASSUME_POINTER_STOPPED_TIME, after which
+         * Android forgets the pulse and gives the next move the base gain. (The ~2x
+         * overshoot once blamed on a short pause was the OnePlus cursor scale, #88.)
+         */
+        const val SETTLE_MS = PointerVelocityModel.ASSUME_STOPPED_NS / 1_000_000 + 10L
 
         /** HID deltas: a pulse into the nearest corner, then the move off it (if any). */
         fun plan(target: Pending): List<Pair<Int, Int>> {
