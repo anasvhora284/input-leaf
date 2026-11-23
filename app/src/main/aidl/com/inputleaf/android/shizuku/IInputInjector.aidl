@@ -155,4 +155,10 @@ interface IInputInjector {
      * mouse is not open. The app's acceleration model needs that time (#88).
      */
     long moveHidMouse(int dx, int dy, int buttons);
+
+    /**
+     * This process's own recent log lines (shell or root may read logs; the app may only read
+     * its own), for the in-app "Share debug logs".
+     */
+    String readLogs(int maxLines);
 }

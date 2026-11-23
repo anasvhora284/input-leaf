@@ -624,6 +624,10 @@ class ConnectionService : Service() {
         CursorOverlayService.updatePosition(x, y)
     }
 
+    /** The privileged injector's recent logs, or null without Shizuku/root. */
+    fun injectorLogs(): String? =
+        (injector as? ShizukuInputInjector)?.readInjectorLogs(com.inputleaf.android.util.DebugLogs.MAX_LINES)
+
     fun setInjector(injector: com.inputleaf.android.inject.InputInjector) {
         val previous = this.injector
         if (previous != null && previous != injector) {

@@ -216,6 +216,20 @@ class MainViewModel @JvmOverloads constructor(
     private val _whatsNewChangelog = MutableStateFlow<VersionChangelog?>(null)
     val whatsNewChangelog: StateFlow<VersionChangelog?> = _whatsNewChangelog
 
+    /** Collects the app's and the injector's recent logs and opens the share sheet. */
+    fun shareDebugLogs() {
+        val app = getApplication<Application>()
+        viewModelScope.launch {
+            val intent = withContext(Dispatchers.IO) {
+                val version = "${UpdateService.getCurrentVersion(app)} (${UpdateService.getCurrentVersionCode(app)})"
+                runCatching { com.inputleaf.android.util.DebugLogs.shareIntent(app, version, service?.injectorLogs()) }
+                    .onFailure { Log.w("MainViewModel", "Could not collect debug logs", it) }
+                    .getOrNull()
+            }
+            intent?.let(app::startActivity)
+        }
+    }
+
     fun checkForUpdates(manual: Boolean = true) {
         viewModelScope.launch {
             _isCheckingUpdate.value = true

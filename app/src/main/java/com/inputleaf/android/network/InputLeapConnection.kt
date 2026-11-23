@@ -379,7 +379,13 @@ class InputLeapConnection(
                     event !is InputLeapEvent.MouseMoveRel &&
                     event !is InputLeapEvent.KeepAlive
                 ) {
-                    logD("Read event: $event")
+                    // Keys by type only: shared debug logs must not reveal what was typed.
+                    val shown = when (event) {
+                        is InputLeapEvent.KeyDown, is InputLeapEvent.KeyUp, is InputLeapEvent.KeyRepeat ->
+                            event::class.simpleName
+                        else -> event
+                    }
+                    logD("Read event: $shown")
                 }
                 val mapped = when {
                     event is InputLeapEvent.Unhandled && event.tag == "CIAK" ->

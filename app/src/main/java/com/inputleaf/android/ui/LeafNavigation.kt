@@ -395,6 +395,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     onRegenerateClientCertificate = { viewModel.regenerateClientCertificate() },
                     isCheckingUpdate = isCheckingUpdate,
                     onCheckForUpdates = { viewModel.checkForUpdates(manual = true) },
+                    onShareLogs = viewModel::shareDebugLogs,
                     receivePrereleases = updateChannel == UpdateChannel.PRERELEASE,
                     onReceivePrereleasesChange = { on ->
                         viewModel.saveUpdateChannel(if (on) UpdateChannel.PRERELEASE else UpdateChannel.STABLE)

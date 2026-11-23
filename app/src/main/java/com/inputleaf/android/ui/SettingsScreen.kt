@@ -93,6 +93,7 @@ fun SettingsScreen(
     onRegenerateClientCertificate: () -> Unit,
     isCheckingUpdate: Boolean = false,
     onCheckForUpdates: () -> Unit = {},
+    onShareLogs: () -> Unit = {},
     receivePrereleases: Boolean = false,
     onReceivePrereleasesChange: (Boolean) -> Unit = {},
     onBack: () -> Unit,
@@ -451,6 +452,15 @@ fun SettingsScreen(
                         subtitle = "GitHub issues & feature requests",
                         shapes = shapes,
                         onClick = { openUrl(context, "https://github.com/anasvhora284/input-leaf/issues") }
+                    )
+                }
+                row { shapes ->
+                    SettingsRow(
+                        icon = Icons.Rounded.Share,
+                        title = "Share debug logs",
+                        subtitle = "Recent app logs to attach to an issue. They include server addresses, never what you type or copy.",
+                        shapes = shapes,
+                        onClick = onShareLogs,
                     )
                 }
             }

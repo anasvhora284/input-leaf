@@ -602,6 +602,9 @@ class ShizukuInputInjector internal constructor(
 
     private fun expectedWriteAt(): Long = System.nanoTime() + writeLatencyNs
 
+    /** The injector process's recent log lines, or null when it isn't connected. */
+    fun readInjectorLogs(maxLines: Int): String? = runCatching { service?.readLogs(maxLines) }.getOrNull()
+
     private fun sendPlan(svc: IInputInjector, plan: MouseEdgeAnchor.Plan): Boolean {
         val calledAt = System.nanoTime()
         val writtenAt = svc.moveHidMouse(plan.hidX, plan.hidY, hidMouse.buttons())
@@ -843,7 +846,8 @@ class ShizukuInputInjector internal constructor(
             ime.commitText(char)
             return true
         }
-        Log.e(TAG, "injectText failed for char='$char' keysym=0x${keysym.toString(16)} ($keysym)")
+        // Never log the character: shared debug logs must not contain what was typed.
+        Log.e(TAG, "injectText failed for a character")
         return false
     }
 

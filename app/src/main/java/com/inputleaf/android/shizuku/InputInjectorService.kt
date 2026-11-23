@@ -394,6 +394,9 @@ class InputInjectorService : IInputInjector.Stub {
     override fun injectHidMouse(dx: Int, dy: Int, buttons: Int, wheel: Int): Boolean =
         synchronized(mouseLock) { mouse }?.move(dx, dy, buttons, wheel) ?: false
 
+    override fun readLogs(maxLines: Int): String =
+        com.inputleaf.android.util.DebugLogs.readLogcat(maxLines, android.os.Process.myPid())
+
     override fun moveHidMouse(dx: Int, dy: Int, buttons: Int): Long {
         val mouse = synchronized(mouseLock) { mouse } ?: return 0L
         val writtenAt = System.nanoTime()
