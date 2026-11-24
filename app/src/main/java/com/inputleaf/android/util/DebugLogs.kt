@@ -18,8 +18,8 @@ object DebugLogs {
     const val MAX_LINES = 3000
 
     /** Recent logcat lines, limited to [pid] when given. Empty if logcat can't run. */
-    fun readLogcat(maxLines: Int, pid: Int? = null): String = runCatching {
-        val command = mutableListOf("logcat", "-d", "-v", "threadtime", "-t", maxLines.toString())
+    fun readLogcat(maxLines: Int, pid: Int? = null, program: String = "logcat"): String = runCatching {
+        val command = mutableListOf(program, "-d", "-v", "threadtime", "-t", maxLines.toString())
         if (pid != null) command += "--pid=$pid"
         val process = ProcessBuilder(command).redirectErrorStream(true).start()
         process.inputStream.bufferedReader().use { it.readText() }.also { process.waitFor() }

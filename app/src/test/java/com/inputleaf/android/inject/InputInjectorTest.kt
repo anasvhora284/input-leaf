@@ -18,6 +18,7 @@ class InputInjectorTest {
 
         injector.setHidKeyboardAttached(true)
         injector.setHidMouseAttached(true)
+        injector.releaseHeldInput()
         assertThat(injector.usesNativePointer()).isFalse()
         assertThat(injector.nativePointerState()).isEqualTo(NativePointerState.NONE)
         assertThat(injector.expectsNativePointer()).isFalse()

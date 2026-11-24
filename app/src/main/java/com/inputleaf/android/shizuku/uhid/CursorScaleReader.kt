@@ -15,8 +15,8 @@ internal object CursorScaleReader {
     }
 
     /** Runs `dumpsys input`; needs shell or root, as the injector process has. */
-    fun read(deviceName: String): Double? = runCatching {
-        val process = ProcessBuilder("dumpsys", "input").redirectErrorStream(true).start()
+    fun read(deviceName: String, command: List<String> = listOf("dumpsys", "input")): Double? = runCatching {
+        val process = ProcessBuilder(command).redirectErrorStream(true).start()
         val dump = process.inputStream.bufferedReader().use { it.readText() }
         process.waitFor()
         parse(dump, deviceName)

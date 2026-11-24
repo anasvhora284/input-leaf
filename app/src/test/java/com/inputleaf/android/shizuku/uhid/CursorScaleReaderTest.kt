@@ -33,4 +33,10 @@ class CursorScaleReaderTest {
         assertThat(CursorScaleReader.parse(dump, "Virtual")).isNull()
         assertThat(CursorScaleReader.parse("", "Input Leaf Mouse HID")).isNull()
     }
+
+    @Test
+    fun `read parses the command's output, and a command that can't run gives null`() {
+        assertThat(CursorScaleReader.read("Input Leaf Mouse HID", listOf("echo", dump))).isEqualTo(1.75)
+        assertThat(CursorScaleReader.read("Input Leaf Mouse HID", listOf("/nonexistent/dumpsys"))).isNull()
+    }
 }
