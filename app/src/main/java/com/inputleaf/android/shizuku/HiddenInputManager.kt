@@ -79,6 +79,17 @@ internal object HiddenInputManager {
         return target.injectMethod.invoke(target.instance, *args)
     }
 
+    /**
+     * Whether Android's input system lists a device named [name], or null if the input
+     * manager can't list devices. A UHID device exists before InputReader has opened it.
+     */
+    fun hasDevice(target: Target?, name: String): Boolean? = runCatching {
+        val instance = target?.instance ?: return null
+        val ids = instance.javaClass.getMethod("getInputDeviceIds").invoke(instance) as IntArray
+        val getDevice = instance.javaClass.getMethod("getInputDevice", Int::class.javaPrimitiveType)
+        ids.any { (getDevice.invoke(instance, it) as? android.view.InputDevice)?.name == name }
+    }.getOrNull()
+
     private fun fromNamedSingleton(className: String): Target? {
         val clazz = Class.forName(className)
         val instance = invokeNoArg(clazz, "getInstance") ?: return null

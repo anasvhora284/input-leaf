@@ -85,6 +85,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
     val clientCertificateSummary by viewModel.clientCertificateSummary.collectAsStateWithLifecycle()
     val cursorLook by viewModel.cursorLook.collectAsState(initial = com.inputleaf.android.service.CursorLook())
     val pointerDevice by viewModel.pointerDevice.collectAsState(initial = PointerDevice.MOUSE)
+    val keepDevicesAttached by viewModel.keepDevicesAttached.collectAsState(initial = false)
     val scrollSpeed by viewModel.scrollSpeed.collectAsState(initial = ScrollSpeed.DEFAULT)
     val shizukuAvailable by viewModel.shizukuAvailable.collectAsState(initial = false)
     val rootGranted by viewModel.rootGranted.collectAsState(initial = false)
@@ -352,6 +353,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     cursorLook = cursorLook,
                     pointerDevice = pointerDevice,
                     scrollSpeed = scrollSpeed,
+                    keepDevicesAttached = keepDevicesAttached,
                     shizukuAvailable = shizukuAvailable,
                     rootGranted = rootGranted,
                     rootUsable = rootUsable,
@@ -371,6 +373,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     onCursorLookChange = { viewModel.saveCursorLook(it) },
                     onPointerDeviceChange = { viewModel.savePointerDevice(it) },
                     onScrollSpeedChange = { viewModel.saveScrollSpeed(it) },
+                    onKeepDevicesAttachedChange = { viewModel.saveKeepDevicesAttached(it) },
                     onRequestOverlayPermission = {
                         context.startActivity(
                             Intent(
@@ -392,6 +395,7 @@ fun LeafNavigation(viewModel: MainViewModel) {
                     onRegenerateClientCertificate = { viewModel.regenerateClientCertificate() },
                     isCheckingUpdate = isCheckingUpdate,
                     onCheckForUpdates = { viewModel.checkForUpdates(manual = true) },
+                    onShareLogs = viewModel::shareDebugLogs,
                     receivePrereleases = updateChannel == UpdateChannel.PRERELEASE,
                     onReceivePrereleasesChange = { on ->
                         viewModel.saveUpdateChannel(if (on) UpdateChannel.PRERELEASE else UpdateChannel.STABLE)

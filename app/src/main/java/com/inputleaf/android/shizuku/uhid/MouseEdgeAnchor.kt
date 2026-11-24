@@ -10,19 +10,10 @@ package com.inputleaf.android.shizuku.uhid
  * lets Android's own clamp place the real pointer on that edge.
  *
  * Tangential correction is never combined with the pulse: CurvedVelocityControl
- * uses hypot(vx, vy), so a ±32767 edge delta would distort the other axis.
+ * uses hypot(vx, vy), so a ±32767 edge delta would distort the other axis. Moves
+ * right after a pulse get Android's top gain; [PointerVelocityModel] predicts that.
  */
 internal object MouseEdgeAnchor {
-
-    /**
-     * AOSP [VelocityTracker] LSQR horizon (100 ms). After an edge pulse, normal
-     * compensation in this window uses last-segment gain so a follow-up
-     * tangential report is not amplified into a park-then-snap jump.
-     */
-    const val EDGE_PULSE_GAIN_HORIZON_MS = 100L
-
-    /** HID counts/s large enough to select the last acceleration-curve segment. */
-    private const val LAST_SEGMENT_HID_SPEED = 1_000_000.0
 
     data class Flags(
         val minX: Boolean = false,
@@ -34,23 +25,23 @@ internal object MouseEdgeAnchor {
     data class Input(
         val targetX: Int,
         val targetY: Int,
-        val cookedX: Int,
-        val cookedY: Int,
+        val cookedX: Double,
+        val cookedY: Double,
         val maxX: Int,
         val maxY: Int,
         val flags: Flags,
         val preferTangentialFirst: Boolean,
-        val lastWasEdgePulse: Boolean,
-        val dtMs: Long,
+        /** Android's acceleration state; only read while planning. */
+        val velocity: PointerVelocityModel,
+        val nowNs: Long,
     )
 
     data class Plan(
         val hidX: Int,
         val hidY: Int,
-        val gain: Double,
         val flagsAfter: Flags,
-        val cookedXAfter: Int,
-        val cookedYAfter: Int,
+        val cookedXAfter: Double,
+        val cookedYAfter: Double,
         val isEdgePulse: Boolean,
     ) {
         val isNoOp: Boolean get() = hidX == 0 && hidY == 0
@@ -81,32 +72,22 @@ internal object MouseEdgeAnchor {
         if (pending.any) {
             if (input.preferTangentialFirst) {
                 val tangential = normalPlan(
-                    errX = if (pending.x) 0 else errX,
-                    errY = if (pending.y) 0 else errY,
+                    errX = if (pending.x) 0.0 else errX,
+                    errY = if (pending.y) 0.0 else errY,
                     settingsSpeed = settingsSpeed,
-                    dtMs = input.dtMs,
-                    lastWasEdgePulse = input.lastWasEdgePulse,
-                    cookedX = input.cookedX,
-                    cookedY = input.cookedY,
-                    maxX = input.maxX,
-                    maxY = input.maxY,
+                    input = input,
                     flagsAfter = armed,
                 )
                 if (!tangential.isNoOp) return tangential
             }
-            return edgePulse(pending, armed, input, settingsSpeed)
+            return edgePulse(pending, armed, input)
         }
 
         return normalPlan(
             errX = errX,
             errY = errY,
             settingsSpeed = settingsSpeed,
-            dtMs = input.dtMs,
-            lastWasEdgePulse = input.lastWasEdgePulse,
-            cookedX = input.cookedX,
-            cookedY = input.cookedY,
-            maxX = input.maxX,
-            maxY = input.maxY,
+            input = input,
             flagsAfter = armed,
         )
     }
@@ -151,8 +132,8 @@ internal object MouseEdgeAnchor {
         maxY = original.maxY,
         flags = plan.flagsAfter,
         preferTangentialFirst = false,
-        lastWasEdgePulse = plan.isEdgePulse,
-        dtMs = 0L,
+        velocity = original.velocity,
+        nowNs = original.nowNs,
     )
 
     private data class PendingPulses(
@@ -185,7 +166,6 @@ internal object MouseEdgeAnchor {
         pending: PendingPulses,
         armed: Flags,
         input: Input,
-        settingsSpeed: Int,
     ): Plan {
         val hidX = when {
             pending.minX -> HidMouse.MIN_DELTA
@@ -200,7 +180,6 @@ internal object MouseEdgeAnchor {
         return Plan(
             hidX = hidX,
             hidY = hidY,
-            gain = MousePointerCompensation.firstSegmentGain(settingsSpeed),
             flagsAfter = Flags(
                 minX = armed.minX || pending.minX,
                 maxX = armed.maxX || pending.maxX,
@@ -208,13 +187,13 @@ internal object MouseEdgeAnchor {
                 maxY = armed.maxY || pending.maxY,
             ),
             cookedXAfter = when {
-                pending.minX -> 0
-                pending.maxX -> input.maxX
+                pending.minX -> 0.0
+                pending.maxX -> input.maxX.toDouble()
                 else -> input.cookedX
             },
             cookedYAfter = when {
-                pending.minY -> 0
-                pending.maxY -> input.maxY
+                pending.minY -> 0.0
+                pending.maxY -> input.maxY.toDouble()
                 else -> input.cookedY
             },
             isEdgePulse = true,
@@ -222,50 +201,19 @@ internal object MouseEdgeAnchor {
     }
 
     private fun normalPlan(
-        errX: Int,
-        errY: Int,
+        errX: Double,
+        errY: Double,
         settingsSpeed: Int,
-        dtMs: Long,
-        lastWasEdgePulse: Boolean,
-        cookedX: Int,
-        cookedY: Int,
-        maxX: Int,
-        maxY: Int,
+        input: Input,
         flagsAfter: Flags,
     ): Plan {
-        if (errX == 0 && errY == 0) {
-            return Plan(
-                hidX = 0,
-                hidY = 0,
-                gain = MousePointerCompensation.firstSegmentGain(settingsSpeed),
-                flagsAfter = flagsAfter,
-                cookedXAfter = cookedX,
-                cookedYAfter = cookedY,
-                isEdgePulse = false,
-            )
-        }
-        val hidPlan = if (
-            lastWasEdgePulse &&
-            dtMs > 0L &&
-            dtMs < EDGE_PULSE_GAIN_HORIZON_MS
-        ) {
-            val gain = MousePointerCompensation.gainForHidSpeed(LAST_SEGMENT_HID_SPEED, settingsSpeed)
-            MousePointerCompensation.HidMovePlan(
-                hidX = MousePointerCompensation.screenDeltaToHid(errX, gain),
-                hidY = MousePointerCompensation.screenDeltaToHid(errY, gain),
-                gain = gain,
-            )
-        } else {
-            MousePointerCompensation.planHidMove(errX, errY, settingsSpeed, dtMs)
-        }
-        val (dx, dy) = hidPlan.cookedDelta()
+        val move = MousePointerCompensation.plan(errX, errY, input.velocity, input.nowNs, settingsSpeed)
         return Plan(
-            hidX = hidPlan.hidX,
-            hidY = hidPlan.hidY,
-            gain = hidPlan.gain,
+            hidX = move.hidX,
+            hidY = move.hidY,
             flagsAfter = flagsAfter,
-            cookedXAfter = (cookedX + dx).coerceIn(0, maxX),
-            cookedYAfter = (cookedY + dy).coerceIn(0, maxY),
+            cookedXAfter = (input.cookedX + move.dx).coerceIn(0.0, input.maxX.toDouble()),
+            cookedYAfter = (input.cookedY + move.dy).coerceIn(0.0, input.maxY.toDouble()),
             isEdgePulse = false,
         )
     }

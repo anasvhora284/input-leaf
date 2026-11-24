@@ -166,7 +166,7 @@ class ProtocolKeyboardShortcutsTest {
         session.assertReleased()
     }
 
-    @Test fun `Num Lock off keypad Home has the same HID report on Windows and the original evdev path`() {
+    @Test fun `Num Lock off keypad Home presses the real Home key on Windows and evdev (82)`() {
         for (windows in listOf(false, true)) {
             val session = KeyboardSession()
             if (windows) {
@@ -176,10 +176,10 @@ class ProtocolKeyboardShortcutsTest {
                 session.key(30, 0x61, true)
                 session.key(30, 0, false)
             }
-            // Deskflow uses KP_Home (ef95), not ordinary Home (ef50).
-            // Android Generic.kcm applies MOVE_HOME when the device Num Lock is off.
+            // Deskflow uses KP_Home (ef95), not ordinary Home (ef50). Many text boxes
+            // ignore Android's keypad-7 to Home fallback, so the real Home key is pressed.
             session.key(71, 0xef95, true)
-            session.assertHeld(0, 0x5f)
+            session.assertHeld(0, 0x4a)
             session.key(71, 0, false)
             session.assertReleased()
         }

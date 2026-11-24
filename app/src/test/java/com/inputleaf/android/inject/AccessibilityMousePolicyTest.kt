@@ -1,5 +1,6 @@
 package com.inputleaf.android.inject
 
+import android.accessibilityservice.AccessibilityService
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
@@ -62,14 +63,42 @@ class AccessibilityMousePolicyTest {
 
     @Test
     fun `escape and alt left are back keys`() {
-        assertThat(AccessibilityKeyPolicy.isBackKey(0xFF1B, mask = 0)).isTrue()
-        assertThat(AccessibilityKeyPolicy.isBackKey(0xFF51, mask = KeyMapUtils.PROTOCOL_MASK_ALT)).isTrue()
+        fun back(keysym: Int, mask: Int) = AccessibilityKeyPolicy.globalAction(keysym, mask) == BACK
+        assertThat(back(0xFF1B, mask = 0)).isTrue()
+        assertThat(back(0xFF51, mask = ALT)).isTrue()
         // Input Leap / Deskflow send the 0xEFxx form (#73).
-        assertThat(AccessibilityKeyPolicy.isBackKey(0xEF1B, mask = 0)).isTrue()
-        assertThat(AccessibilityKeyPolicy.isBackKey(0xEF51, mask = KeyMapUtils.PROTOCOL_MASK_ALT)).isTrue()
-        assertThat(AccessibilityKeyPolicy.isBackKey(0xEF51, mask = 0)).isFalse()
-        // Plain Left and other keys still reach the text field.
-        assertThat(AccessibilityKeyPolicy.isBackKey(0xFF51, mask = 0)).isFalse()
-        assertThat(AccessibilityKeyPolicy.isBackKey('a'.code, mask = KeyMapUtils.PROTOCOL_MASK_ALT)).isFalse()
+        assertThat(back(0xEF1B, mask = 0)).isTrue()
+        assertThat(back(0xEF51, mask = ALT)).isTrue()
+        assertThat(back(0xEF51, mask = 0)).isFalse()
+    }
+
+    @Test
+    fun `system shortcuts map to global actions`() {
+        fun action(keysym: Int, mask: Int) = AccessibilityKeyPolicy.globalAction(keysym, mask)
+        assertThat(action(0xEF09, ALT)).isEqualTo(AccessibilityService.GLOBAL_ACTION_RECENTS)
+        assertThat(action(0xEF61, 0)).isEqualTo(AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT)
+        for (win in listOf(KeyMapUtils.PROTOCOL_MASK_SUPER, KeyMapUtils.PROTOCOL_MASK_META)) {
+            assertThat(action('n'.code, win)).isEqualTo(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS)
+            assertThat(action('A'.code, win)).isEqualTo(AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS)
+            assertThat(action('l'.code, win)).isEqualTo(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN)
+            val shift = KeyMapUtils.PROTOCOL_MASK_SHIFT
+            assertThat(action('S'.code, win or shift)).isEqualTo(AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT)
+            assertThat(action('s'.code, win)).isNull()
+        }
+    }
+
+    @Test
+    fun `ordinary keys still reach the text field`() {
+        for ((keysym, mask) in listOf(
+            0xFF51 to 0, 'a'.code to ALT, 'n'.code to 0, 'a'.code to 0, 'l'.code to 0,
+            0xFF09 to 0, 'n'.code to KeyMapUtils.PROTOCOL_MASK_CONTROL,
+        )) {
+            assertThat(AccessibilityKeyPolicy.globalAction(keysym, mask)).isNull()
+        }
+    }
+
+    private companion object {
+        const val ALT = KeyMapUtils.PROTOCOL_MASK_ALT
+        const val BACK = AccessibilityService.GLOBAL_ACTION_BACK
     }
 }

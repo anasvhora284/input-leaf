@@ -98,7 +98,7 @@ class UpdateServiceTest {
             versionCode = 42
         }
         assertThat(versionCodeFrom(packageInfo)).isEqualTo(42L)
-        assertThat(versionCodeFrom(null)).isEqualTo(16L)
+        assertThat(versionCodeFrom(null)).isEqualTo(17L)
     }
 
     @Test
@@ -427,7 +427,7 @@ class UpdateServiceTest {
     @Test
     fun changelogProvider_fallsBackToLatestKnownRelease() {
         val changelog = UpdateService.getChangelog("9.9.9")
-        assertThat(changelog.versionName).isEqualTo("1.4.6")
+        assertThat(changelog.versionName).isEqualTo("1.4.7")
     }
 
     @Test

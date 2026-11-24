@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -33,6 +34,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.inputleaf.android.service.formatCursorHex
+import com.inputleaf.android.service.parseCursorHex
 
 /** Picks a colour with hue, saturation and brightness bars and a live preview (#81). */
 @Composable
@@ -49,12 +51,16 @@ fun ColorPickerDialog(
         if (out[2] == 0f) { out[1] = 1f; out[2] = 1f }
         mutableStateOf(out.toList())
     }
+    // What the user is typing in the hex field; null once a bar is moved.
+    var typed by remember { mutableStateOf<String?>(null) }
     val (h, s, v) = hsv.value
-    val argb = android.graphics.Color.HSVToColor(floatArrayOf(h, s, v))
+    // A typed code is used as is: the HSV round trip can be one off per channel.
+    val argb = typed?.let(::parseCursorHex) ?: android.graphics.Color.HSVToColor(floatArrayOf(h, s, v))
     // Read the state, not the captured h/s/v: the drag handlers outlive recompositions.
     fun set(h2: Float? = null, s2: Float? = null, v2: Float? = null) {
         val (ch, cs, cv) = hsv.value
         hsv.value = listOf(h2 ?: ch, s2 ?: cs, v2 ?: cv)
+        typed = null
     }
 
     AlertDialog(
@@ -68,7 +74,21 @@ fun ColorPickerDialog(
                     color = Color(argb),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                 ) {}
-                Text(formatCursorHex(argb), style = MaterialTheme.typography.labelLarge)
+                OutlinedTextField(
+                    value = typed ?: formatCursorHex(argb),
+                    onValueChange = { text ->
+                        typed = text
+                        parseCursorHex(text)?.let { color ->
+                            val out = FloatArray(3)
+                            android.graphics.Color.colorToHSV(color, out)
+                            hsv.value = out.toList()
+                        }
+                    },
+                    label = { Text("Hex code") },
+                    isError = typed != null && parseCursorHex(typed!!) == null,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 GradientSlider(
                     value = h / 360f,
                     brush = Brush.horizontalGradient(
@@ -101,7 +121,11 @@ fun ColorPickerDialog(
                 )
             }
         },
-        confirmButton = { TextButton(onClick = { onApply(argb) }) { Text("Apply") } },
+        confirmButton = {
+            TextButton(onClick = { onApply(argb) }, enabled = typed == null || parseCursorHex(typed!!) != null) {
+                Text("Apply")
+            }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }

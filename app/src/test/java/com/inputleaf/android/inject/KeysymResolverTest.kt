@@ -167,11 +167,13 @@ class KeysymResolverTest {
         assertThat(action).isEqualTo(KeysymAction.Ignore)
     }
 
-    @Test fun `keypad digits and dot type text, in both keysym forms (82)`() {
-        assertThat(KeysymResolver.resolve(0xFFB7, scancode = 71, isDown = true)).isEqualTo(KeysymAction.Text("7"))
-        assertThat(KeysymResolver.resolve(0xEFB0, scancode = 82, isDown = true)).isEqualTo(KeysymAction.Text("0"))
-        assertThat(KeysymResolver.resolve(0xFFAE, scancode = 83, isDown = true)).isEqualTo(KeysymAction.Text("."))
-        assertThat(KeysymResolver.resolve(0xFFB7, scancode = 71, isDown = false)).isEqualTo(KeysymAction.Ignore)
+    @Test fun `keypad digits and dot press the top-row keys, in both keysym forms (82)`() {
+        fun keyCode(keysym: Int, isDown: Boolean = true) =
+            (KeysymResolver.resolve(keysym, scancode = 71, isDown = isDown) as KeysymAction.KeyEventAction).keyCode
+        assertThat(keyCode(0xFFB7)).isEqualTo(KeyEvent.KEYCODE_7)
+        assertThat(keyCode(0xEFB0)).isEqualTo(KeyEvent.KEYCODE_0)
+        assertThat(keyCode(0xFFAE)).isEqualTo(KeyEvent.KEYCODE_PERIOD)
+        assertThat(keyCode(0xFFB7, isDown = false)).isEqualTo(KeyEvent.KEYCODE_7)
     }
 
     @Test fun `keypad digits with Ctrl held stay a key press`() {

@@ -39,7 +39,8 @@ object ClipboardCodec {
                     text = String(blob, buffer.position(), size, Charsets.UTF_8)
                 }
                 // Keep a read-only view of the completed transfer, avoiding another image-sized copy.
-                FORMAT_BITMAP -> bitmap = buffer.slice().apply { limit(size) }.asReadOnlyBuffer()
+                // Deskflow on Linux sends an empty bitmap with every text copy: no image.
+                FORMAT_BITMAP -> if (size > 0) bitmap = buffer.slice().apply { limit(size) }.asReadOnlyBuffer()
             }
             buffer.position(buffer.position() + size)
         }

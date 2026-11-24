@@ -9,13 +9,9 @@ import org.junit.Test
 class MouseEdgeAnchorTest {
 
     @Before
-    fun disableOplusRemap() {
-        MousePointerCompensation.setOplusFamilyRemapForTest(false)
-    }
-
     @After
-    fun resetVendorPolicy() {
-        MousePointerCompensation.resetVendorPolicyForTest()
+    fun resetCursorScale() {
+        MousePointerCompensation.cursorScale = 1.0
     }
 
     @Test
@@ -34,20 +30,20 @@ class MouseEdgeAnchorTest {
         val maxY = 2413
         val predictedGain = MousePointerCompensation.firstSegmentGain(0)
         val actualGain = predictedGain * 0.7
-        val sim = Sim(cookedX = 0, cookedY = 200, physicalX = 0, physicalY = 200, maxX = maxX, maxY = maxY)
+        val sim = Sim(cookedX = 0.0, cookedY = 200.0, physicalX = 0, physicalY = 200, maxX = maxX, maxY = maxY)
         sim.flags = MouseEdgeAnchor.Flags(minX = true)
 
         var sawRightPulse = false
         for (x in 0..maxX step 40) {
             val target = x.coerceAtMost(maxX)
-            val hidX = step(sim, target, 200, actualGain, dtMs = if (x == 0) 0L else 16L).hidX
+            val hidX = step(sim, target, 200, actualGain).hidX
             if (hidX == HidMouse.MAX_DELTA) sawRightPulse = true
         }
-        val finalHidX = step(sim, maxX, 200, actualGain, dtMs = 16L).hidX
+        val finalHidX = step(sim, maxX, 200, actualGain).hidX
         if (finalHidX == HidMouse.MAX_DELTA) sawRightPulse = true
 
         assertThat(sawRightPulse).isTrue()
-        assertThat(sim.cookedX).isEqualTo(maxX)
+        assertThat(sim.cookedX).isEqualTo(maxX.toDouble())
         assertThat(sim.physicalX).isEqualTo(maxX)
         assertThat(sim.physicalX).isGreaterThan(((maxX * 0.7).toInt()))
     }
@@ -58,49 +54,45 @@ class MouseEdgeAnchorTest {
         val maxY = 2413
         val predictedGain = MousePointerCompensation.firstSegmentGain(0)
         val actualGain = predictedGain * 0.7
-        val sim = Sim(cookedX = 400, cookedY = 0, physicalX = 400, physicalY = 0, maxX = maxX, maxY = maxY)
+        val sim = Sim(cookedX = 400.0, cookedY = 0.0, physicalX = 400, physicalY = 0, maxX = maxX, maxY = maxY)
         sim.flags = MouseEdgeAnchor.Flags(minY = true)
 
         var sawBottomPulse = false
         for (y in 0..maxY step 80) {
             val target = y.coerceAtMost(maxY)
-            val hidY = step(sim, 400, target, actualGain, dtMs = if (y == 0) 0L else 16L).hidY
+            val hidY = step(sim, 400, target, actualGain).hidY
             if (hidY == HidMouse.MAX_DELTA) sawBottomPulse = true
         }
-        val finalHidY = step(sim, 400, maxY, actualGain, dtMs = 16L).hidY
+        val finalHidY = step(sim, 400, maxY, actualGain).hidY
         if (finalHidY == HidMouse.MAX_DELTA) sawBottomPulse = true
 
         assertThat(sawBottomPulse).isTrue()
-        assertThat(sim.cookedY).isEqualTo(maxY)
+        assertThat(sim.cookedY).isEqualTo(maxY.toDouble())
         assertThat(sim.physicalY).isEqualTo(maxY)
     }
 
     @Test
     fun `without edge pulse predicted max hides physical undershoot`() {
         val maxX = 1079
-        val predictedGain = MousePointerCompensation.firstSegmentGain(0)
-        val actualGain = predictedGain * 0.7
-        var cooked = 0
+        val actualGain = MousePointerCompensation.firstSegmentGain(0) * 0.7
+        var cooked = 0.0
         var physical = 0
+        fun plan(err: Double) = MousePointerCompensation.plan(err, 0.0, PointerVelocityModel(), 0L, 0)
         for (x in 40..maxX step 40) {
-            val err = x - cooked
-            val plan = MousePointerCompensation.planHidMove(err, 0, 0, dtMs = 0L)
-            if (plan.isNoOp) continue
-            val (dx, _) = plan.cookedDelta()
-            cooked = (cooked + dx).coerceIn(0, maxX)
-            physical = (physical + (plan.hidX * actualGain).roundToInt()).coerceIn(0, maxX)
+            val move = plan(x - cooked)
+            if (move.isNoOp) continue
+            cooked = (cooked + move.dx).coerceIn(0.0, maxX.toDouble())
+            physical = (physical + (move.hidX * actualGain).roundToInt()).coerceIn(0, maxX)
         }
-        while (cooked < maxX) {
-            val plan = MousePointerCompensation.planHidMove(maxX - cooked, 0, 0, dtMs = 0L)
-            if (plan.isNoOp) break
-            val (dx, _) = plan.cookedDelta()
-            cooked = (cooked + dx).coerceIn(0, maxX)
-            physical = (physical + (plan.hidX * actualGain).roundToInt()).coerceIn(0, maxX)
+        while (true) {
+            val move = plan(maxX - cooked)
+            if (move.isNoOp) break
+            cooked = (cooked + move.dx).coerceIn(0.0, maxX.toDouble())
+            physical = (physical + (move.hidX * actualGain).roundToInt()).coerceIn(0, maxX)
         }
-        val stuck = MousePointerCompensation.planHidMove(maxX - cooked, 0, 0, dtMs = 0L)
-        assertThat(cooked).isAtLeast(maxX - 5)
-        assertThat(stuck.isNoOp).isTrue()
-        assertThat(physical).isLessThan(cooked)
+        assertThat(cooked).isAtLeast(maxX - 2.0)
+        assertThat(plan(maxX - cooked).isNoOp).isTrue()
+        assertThat(physical.toDouble()).isLessThan(cooked)
         assertThat(physical).isLessThan(maxX)
     }
 
@@ -108,7 +100,7 @@ class MouseEdgeAnchorTest {
     fun `boundary pulse emits once then re-arms after moving inward`() {
         val reports = mutableListOf<Int>()
         var flags = MouseEdgeAnchor.Flags()
-        var cookedX = 1000
+        var cookedX = 1000.0
         val maxX = 1079
 
         fun emit(targetX: Int) {
@@ -147,8 +139,8 @@ class MouseEdgeAnchorTest {
         assertThat(plan.isEdgePulse).isTrue()
         assertThat(plan.hidX).isEqualTo(HidMouse.MAX_DELTA)
         assertThat(plan.hidY).isEqualTo(0)
-        assertThat(plan.cookedYAfter).isEqualTo(100)
-        assertThat(plan.cookedXAfter).isEqualTo(1079)
+        assertThat(plan.cookedYAfter).isEqualTo(100.0)
+        assertThat(plan.cookedXAfter).isEqualTo(1079.0)
     }
 
     @Test
@@ -159,8 +151,8 @@ class MouseEdgeAnchorTest {
         )
         assertThat(plan.hidX).isEqualTo(HidMouse.MIN_DELTA)
         assertThat(plan.hidY).isEqualTo(0)
-        assertThat(plan.cookedYAfter).isEqualTo(350)
-        assertThat(plan.cookedXAfter).isEqualTo(0)
+        assertThat(plan.cookedYAfter).isEqualTo(350.0)
+        assertThat(plan.cookedXAfter).isEqualTo(0.0)
     }
 
     @Test
@@ -172,8 +164,8 @@ class MouseEdgeAnchorTest {
         assertThat(plan.isEdgePulse).isTrue()
         assertThat(plan.hidX).isEqualTo(HidMouse.MAX_DELTA)
         assertThat(plan.hidY).isEqualTo(HidMouse.MAX_DELTA)
-        assertThat(plan.cookedXAfter).isEqualTo(1079)
-        assertThat(plan.cookedYAfter).isEqualTo(2413)
+        assertThat(plan.cookedXAfter).isEqualTo(1079.0)
+        assertThat(plan.cookedYAfter).isEqualTo(2413.0)
         assertThat(plan.flagsAfter.maxX).isTrue()
         assertThat(plan.flagsAfter.maxY).isTrue()
     }
@@ -186,8 +178,8 @@ class MouseEdgeAnchorTest {
         )
         assertThat(plan.hidX).isEqualTo(HidMouse.MIN_DELTA)
         assertThat(plan.hidY).isEqualTo(HidMouse.MIN_DELTA)
-        assertThat(plan.cookedXAfter).isEqualTo(0)
-        assertThat(plan.cookedYAfter).isEqualTo(0)
+        assertThat(plan.cookedXAfter).isEqualTo(0.0)
+        assertThat(plan.cookedYAfter).isEqualTo(0.0)
     }
 
     @Test
@@ -243,16 +235,16 @@ class MouseEdgeAnchorTest {
         )
         assertThat(reports.any { it.isEdgePulse && it.hidX == HidMouse.MAX_DELTA }).isTrue()
         assertThat(reports.any { it.isEdgePulse && it.hidY == HidMouse.MAX_DELTA }).isTrue()
-        assertThat(reports.last().cookedXAfter).isEqualTo(1079)
-        assertThat(reports.last().cookedYAfter).isEqualTo(2413)
+        assertThat(reports.last().cookedXAfter).isEqualTo(1079.0)
+        assertThat(reports.last().cookedYAfter).isEqualTo(2413.0)
     }
 
     @Test
     fun `attach at top edge compensates X then pulses Y`() {
         val maxX = 1079
         val maxY = 2413
-        val centerX = maxX / 2
-        val centerY = maxY / 2
+        val centerX = maxX / 2.0
+        val centerY = maxY / 2.0
         val reports = MouseEdgeAnchor.planSnap(
             input(
                 targetX = 100,
@@ -272,7 +264,7 @@ class MouseEdgeAnchorTest {
         assertThat(reports[1].isEdgePulse).isTrue()
         assertThat(reports[1].hidX).isEqualTo(0)
         assertThat(reports[1].hidY).isEqualTo(HidMouse.MIN_DELTA)
-        assertThat(reports[1].cookedYAfter).isEqualTo(0)
+        assertThat(reports[1].cookedYAfter).isEqualTo(0.0)
         assertThat(reports[1].cookedXAfter).isEqualTo(reports[0].cookedXAfter)
     }
 
@@ -284,8 +276,8 @@ class MouseEdgeAnchorTest {
             input(
                 targetX = 0,
                 targetY = 200,
-                cookedX = maxX / 2,
-                cookedY = maxY / 2,
+                cookedX = maxX / 2.0,
+                cookedY = maxY / 2.0,
                 maxX = maxX,
                 maxY = maxY,
                 preferTangentialFirst = true,
@@ -327,12 +319,11 @@ class MouseEdgeAnchorTest {
         state.updatePointerTarget(1079, 200)
         val before = state.cookedPosition()
         val flagsBefore = state.edgeFlags
-        val plan = MouseEdgeAnchor.plan(state.plannerInput(nowMs = 10L), 0)
+        val plan = MouseEdgeAnchor.plan(state.plannerInput(nowNs = 10L), 0)
         assertThat(plan.isEdgePulse).isTrue()
         // Write fails: do not apply.
         assertThat(state.cookedPosition()).isEqualTo(before)
         assertThat(state.edgeFlags).isEqualTo(flagsBefore)
-        assertThat(state.lastWasEdgePulse).isFalse()
     }
 
     @Test
@@ -341,11 +332,10 @@ class MouseEdgeAnchorTest {
         state.completeAttach(newDevice = true)
         state.clearCenterSeed()
         state.updatePointerTarget(1079, 200)
-        val plan = MouseEdgeAnchor.plan(state.plannerInput(nowMs = 10L), 0)
-        state.applySuccessfulPlan(plan, nowMs = 10L)
-        assertThat(state.cookedX).isEqualTo(1079)
+        val plan = MouseEdgeAnchor.plan(state.plannerInput(nowNs = 10L), 0)
+        state.applySuccessfulPlan(plan, sentAtNs = 10L)
+        assertThat(state.cookedX).isEqualTo(1079.0)
         assertThat(state.edgeFlags.maxX).isTrue()
-        assertThat(state.lastWasEdgePulse).isTrue()
         assertThat(state.needsCenterSeed()).isFalse()
     }
 
@@ -359,12 +349,14 @@ class MouseEdgeAnchorTest {
         assertThat(state.edgeFlags.maxX).isTrue()
         state.resizeDisplay(newMaxX = 1919, newMaxY = 1079)
         assertThat(state.edgeFlags).isEqualTo(MouseEdgeAnchor.Flags())
-        assertThat(state.lastWasEdgePulse).isFalse()
     }
 
     @Test
-    fun `post-pulse tangential uses last-segment gain inside the velocity horizon`() {
-        val afterPulse = MouseEdgeAnchor.plan(
+    fun `a move right after an edge pulse expects Android's top gain (88)`() {
+        val velocity = PointerVelocityModel()
+        velocity.record(0L, HidMouse.MAX_DELTA, 0)
+        velocity.record(2_000_000L, 0, 10)
+        fun moveDown(nowNs: Long) = MouseEdgeAnchor.plan(
             input(
                 targetX = 1079,
                 targetY = 400,
@@ -373,32 +365,19 @@ class MouseEdgeAnchorTest {
                 maxX = 1079,
                 maxY = 2413,
                 flags = MouseEdgeAnchor.Flags(maxX = true),
-                lastWasEdgePulse = true,
-                dtMs = 16L,
+                velocity = velocity,
+                nowNs = nowNs,
             ),
             0,
         )
-        val lastSeg = MousePointerCompensation.gainForHidSpeed(1_000_000.0, 0)
-        assertThat(afterPulse.isEdgePulse).isFalse()
-        assertThat(afterPulse.gain).isWithin(0.0001).of(lastSeg)
-        assertThat(afterPulse.hidX).isEqualTo(0)
-        assertThat(afterPulse.hidY).isNotEqualTo(0)
-
-        val afterHorizon = MouseEdgeAnchor.plan(
-            input(
-                targetX = 1079,
-                targetY = 400,
-                cookedX = 1079,
-                cookedY = 200,
-                maxX = 1079,
-                maxY = 2413,
-                flags = MouseEdgeAnchor.Flags(maxX = true),
-                lastWasEdgePulse = true,
-                dtMs = MouseEdgeAnchor.EDGE_PULSE_GAIN_HORIZON_MS,
-            ),
-            0,
-        )
-        assertThat(afterHorizon.gain).isNotWithin(0.0001).of(lastSeg)
+        val soon = moveDown(5_000_000L)
+        assertThat(soon.isEdgePulse).isFalse()
+        assertThat(soon.hidX).isEqualTo(0)
+        assertThat(soon.cookedYAfter).isWithin(10.0).of(400.0)
+        // After Android's 40 ms reset the same move needs the base gain's counts.
+        val later = moveDown(50_000_000L)
+        assertThat(later.hidY).isEqualTo(98)
+        assertThat(soon.hidY).isLessThan(later.hidY / 3)
     }
 
     @Test
@@ -434,36 +413,35 @@ class MouseEdgeAnchorTest {
     private fun input(
         targetX: Int,
         targetY: Int,
-        cookedX: Int,
-        cookedY: Int,
+        cookedX: Number,
+        cookedY: Number,
         maxX: Int,
         maxY: Int,
         flags: MouseEdgeAnchor.Flags = MouseEdgeAnchor.Flags(),
         preferTangentialFirst: Boolean = false,
-        lastWasEdgePulse: Boolean = false,
-        dtMs: Long = 0L,
+        velocity: PointerVelocityModel = PointerVelocityModel(),
+        nowNs: Long = 0L,
     ) = MouseEdgeAnchor.Input(
         targetX = targetX,
         targetY = targetY,
-        cookedX = cookedX,
-        cookedY = cookedY,
+        cookedX = cookedX.toDouble(),
+        cookedY = cookedY.toDouble(),
         maxX = maxX,
         maxY = maxY,
         flags = flags,
         preferTangentialFirst = preferTangentialFirst,
-        lastWasEdgePulse = lastWasEdgePulse,
-        dtMs = dtMs,
+        velocity = velocity,
+        nowNs = nowNs,
     )
 
     private data class Sim(
-        var cookedX: Int,
-        var cookedY: Int,
+        var cookedX: Double,
+        var cookedY: Double,
         var physicalX: Int,
         var physicalY: Int,
         val maxX: Int,
         val maxY: Int,
         var flags: MouseEdgeAnchor.Flags = MouseEdgeAnchor.Flags(),
-        var lastWasEdgePulse: Boolean = false,
     )
 
     private fun step(
@@ -471,14 +449,11 @@ class MouseEdgeAnchorTest {
         targetX: Int,
         targetY: Int,
         actualGain: Double,
-        dtMs: Long,
     ): MouseEdgeAnchor.Plan {
         val plan = MouseEdgeAnchor.plan(
             input(
                 targetX, targetY, sim.cookedX, sim.cookedY, sim.maxX, sim.maxY,
                 flags = sim.flags,
-                lastWasEdgePulse = sim.lastWasEdgePulse,
-                dtMs = dtMs,
             ),
             0,
         )
@@ -486,7 +461,6 @@ class MouseEdgeAnchorTest {
         sim.cookedX = plan.cookedXAfter
         sim.cookedY = plan.cookedYAfter
         sim.flags = plan.flagsAfter
-        sim.lastWasEdgePulse = plan.isEdgePulse
         sim.physicalX = (sim.physicalX + (plan.hidX * actualGain).roundToInt()).coerceIn(0, sim.maxX)
         sim.physicalY = (sim.physicalY + (plan.hidY * actualGain).roundToInt()).coerceIn(0, sim.maxY)
         return plan

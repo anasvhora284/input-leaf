@@ -8,6 +8,8 @@ import com.inputleaf.android.shizuku.uhid.HidKeyboard
 import com.inputleaf.android.shizuku.uhid.HidMouse
 import com.inputleaf.android.shizuku.uhid.HidMouseEnterWarp
 import com.inputleaf.android.shizuku.uhid.HidPen
+import com.inputleaf.android.shizuku.uhid.CursorScaleReader
+import com.inputleaf.android.shizuku.uhid.MousePointerCompensation
 import com.inputleaf.android.shizuku.uhid.UhidChannel
 
 /**
@@ -29,6 +31,12 @@ class InputInjectorService : IInputInjector.Stub {
      */
     private val ownsProcess: Boolean
 
+    /**
+     * Whether Android lists the named input device yet; null skips the wait (tests, or an
+     * input manager that can't list devices).
+     */
+    private val androidHasDevice: (String) -> Boolean?
+
     /** Shizuku instantiates this by reflection; the process exists only for this stub. */
     constructor() : this(ownsProcess = true, openChannel = { UhidChannel.openHandle() }) {
         InjectorProcess.killOrphanedSiblings()
@@ -36,9 +44,20 @@ class InputInjectorService : IInputInjector.Stub {
 
     constructor(ownsProcess: Boolean) : this(ownsProcess, { UhidChannel.openHandle() })
 
-    internal constructor(ownsProcess: Boolean = false, openChannel: () -> UhidChannel?) {
+    private constructor(ownsProcess: Boolean, openChannel: () -> UhidChannel?) :
+        this(ownsProcess, androidHasDevice = null, readCursorScale = CursorScaleReader::read, openChannel = openChannel)
+
+    /** [androidHasDevice] null asks this process's input manager; tests pass their own. */
+    internal constructor(
+        ownsProcess: Boolean = false,
+        androidHasDevice: ((String) -> Boolean?)? = { null },
+        readCursorScale: (String) -> Double? = { null },
+        openChannel: () -> UhidChannel?,
+    ) {
         this.openChannel = openChannel
+        this.readCursorScale = readCursorScale
         this.ownsProcess = ownsProcess
+        this.androidHasDevice = androidHasDevice ?: { name -> HiddenInputManager.hasDevice(inputManager, name) }
     }
 
     /**
@@ -65,6 +84,8 @@ class InputInjectorService : IInputInjector.Stub {
     companion object {
         private const val KEYBOARD_DEVICE_NAME = "Input Leaf Keyboard HID"
         private const val MOUSE_DEVICE_NAME = "Input Leaf Mouse HID"
+        private const val ANDROID_DEVICE_TIMEOUT_MS = 1_000L
+        private const val ANDROID_DEVICE_POLL_MS = 10L
         private const val VENDOR_ID = 0x1209
         private const val PRODUCT_KEYBOARD = 0x0001
         private const val PRODUCT_MOUSE = 0x0002
@@ -242,6 +263,11 @@ class InputInjectorService : IInputInjector.Stub {
     /** Guarded by [mouseLock]. True only while an [openVirtualMouse] that created the device warped. */
     private var lastOpenWarpApplied = false
 
+    private val readCursorScale: (String) -> Double?
+
+    /** Android's XScale for our mouse (#88); read once per process, null until known. */
+    @Volatile private var cursorScale: Double? = null
+
     override fun openVirtualKeyboard(): Boolean = synchronized(keyboardLock) {
         if (keyboard != null) return true
         val channel = openChannel() ?: return false
@@ -306,8 +332,17 @@ class InputInjectorService : IInputInjector.Stub {
             val hidMouse = HidMouse(channel)
             mouse = hidMouse
             val pending = mouseEnterWarp.pending
-            val plans = mouseEnterWarp.applyIfPending(hidMouse)
-            lastOpenWarpApplied = pending != null && mouseEnterWarp.pending == null
+            if (pending != null || cursorScale == null) awaitAndroidDevice(MOUSE_DEVICE_NAME)
+            // ponytail: read once per process; a display density change needs a reconnect.
+            if (cursorScale == null) {
+                cursorScale = readCursorScale(MOUSE_DEVICE_NAME)?.also {
+                    MousePointerCompensation.cursorScale = it
+                    android.util.Log.i("InputInjectorService", "HID mouse cursor scale $it")
+                }
+            }
+            // Holds mouseLock through the warp's pause, so no other report lands mid-warp.
+            val warp = mouseEnterWarp.applyIfPending(hidMouse)
+            lastOpenWarpApplied = warp.complete
             android.util.Log.i(
                 "InputInjectorService",
                 "HID mouse connected in ${android.os.SystemClock.uptimeMillis() - startedAt}ms pid=${android.os.Process.myPid()}",
@@ -315,10 +350,8 @@ class InputInjectorService : IInputInjector.Stub {
             if (pending != null) {
                 android.util.Log.i(
                     "InputInjectorService",
-                    "HID mouse enter warp from ${(pending.maxX) / 2},${(pending.maxY) / 2} " +
-                        "to ${pending.x},${pending.y} speed=${pending.pointerSpeed} " +
-                        "${if (lastOpenWarpApplied) "applied after UHID ready" else "kept pending"} " +
-                        "hidReports=${plans.count { !it.isNoOp }}",
+                    "HID mouse enter warp via corner to ${pending.x},${pending.y} speed=${pending.pointerSpeed} " +
+                        "${if (lastOpenWarpApplied) "applied" else "incomplete"} hidReports=${warp.written}",
                 )
             }
             true
@@ -328,6 +361,24 @@ class InputInjectorService : IInputInjector.Stub {
             runCatching { channel.close() }
             false
         }
+    }
+
+    /**
+     * The kernel reports the new device ready before InputReader has opened it, and a warp
+     * sent in that gap is dropped: the pointer then appears at the screen centre (#88).
+     * Wait, bounded, until Android lists the device.
+     */
+    private fun awaitAndroidDevice(name: String) {
+        val startedAt = System.nanoTime()
+        fun elapsedMs() = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
+        while (androidHasDevice(name) == false && elapsedMs() < ANDROID_DEVICE_TIMEOUT_MS) {
+            Thread.sleep(ANDROID_DEVICE_POLL_MS)
+        }
+        android.util.Log.i(
+            "InputInjectorService",
+            "$name listed by Android after ${elapsedMs()}ms " +
+                "(registered=${androidHasDevice(name)})",
+        )
     }
 
     override fun closeVirtualMouse() {
@@ -342,6 +393,15 @@ class InputInjectorService : IInputInjector.Stub {
 
     override fun injectHidMouse(dx: Int, dy: Int, buttons: Int, wheel: Int): Boolean =
         synchronized(mouseLock) { mouse }?.move(dx, dy, buttons, wheel) ?: false
+
+    override fun readLogs(maxLines: Int): String =
+        com.inputleaf.android.util.DebugLogs.readLogcat(maxLines, android.os.Process.myPid())
+
+    override fun moveHidMouse(dx: Int, dy: Int, buttons: Int): Long {
+        val mouse = synchronized(mouseLock) { mouse } ?: return 0L
+        val writtenAt = System.nanoTime()
+        return if (mouse.move(dx, dy, buttons, 0)) writtenAt else 0L
+    }
 
     override fun injectHidMouseScroll(dx: Int, dy: Int, buttons: Int, wheel: Int, hWheel: Int): Boolean =
         synchronized(mouseLock) { mouse }?.move(dx, dy, buttons, wheel, hWheel) ?: false
@@ -361,6 +421,8 @@ class InputInjectorService : IInputInjector.Stub {
     override fun onHidMouseLeave() {
         synchronized(mouseLock) { mouseEnterWarp.onLeave() }
     }
+
+    override fun getCursorScale(): Double = cursorScale ?: 0.0
 
     override fun consumeEnterWarpApplied(): Boolean = synchronized(mouseLock) {
         val applied = lastOpenWarpApplied

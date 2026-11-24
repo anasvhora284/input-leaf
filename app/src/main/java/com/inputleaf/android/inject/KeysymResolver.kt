@@ -19,7 +19,7 @@ object KeysymResolver {
      * The character a keypad digit or decimal key types, or null for any other keysym.
      * The server sends these only while its Num Lock is on (otherwise KP_Home, KP_End…).
      * Android's own keyboard starts with Num Lock off, where these keys turn into
-     * navigation, so type the character instead of injecting a keypad key (#82).
+     * navigation, so press the matching top-row key instead of the keypad key (#82).
      */
     fun keypadText(keysym: Int): String? {
         val key = if (keysym in 0xEF00..0xEFFF) keysym + 0x1000 else keysym
@@ -37,7 +37,11 @@ object KeysymResolver {
         shortcutModifiers: Boolean = false,
     ): KeysymAction {
         if (!shortcutModifiers) {
-            keypadText(keysym)?.let { return if (isDown) KeysymAction.Text(it) else KeysymAction.Ignore }
+            // A key event, not text: Android 16 rejects the ACTION_MULTIPLE text event.
+            keypadText(keysym)?.let {
+                val keyCode = if (it == ".") KeyEvent.KEYCODE_PERIOD else KeyEvent.KEYCODE_0 + (it[0] - '0')
+                return KeysymAction.KeyEventAction(keyCode, KeyMapUtils.keycodeToScanCode(keyCode), metaState = 0)
+            }
         }
         val keyCode = KeyMapUtils.keysymToAndroidKeyCode(keysym)
         if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {

@@ -98,6 +98,17 @@
                 android:resource="@xml/clipboard_paths"/>
         </provider>
 
+        <!-- "Share debug logs" grants the chosen app the log file only. -->
+        <provider
+            android:name=".util.DebugLogProvider"
+            android:authorities="${applicationId}.logs"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/log_paths"/>
+        </provider>
+
         <!-- Shizuku provider for privileged input injection -->
         <provider
             android:name="rikka.shizuku.ShizukuProvider"

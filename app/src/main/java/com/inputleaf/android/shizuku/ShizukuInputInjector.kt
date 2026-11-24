@@ -17,6 +17,7 @@ import com.inputleaf.android.inject.KeyMapUtils
 import com.inputleaf.android.inject.KeysymAction
 import com.inputleaf.android.inject.KeysymInjection
 import com.inputleaf.android.inject.KeysymResolver
+import com.inputleaf.android.inject.KeysymUnicodeTable
 import com.inputleaf.android.inject.ProtocolScanCodeDecoder
 import com.inputleaf.android.model.InputLeapEvent
 import com.inputleaf.android.privilege.PrivilegeKind
@@ -25,13 +26,20 @@ import com.inputleaf.android.privilege.ShizukuUserServiceHost
 import com.inputleaf.android.shizuku.uhid.HidMouse
 import com.inputleaf.android.shizuku.uhid.HidMouseState
 import com.inputleaf.android.shizuku.uhid.MouseEdgeAnchor
+import com.inputleaf.android.shizuku.uhid.MousePointerCompensation
 import com.inputleaf.android.shizuku.uhid.WheelNotchAccumulator
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 
 private const val TAG = "ShizukuInputInjector"
+private const val ALT_GR_KEY_ID = 0xEF7E
+private const val ISO_LEVEL3_SHIFT = 0xFE03
+private const val NUM_LOCK_KEY_ID = 0xEF7F
+private const val PROTOCOL_MASK_ALT_GR = 0x0020
 
 class ShizukuInputInjector internal constructor(
     screenWidth: Int,
@@ -79,6 +87,9 @@ class ShizukuInputInjector internal constructor(
 
     private var metaState = 0
     private val scanCodeDecoder = ProtocolScanCodeDecoder()
+    private var altGrHeld = false
+    /** Buttons pressed as AltGr characters; their release skips the HID keyboard too. */
+    private val altGrButtons = mutableSetOf<Int>()
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -152,6 +163,7 @@ class ShizukuInputInjector internal constructor(
     override fun isAvailable(): Boolean = host.isAvailable()
 
     override fun onNewConnection() {
+        clearPressedKeys()
         scanCodeDecoder.resetForConnection()
         metaState = 0
     }
@@ -192,7 +204,12 @@ class ShizukuInputInjector internal constructor(
             }
             // OrNull so only this bind's own timeout counts as one; a caller's
             // cancellation or enclosing timeout must not flip the host's fallback.
-            val connected = withTimeoutOrNull(host.bindTimeoutMs) { deferred.await() }
+            // Await off the main thread: Shizuku completes the bind from inside its loop
+            // over the service's connections, and a Main.immediate caller resumed inline
+            // there unbound the previous injector mid-loop (ConcurrentModificationException).
+            val connected = withContext(Dispatchers.Default) {
+                withTimeoutOrNull(host.bindTimeoutMs) { deferred.await() }
+            }
             if (connected == null) {
                 Log.e(TAG, "${host.kind} service bind timeout")
                 runCatching { host.onBindTimeout(serviceConnection) }
@@ -219,6 +236,7 @@ class ShizukuInputInjector internal constructor(
      */
     fun disconnect(stopService: Boolean) {
         Log.i(TAG, "Disconnect injector=$id stopService=$stopService bound=$isBound")
+        clearPressedKeys()
         scanCodeDecoder.resetForConnection()
         metaState = 0
         if (isBound || service != null) {
@@ -244,8 +262,20 @@ class ShizukuInputInjector internal constructor(
         }
     }
 
+    override fun releaseHeldInput() {
+        clearPressedKeys()
+        metaState = 0
+        remote("Failed to release held input", Unit) { s ->
+            s.releaseHidKeys()
+            if (hidMouse.attached && hidMouse.buttons() != 0) {
+                hidMouse.setButtons(0)
+                s.injectHidMouse(0, 0, 0, 0)
+            }
+        }
+    }
+
     override fun setHidKeyboardAttached(attached: Boolean) {
-        if (!attached) scanCodeDecoder.clearPressedKeys()
+        if (!attached) clearPressedKeys()
         if (service == null) {
             Log.w(TAG, "HID keyboard attach=$attached skipped; ${host.kind} service not bound")
             return
@@ -296,7 +326,7 @@ class ShizukuInputInjector internal constructor(
                     hidMouse.updatePointerTarget(target.first, target.second)
                     sendPen(s, target.first, target.second, inRange = true)
                 } else {
-                    finishPendingSnap(s, sendHid = true)
+                    finishPendingSnap(s)
                 }
             }
             return
@@ -320,16 +350,23 @@ class ShizukuInputInjector internal constructor(
                 return
             }
             if (svc.openVirtualMouse()) {
-                hidMouse.completeAttach(newDevice = newDevice)
-                clientClosedMouse = false
-                publishNativePointerState(NativePointerState.ACTIVE)
                 // Only the privileged process knows whether this call created the device
                 // and emitted the Enter warp. A warm root daemon returns through the
                 // idempotent branch without warping, and guessing from app state strands
-                // the cursor.
+                // the cursor. Ask before publishing ATTACHED: a move handled in between
+                // planned from centre and sent the warp a second time (#88).
                 val daemonWarped = runCatching { svc.consumeEnterWarpApplied() }.getOrDefault(false)
+                runCatching { svc.cursorScale }.getOrNull()?.takeIf { it > 0.0 }
+                    ?.let { MousePointerCompensation.cursorScale = it }
+                hidMouse.completeAttach(
+                    newDevice = newDevice,
+                    warpedToEnter = daemonWarped,
+                )
+                clientClosedMouse = false
+                publishNativePointerState(NativePointerState.ACTIVE)
                 Log.i(TAG, "HID mouse attached (newDevice=$newDevice daemonWarped=$daemonWarped)")
-                finishPendingSnap(svc, sendHid = !daemonWarped)
+                // From the Enter (warped) or centre (not): send what's left to the latest target.
+                finishPendingSnap(svc)
             } else {
                 hidMouse.markUnusable()
                 hidMouse.detach()
@@ -359,7 +396,7 @@ class ShizukuInputInjector internal constructor(
         hidMouse.onEnter(x, y)
         Log.i(
             TAG,
-            "HID mouse enter $x,$y phase=${hidMouse.phase} cooked=${hidMouse.cookedX},${hidMouse.cookedY}",
+            "HID mouse enter $x,$y phase=${hidMouse.phase} cooked=${"%.1f,%.1f".format(hidMouse.cookedX, hidMouse.cookedY)}",
         )
         // Hand the coords to the injector so a CREATE2 can warp there itself. Warping
         // from here loses the race against AOSP seeding the new pointer at centre.
@@ -372,7 +409,7 @@ class ShizukuInputInjector internal constructor(
                     hidMouse.updatePointerTarget(x, y)
                     sendPen(s, x, y, inRange = true)
                 } else {
-                    finishPendingSnap(s, sendHid = true)
+                    finishPendingSnap(s)
                 }
             }
         }
@@ -389,28 +426,20 @@ class ShizukuInputInjector internal constructor(
         remote("Failed to clear HID mouse enter on injector", Unit) { it.onHidMouseLeave() }
     }
 
-    /**
-     * @param sendHid false when the injector already emitted this warp itself, so the
-     * cooked model advances without replaying the reports and doubling the movement.
-     */
-    private fun finishPendingSnap(svc: IInputInjector, sendHid: Boolean = true) {
+    private fun finishPendingSnap(svc: IInputInjector) {
         val target = hidMouse.peekPendingSnap() ?: return
         hidMouse.updatePointerTarget(target.first, target.second)
         Log.i(
             TAG,
-            "HID mouse snap to ${target.first},${target.second} from ${hidMouse.cookedX},${hidMouse.cookedY} " +
-                "centerSeed=${hidMouse.needsCenterSeed()} sendHid=$sendHid",
+            "HID mouse snap to ${target.first},${target.second} from ${"%.1f,%.1f".format(hidMouse.cookedX, hidMouse.cookedY)} " +
+                "centerSeed=${hidMouse.needsCenterSeed()}",
         )
-        val now = SystemClock.uptimeMillis()
-        val plans = MouseEdgeAnchor.planSnap(hidMouse.plannerInput(now), pointerSpeed)
+        val plans = MouseEdgeAnchor.planSnap(hidMouse.plannerInput(expectedWriteAt()), pointerSpeed)
         for (plan in plans) {
             if (plan.isNoOp) continue
-            if (sendHid) {
-                val sent = svc.injectHidMouse(plan.hidX, plan.hidY, hidMouse.buttons(), 0)
-                if (!sent) return
-            }
-            hidMouse.applySuccessfulPlan(plan, now)
+            if (!sendPlan(svc, plan)) return
         }
+        // Done once what's left is under a report's smallest step (one count can be ~3 px).
         val (errX, errY) = hidMouse.errorToTarget(target.first, target.second)
         val stillEdge = MouseEdgeAnchor.needsEdgePulse(
             hidMouse.edgeFlags,
@@ -419,7 +448,9 @@ class ShizukuInputInjector internal constructor(
             hidMouse.maxXExclusive(),
             hidMouse.maxYExclusive(),
         )
-        if (errX == 0 && errY == 0 && !stillEdge) {
+        val halfCount = MousePointerCompensation.firstSegmentGain(pointerSpeed) / 2
+        val settled = kotlin.math.abs(errX) < halfCount && kotlin.math.abs(errY) < halfCount
+        if (settled && !stillEdge) {
             hidMouse.consumePendingSnap()
         }
     }
@@ -559,14 +590,28 @@ class ShizukuInputInjector internal constructor(
 
     private fun moveHidToProtocolTarget(targetX: Int, targetY: Int, svc: IInputInjector): Boolean {
         hidMouse.updatePointerTarget(targetX, targetY)
-        val now = SystemClock.uptimeMillis()
-        val plan = MouseEdgeAnchor.plan(hidMouse.plannerInput(now), pointerSpeed)
-        if (plan.isNoOp) return true
-        val sent = svc.injectHidMouse(plan.hidX, plan.hidY, hidMouse.buttons(), 0)
-        if (sent) {
-            hidMouse.applySuccessfulPlan(plan, now)
-        }
-        return sent
+        val plan = MouseEdgeAnchor.plan(hidMouse.plannerInput(expectedWriteAt()), pointerSpeed)
+        return plan.isNoOp || sendPlan(svc, plan)
+    }
+
+    /**
+     * How long a report takes from here to the injector's write, averaged. Android's speed
+     * fit is sensitive to a millisecond, so the model is fed the write times (#88).
+     */
+    private var writeLatencyNs = 1_500_000L
+
+    private fun expectedWriteAt(): Long = System.nanoTime() + writeLatencyNs
+
+    /** The injector process's recent log lines, or null when it isn't connected. */
+    fun readInjectorLogs(maxLines: Int): String? = runCatching { service?.readLogs(maxLines) }.getOrNull()
+
+    private fun sendPlan(svc: IInputInjector, plan: MouseEdgeAnchor.Plan): Boolean {
+        val calledAt = System.nanoTime()
+        val writtenAt = svc.moveHidMouse(plan.hidX, plan.hidY, hidMouse.buttons())
+        if (writtenAt == 0L) return false
+        writeLatencyNs += (writtenAt - calledAt - writeLatencyNs) / 5
+        hidMouse.applySuccessfulPlan(plan, writtenAt, pointerSpeed)
+        return true
     }
 
     override fun send(event: InputLeapEvent) {
@@ -679,8 +724,13 @@ class ShizukuInputInjector internal constructor(
         button: Int,
         isDown: Boolean,
     ) {
+        // The server's Num Lock already picks digits or navigation for each keypad key.
+        // Pressing it on the HID keyboard toggles Android's own Num Lock, which starts
+        // off while the PC's is on, so the two stay opposite and the key seems dead (#82).
+        if (keysym == NUM_LOCK_KEY_ID) return
+        val altGrChar = typesAltGrChar(keysym, mask, button, isDown)
         val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown)
-        if (!typesKeypadText(keysym, mask) && scancode != 0 && svc.injectHidKey(scancode, isDown)) {
+        if (!altGrChar && !typesKeypadText(keysym, mask) && scancode != 0 && svc.injectHidKey(scancode, isDown)) {
             return
         }
         val shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState) ||
@@ -723,8 +773,11 @@ class ShizukuInputInjector internal constructor(
         button: Int,
         count: Int,
     ) {
+        if (keysym == NUM_LOCK_KEY_ID) return
         val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown = true)
-        if (!typesKeypadText(keysym, mask) && scancode != 0 && svc.injectHidKey(scancode, true)) {
+        if (button !in altGrButtons && !typesKeypadText(keysym, mask) && scancode != 0 &&
+            svc.injectHidKey(scancode, true)
+        ) {
             return
         }
         val shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState) ||
@@ -764,6 +817,28 @@ class ShizukuInputInjector internal constructor(
         KeysymResolver.keypadText(keysym) != null &&
             !KeyMapUtils.hasShortcutModifiers(metaState) && !KeyMapUtils.protocolMaskHasShortcuts(mask)
 
+    private fun clearPressedKeys() {
+        scanCodeDecoder.clearPressedKeys()
+        altGrHeld = false
+        altGrButtons.clear()
+    }
+
+    /**
+     * A character typed with AltGr skips the HID keyboard (#82). A Windows server sends
+     * AltGr as a held Left Ctrl plus a Right Alt the HID keyboard can't press, so the
+     * HID key came out as Ctrl+key. The server already sends the composed character.
+     */
+    private fun typesAltGrChar(keysym: Int, mask: Int, button: Int, isDown: Boolean): Boolean {
+        if (keysym == ALT_GR_KEY_ID || keysym == ISO_LEVEL3_SHIFT) altGrHeld = isDown
+        if (!isDown) return altGrButtons.remove(button)
+        val altGr = altGrHeld || mask and PROTOCOL_MASK_ALT_GR != 0
+        if (!altGr || KeysymUnicodeTable.lookup(keysym) == null || KeyMapUtils.protocolMaskHasShortcuts(mask)) {
+            return false
+        }
+        altGrButtons += button
+        return true
+    }
+
     private fun injectTextOrLog(svc: IInputInjector, char: String, keysym: Int): Boolean {
         if (svc.injectText(char)) return true
         val ime = InputLeafIME.getInstance()
@@ -771,7 +846,8 @@ class ShizukuInputInjector internal constructor(
             ime.commitText(char)
             return true
         }
-        Log.e(TAG, "injectText failed for char='$char' keysym=0x${keysym.toString(16)} ($keysym)")
+        // Never log the character: shared debug logs must not contain what was typed.
+        Log.e(TAG, "injectText failed for a character")
         return false
     }
 

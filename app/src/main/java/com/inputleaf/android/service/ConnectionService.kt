@@ -156,7 +156,7 @@ class ConnectionService : Service() {
             prefs.mouseEnabled.collect { enabled ->
                 coordinator.mouseEnabled = enabled
                 applyCursorOverlay()
-                setHidMouseAttached(enabled && coordinator.state.value is ConnectionState.Active)
+                setHidMouseAttached(enabled && wantsInputDevices())
             }
         }
 
@@ -164,7 +164,14 @@ class ConnectionService : Service() {
             coordinator.keyboardEnabled = prefs.keyboardEnabled.first()
             prefs.keyboardEnabled.collect { enabled ->
                 coordinator.keyboardEnabled = enabled
-                setHidKeyboardAttached(enabled && coordinator.state.value is ConnectionState.Active)
+                setHidKeyboardAttached(enabled && wantsInputDevices())
+            }
+        }
+
+        scope.launch {
+            prefs.keepDevicesAttached.collect { keep ->
+                coordinator.keepDevicesAttached = keep
+                applyInputDevices()
             }
         }
 
@@ -348,6 +355,8 @@ class ConnectionService : Service() {
                     }
                     prefs.saveTransport(serverIp, result.transport.name.lowercase())
                     coordinator.onConnectOk(serverIp, screenName, generation)
+                    // With "keep attached", the devices exist before the first Enter.
+                    applyInputDevices()
                     conn.clearHandshakeTimeout()
                     startEventLoop(conn, serverIp, screenName, generation)
                     startKeepAliveMonitor(conn, generation)
@@ -545,10 +554,15 @@ class ConnectionService : Service() {
             if (!coordinator.onLeaveDebounceExpired(generation)) return@launch
             Log.i(TAG, "Leave")
             applyCursorOverlay()
-            // The keyboard must go: while it is registered Android believes a physical
-            // keyboard is attached and keeps the soft keyboard suppressed.
-            setHidKeyboardAttached(false)
-            scheduleHidMouseIdleDetach(generation)
+            if (wantsInputDevices()) {
+                // "Keep attached" (#90): the devices stay, so let go of anything held.
+                scope.launch(Dispatchers.IO) { injector?.releaseHeldInput() }
+            } else {
+                // The keyboard must go: while it is registered Android believes a physical
+                // keyboard is attached and keeps the soft keyboard suppressed.
+                setHidKeyboardAttached(false)
+                scheduleHidMouseIdleDetach(generation)
+            }
             leaveDebounceJob = null
         }
     }
@@ -570,11 +584,21 @@ class ConnectionService : Service() {
         hidMouseIdleJob?.cancel()
         hidMouseIdleJob = scope.launch {
             delay(HID_MOUSE_IDLE_DETACH_MS)
-            if (!coordinator.isCurrentGeneration(generation) || coordinator.isPointerOnScreen) return@launch
+            if (!coordinator.isCurrentGeneration(generation) || wantsInputDevices()) return@launch
             Log.i(TAG, "HID mouse idle ${HID_MOUSE_IDLE_DETACH_MS}ms; detaching")
             setHidMouseAttached(false)
             hidMouseIdleJob = null
         }
+    }
+
+    private fun wantsInputDevices(): Boolean =
+        coordinator.wantsInputDevices(createsDevices = injector?.privilegeKind()?.let { it != PrivilegeKind.NONE } ?: false)
+
+    /** Attach or detach both devices to match [wantsInputDevices], e.g. after the setting changes. */
+    private fun applyInputDevices() {
+        val wanted = wantsInputDevices()
+        setHidKeyboardAttached(coordinator.keyboardEnabled && wanted)
+        setHidMouseAttached(coordinator.mouseEnabled && wanted)
     }
 
     private fun setHidKeyboardAttached(attached: Boolean) {
@@ -599,6 +623,10 @@ class ConnectionService : Service() {
         if (!cursorOverlayEnabled) return
         CursorOverlayService.updatePosition(x, y)
     }
+
+    /** The privileged injector's recent logs, or null without Shizuku/root. */
+    fun injectorLogs(): String? =
+        (injector as? ShizukuInputInjector)?.readInjectorLogs(com.inputleaf.android.util.DebugLogs.MAX_LINES)
 
     fun setInjector(injector: com.inputleaf.android.inject.InputInjector) {
         val previous = this.injector
@@ -629,7 +657,7 @@ class ConnectionService : Service() {
                 handlePrivilegedServiceDisconnected()
             }
         }
-        if (coordinator.isPointerOnScreen) {
+        if (wantsInputDevices()) {
             setHidKeyboardAttached(coordinator.keyboardEnabled)
             setHidMouseAttached(coordinator.mouseEnabled)
         }

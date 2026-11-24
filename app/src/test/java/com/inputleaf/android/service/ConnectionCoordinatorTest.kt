@@ -365,4 +365,25 @@ class ConnectionCoordinatorTest {
         )
         assertThat(failedAction).isEqualTo(ConnectFailureAction.Ignore)
     }
+
+    @Test
+    fun `input devices exist only while the pointer is here unless kept attached (90)`() {
+        val coordinator = ConnectionCoordinator()
+        assertThat(coordinator.wantsInputDevices(createsDevices = true)).isFalse()
+        val plan = coordinator.startConnect("192.168.1.50", "android-tablet")
+        coordinator.onConnectOk("192.168.1.50", "android-tablet", plan.generation)
+
+        // Connected, pointer on the PC.
+        assertThat(coordinator.wantsInputDevices(createsDevices = true)).isFalse()
+        coordinator.keepDevicesAttached = true
+        assertThat(coordinator.wantsInputDevices(createsDevices = true)).isTrue()
+        // Accessibility mode creates no devices; keeping its keyboard would hide the on-screen one.
+        assertThat(coordinator.wantsInputDevices(createsDevices = false)).isFalse()
+
+        coordinator.processEvent(InputLeapEvent.Enter(1, 2, seqNum = 1, mask = 0), plan.generation)
+        assertThat(coordinator.wantsInputDevices(createsDevices = false)).isTrue()
+
+        coordinator.disconnect()
+        assertThat(coordinator.wantsInputDevices(createsDevices = true)).isFalse()
+    }
 }
