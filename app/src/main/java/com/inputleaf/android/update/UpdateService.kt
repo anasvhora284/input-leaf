@@ -69,6 +69,18 @@ object UpdateService {
 
     private val RELEASES = listOf(
         VersionChangelog(
+            versionName = "1.4.7",
+            versionCode = 17,
+            highlights = listOf(
+                "Shizuku and root: the mouse lands where your PC puts it, slow or fast, with Android's pointer acceleration on, and enters at the edge instead of the middle of the screen.",
+                "Shizuku and root: new setting to keep the mouse and keyboard attached while connected, so apps no longer reload each time the pointer enters or leaves the phone.",
+                "Clipboard: images copied on the PC can be pasted on the phone.",
+                "Accessibility mode: PC shortcuts work. Alt+Tab opens Recents, Print Screen and Win+Shift+S take a screenshot, Win+N opens notifications, Win+A Quick Settings, and Win+L locks the phone.",
+                "Settings → Share debug logs sends the app's recent logs for a bug report. They never include what you type.",
+                "Fixed Shizuku sometimes crashing and dropping the session while connecting.",
+            ),
+        ),
+        VersionChangelog(
             versionName = "1.4.6",
             versionCode = 16,
             highlights = listOf(
@@ -367,7 +379,7 @@ internal fun versionNameFrom(packageInfo: PackageInfo?): String =
 // [sdkInt] carries the API check (a parameter so tests can cover both branches).
 @SuppressLint("NewApi")
 internal fun versionCodeFrom(packageInfo: PackageInfo?, sdkInt: Int = Build.VERSION.SDK_INT): Long {
-    if (packageInfo == null) return 16L
+    if (packageInfo == null) return 17L
     return if (sdkInt >= Build.VERSION_CODES.P) {
         packageInfo.longVersionCode
     } else {
