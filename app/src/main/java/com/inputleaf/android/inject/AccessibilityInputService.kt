@@ -32,9 +32,6 @@ class AccessibilityInputService : AccessibilityService() {
 
         @kotlin.jvm.Volatile
         var targetImeLabelToSelect: String? = null
-
-        // How long to wait for the keyboard picker before dropping the event subscription.
-        private const val PICKER_TAP_TIMEOUT_MS = 5000L
     }
 
     @Volatile private var isDragging = false
@@ -126,7 +123,8 @@ class AccessibilityInputService : AccessibilityService() {
 
     /**
      * Select the keyboard [imeId]. Android 11+ does it silently; older versions only
-     * through the picker, where [onAccessibilityEvent] taps the matching entry.
+     * through the picker, where [onAccessibilityEvent] taps the matching entry. Those
+     * versions get their window events from the service config (xml, not xml-v30).
      */
     fun switchKeyboard(imeId: String): Boolean {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
@@ -136,21 +134,8 @@ class AccessibilityInputService : AccessibilityService() {
         val label = imm.enabledInputMethodList.firstOrNull { it.id == imeId }
             ?.loadLabel(packageManager)?.toString() ?: return false
         targetImeLabelToSelect = label
-        // Events are off by default; listen only while the picker is expected on screen.
-        setEventTypes(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED)
-        scope.launch {
-            delay(PICKER_TAP_TIMEOUT_MS)
-            if (targetImeLabelToSelect == label) {
-                targetImeLabelToSelect = null
-                setEventTypes(0)
-            }
-        }
         android.os.Handler(android.os.Looper.getMainLooper()).post { imm.showInputMethodPicker() }
         return true
-    }
-
-    private fun setEventTypes(mask: Int) {
-        runCatching { serviceInfo = serviceInfo?.apply { eventTypes = mask } }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -165,7 +150,6 @@ class AccessibilityInputService : AccessibilityService() {
                         current.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
                         Log.i(TAG, "Accessibility service auto-clicked input method item: $target")
                         targetImeLabelToSelect = null // Clear target so we stop matching
-                        setEventTypes(0)
                         break
                     }
                     current = current.parent
