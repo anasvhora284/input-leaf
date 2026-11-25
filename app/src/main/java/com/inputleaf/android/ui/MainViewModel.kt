@@ -205,6 +205,8 @@ class MainViewModel @JvmOverloads constructor(
 
     // TOFU: suspending channel — UI collects this and shows FingerprintDialog
     private val _fingerprintRequest = Channel<FingerprintRequest>(1)
+    // Main-thread only. Prompts the service is still awaiting; onCleared rejects them.
+    private val pendingFingerprintResponses = mutableSetOf<kotlinx.coroutines.CompletableDeferred<Boolean>>()
     val fingerprintRequest = _fingerprintRequest.receiveAsFlow()
 
     private val _updateCheckResult = MutableStateFlow<UpdateCheckResult?>(null)
@@ -471,8 +473,13 @@ class MainViewModel @JvmOverloads constructor(
             // Wire TOFU callback: bridge service's suspend callback → UI Channel
             service!!.onFingerprintConfirmationRequired = { ip, newFp, oldFp ->
                 val deferred = kotlinx.coroutines.CompletableDeferred<Boolean>()
-                _fingerprintRequest.send(FingerprintRequest(ip, newFp, oldFp, deferred))
-                deferred.await()
+                pendingFingerprintResponses += deferred
+                try {
+                    _fingerprintRequest.send(FingerprintRequest(ip, newFp, oldFp, deferred))
+                    deferred.await()
+                } finally {
+                    pendingFingerprintResponses -= deferred
+                }
             }
             service!!.onConnectionRejected = {
                 _errorState.value = "Connection not trusted"
@@ -823,7 +830,8 @@ class MainViewModel @JvmOverloads constructor(
     override fun onCleared() {
         scanJob?.cancel()
         permissionProvider.cleanup()
-        // The service outlives this ViewModel; callbacks into it would hang on a dialog nobody sees.
+        // The service outlives this ViewModel; a prompt nobody can answer any more would hang the handshake.
+        pendingFingerprintResponses.toList().forEach { it.complete(false) }
         service?.run {
             onFingerprintConfirmationRequired = null
             onConnectionRejected = null
