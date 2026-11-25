@@ -102,9 +102,25 @@ class AccessibilityAltGrTest {
         verify(ime, never()).commitText("q")
     }
 
-    @Test fun `AltGr is still tracked when the keyboard is missing`() {
-        ReflectionHelpers.setStaticField(InputLeafIME::class.java, "instance", null)
+    @Test fun `leaving the screen forgets a held AltGr`() {
         press(ALT_GR, NUM_LOCK or CONTROL, 0x138)
+        injector.setHidKeyboardAttached(false)
+        press('q'.code, NUM_LOCK, 0x10)
+
+        verify(ime, never()).commitText("q")
+    }
+
+    @Test fun `disconnecting forgets a held AltGr`() {
+        press(ALT_GR, NUM_LOCK or CONTROL, 0x138)
+        injector.disconnect()
+        press('q'.code, NUM_LOCK, 0x10)
+
+        verify(ime, never()).commitText("q")
+    }
+
+    @Test fun `AltGr released while the keyboard is missing is still tracked`() {
+        press(ALT_GR, NUM_LOCK or CONTROL, 0x138)
+        ReflectionHelpers.setStaticField(InputLeafIME::class.java, "instance", null)
         release(ALT_GR, NUM_LOCK, 0x138)
         ReflectionHelpers.setStaticField(InputLeafIME::class.java, "instance", ime)
         press('q'.code, NUM_LOCK, 0x10)

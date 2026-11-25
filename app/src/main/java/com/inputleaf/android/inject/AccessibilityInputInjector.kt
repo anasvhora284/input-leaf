@@ -104,6 +104,7 @@ class AccessibilityInputInjector(
             ImeSwitcher.useOurs(context)
         } else {
             scanCodeDecoder.clearPressedKeys()
+            altGr.clear()
             ImeSwitcher.restore(context, leaving = true)
         }
     }
