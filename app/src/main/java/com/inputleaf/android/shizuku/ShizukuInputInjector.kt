@@ -487,10 +487,10 @@ class ShizukuInputInjector internal constructor(
                         hidMouse.clampY(event.y),
                         svc,
                     )
+                // Raw counts, so a captured pointer (a game's camera) isn't clipped at the edge.
                 is InputLeapEvent.MouseMoveRel -> {
-                    val tx = hidMouse.clampX(hidMouse.protocolX + event.dx)
-                    val ty = hidMouse.clampY(hidMouse.protocolY + event.dy)
-                    moveHidToProtocolTarget(tx, ty, svc)
+                    val plan = hidMouse.planRelative(event.dx, event.dy, MousePointerCompensation.cursorScale)
+                    plan == null || sendPlan(svc, plan)
                 }
                 is InputLeapEvent.MouseDown -> {
                     val buttons = hidMouse.buttons() or inputLeapButtonToHid(event.buttonId)
