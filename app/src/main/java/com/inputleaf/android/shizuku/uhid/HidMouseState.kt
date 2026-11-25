@@ -245,6 +245,10 @@ internal class HidMouseState(
      */
     fun applySuccessfulPlan(plan: MouseEdgeAnchor.Plan, sentAtNs: Long, settingsSpeed: Int? = null) {
         synchronized(lock) {
+            if (plan.isRaw) {
+                velocity.record(sentAtNs, plan.hidX, plan.hidY)
+                return
+            }
             if (settingsSpeed != null && !plan.isEdgePulse) {
                 val (dx, dy) = velocity.predict(sentAtNs, plan.hidX.toDouble(), plan.hidY.toDouble(), settingsSpeed)
                 cookedX = (cookedX + dx).coerceIn(0.0, maxX.toDouble())
@@ -271,8 +275,9 @@ internal class HidMouseState(
     /**
      * A relative move (DMRM) as raw counts, for games that capture the pointer: Android
      * then reads counts * [scale] with no clamp and no acceleration. No screen clamp or edge
-     * pulse here; the cooked estimate still follows through [applySuccessfulPlan]. Null
-     * when under half a count, which is carried to the next report.
+     * pulse here. A captured pointer doesn't move on screen, so [applySuccessfulPlan] leaves
+     * the cooked estimate and edge flags alone. Null when under half a count, which is
+     * carried to the next report.
      */
     fun planRelative(dx: Int, dy: Int, scale: Double): MouseEdgeAnchor.Plan? {
         synchronized(lock) {
@@ -283,7 +288,7 @@ internal class HidMouseState(
             remX = vx - cx
             remY = vy - cy
             if (cx == 0 && cy == 0) return null
-            return MouseEdgeAnchor.Plan(cx, cy, MouseEdgeAnchor.Flags(), cookedX, cookedY, isEdgePulse = false)
+            return MouseEdgeAnchor.Plan(cx, cy, MouseEdgeAnchor.Flags(), cookedX, cookedY, isEdgePulse = false, isRaw = true)
         }
     }
 

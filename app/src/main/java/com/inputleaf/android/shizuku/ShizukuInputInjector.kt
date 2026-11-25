@@ -488,6 +488,8 @@ class ShizukuInputInjector internal constructor(
                         svc,
                     )
                 // Raw counts, so a captured pointer (a game's camera) isn't clipped at the edge.
+                // ponytail: an uncaptured pointer does move, and the next DMMV is open-loop from
+                // the old cooked estimate; add a re-sync if that shows up in practice.
                 is InputLeapEvent.MouseMoveRel -> {
                     val plan = hidMouse.planRelative(event.dx, event.dy, MousePointerCompensation.cursorScale)
                     plan == null || sendPlan(svc, plan)

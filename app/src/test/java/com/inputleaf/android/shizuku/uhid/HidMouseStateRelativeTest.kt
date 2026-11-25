@@ -32,31 +32,29 @@ class HidMouseStateRelativeTest {
     }
 
     @Test
-    fun `no clamp at the screen edge and cooked stays on screen`() {
-        val state = attached()
-        state.updatePointerTarget(1079, 1206)
-        val edge = MouseEdgeAnchor.plan(state.plannerInput(0L), 0)
-        state.applySuccessfulPlan(edge, 0L)
-        val plan = state.planRelative(400, 0, 1.0)!!
-        assertThat(plan.hidX).isEqualTo(400)
-        state.applySuccessfulPlan(plan, 10_000_000L, 0)
-        assertThat(state.cookedX).isAtMost(1079.0)
+    fun `no clamp at the screen edge`() {
+        assertThat(attached().planRelative(4000, -4000, 1.0)!!.hidX).isEqualTo(4000)
     }
 
     @Test
-    fun `applied relative plan moves cooked and clears edge flags for the next DMMV`() {
+    fun `a relative move leaves cooked and the edge flags alone`() {
         val state = attached()
         state.onEnter(0, 1206)
         state.completeAttach(newDevice = false, warpedToEnter = true)
-        state.applySuccessfulPlan(state.planRelative(300, 0, 1.0)!!, 0L, 0)
-        val before = state.cookedX
-        val plan = state.planRelative(-100, 0, 1.0)!!
-        state.applySuccessfulPlan(plan, 0L, 0)
-        assertThat(state.cookedX).isLessThan(before)
-        assertThat(state.edgeFlags).isEqualTo(MouseEdgeAnchor.Flags())
-        state.updatePointerTarget(700, 1206)
-        val next = MouseEdgeAnchor.plan(state.plannerInput(50_000_000L), 0)
-        assertThat(next.isEdgePulse).isFalse()
+        val flags = state.edgeFlags
+        state.applySuccessfulPlan(state.planRelative(800, 0, 1.0)!!, 0L, 0)
+        assertThat(state.cookedPosition()).isEqualTo(Pair(0.0, 1206.0))
+        assertThat(state.edgeFlags).isEqualTo(flags)
+        // Still anchored on the left edge, so a DMMV back there needs no pulse.
+        state.updatePointerTarget(0, 1206)
+        assertThat(MouseEdgeAnchor.plan(state.plannerInput(50_000_000L), 0).isNoOp).isTrue()
+    }
+
+    @Test
+    fun `a relative move keeps a pending centre seed`() {
+        val state = HidMouseState(maxX = 1079, maxY = 2413).also { it.completeAttach(newDevice = true) }
+        state.applySuccessfulPlan(state.planRelative(5, 0, 1.0)!!, 0L, 0)
+        assertThat(state.needsCenterSeed()).isTrue()
     }
 
     @Test
