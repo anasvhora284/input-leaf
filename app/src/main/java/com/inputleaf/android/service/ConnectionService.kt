@@ -465,6 +465,8 @@ class ConnectionService : Service() {
                         setHidMouseAttached(false)
                         if (result.retry != null) {
                             scheduleRetry(ip, screenName, result.retry.delayMs, result.retry.generation)
+                        } else {
+                            dismissNotification()
                         }
                     }
                     CoordinatorEventResult.Ignored -> Unit
@@ -691,6 +693,8 @@ class ConnectionService : Service() {
                     applyCursorOverlay()
                     setHidKeyboardAttached(false)
                     setHidMouseAttached(false)
+                    // Nothing retries after a keep-alive miss, so end the service too.
+                    dismissNotification()
                     break
                 }
             }

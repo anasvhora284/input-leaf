@@ -823,6 +823,12 @@ class MainViewModel @JvmOverloads constructor(
     override fun onCleared() {
         scanJob?.cancel()
         permissionProvider.cleanup()
+        // The service outlives this ViewModel; callbacks into it would hang on a dialog nobody sees.
+        service?.run {
+            onFingerprintConfirmationRequired = null
+            onConnectionRejected = null
+            onConnectionFailed = null
+        }
         if (serviceBound) {
             getApplication<Application>().unbindService(serviceConnection)
         }
