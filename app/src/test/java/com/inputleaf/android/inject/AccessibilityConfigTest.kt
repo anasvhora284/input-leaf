@@ -25,6 +25,7 @@ class AccessibilityConfigTest {
         val types = Regex("accessibilityEventTypes=\"([^\"]*)\"").find(config)!!.groupValues[1].split("|")
         assertThat(types).containsAtLeast(
             "typeWindowsChanged", "typeWindowStateChanged", "typeWindowContentChanged", "typeViewFocused",
+            "typeViewScrolled", "typeViewSelected", "typeViewTextChanged",
         )
     }
 
