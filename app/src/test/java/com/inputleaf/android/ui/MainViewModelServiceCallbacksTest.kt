@@ -67,4 +67,54 @@ class MainViewModelServiceCallbacksTest {
         assertThat(answer.isCompleted).isTrue()
         assertThat(answer.getCompleted()).isFalse()
     }
+
+    @Test
+    fun `clearing the view model wakes a trust prompt blocked on a full request buffer`() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val service = Robolectric.buildService(ConnectionService::class.java).create().get()
+        shadowOf(app).setComponentNameAndServiceForBindService(
+            ComponentName(app, ConnectionService::class.java),
+            service.onBind(android.content.Intent(app, ConnectionService::class.java)),
+        )
+        val store = ViewModelStore()
+        ViewModelProvider(store, MainViewModelFactory(app))[MainViewModel::class.java]
+        val looper = shadowOf(android.os.Looper.getMainLooper())
+        looper.idle()
+        val callback = service.onFingerprintConfirmationRequired!!
+        // Nobody collects, so the first prompt fills the one-slot buffer and the second blocks in send().
+        CoroutineScope(Dispatchers.Main).async { callback("1.2.3.4", "aa", "") }
+        val second = CoroutineScope(Dispatchers.Main).async { callback("1.2.3.5", "bb", "") }
+        looper.idle()
+        assertThat(second.isCompleted).isFalse()
+
+        store.clear()
+        looper.idle()
+
+        assertThat(second.isCompleted).isTrue()
+        assertThat(second.getCompleted()).isFalse()
+    }
+
+    @Test
+    fun `a trust prompt raised after the view model was cleared is rejected at once`() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val service = Robolectric.buildService(ConnectionService::class.java).create().get()
+        shadowOf(app).setComponentNameAndServiceForBindService(
+            ComponentName(app, ConnectionService::class.java),
+            service.onBind(android.content.Intent(app, ConnectionService::class.java)),
+        )
+        val store = ViewModelStore()
+        ViewModelProvider(store, MainViewModelFactory(app))[MainViewModel::class.java]
+        val looper = shadowOf(android.os.Looper.getMainLooper())
+        looper.idle()
+        // The service had already fetched the callback when the activity finished.
+        val callback = service.onFingerprintConfirmationRequired!!
+        store.clear()
+        looper.idle()
+
+        val late = CoroutineScope(Dispatchers.Main).async { callback("1.2.3.4", "aa", "") }
+        looper.idle()
+
+        assertThat(late.isCompleted).isTrue()
+        assertThat(late.getCompleted()).isFalse()
+    }
 }
