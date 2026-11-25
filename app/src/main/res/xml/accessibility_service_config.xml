@@ -1,5 +1,5 @@
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeAllMask"
+    android:accessibilityEventTypes="typeWindowsChanged|typeWindowStateChanged|typeWindowContentChanged|typeViewFocused|typeViewAccessibilityFocused|typeViewAccessibilityFocusCleared|typeViewScrolled|typeViewSelected|typeViewTextChanged|typeViewTextSelectionChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:canPerformGestures="true"
     android:canRetrieveWindowContent="true"

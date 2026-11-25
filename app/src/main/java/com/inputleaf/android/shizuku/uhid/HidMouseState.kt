@@ -1,5 +1,7 @@
 package com.inputleaf.android.shizuku.uhid
 
+import kotlin.math.roundToInt
+
 /**
  * Serialized HID mouse attach/target state. Thread-safe for nonblocking pending updates;
  * callers must not hold this lock across Binder I/O.
@@ -102,6 +104,7 @@ internal class HidMouseState(
         synchronized(lock) {
             // The warp ends with a pause that clears Android's tracker; a new device has none.
             if (warpedToEnter || newDevice) velocity.reset()
+            if (newDevice) resetRelativeRemainder()
             if (warpedToEnter) {
                 cookedX = enterX.toDouble()
                 cookedY = enterY.toDouble()
@@ -132,6 +135,7 @@ internal class HidMouseState(
             buttons = 0
             needsCenterSeed = false
             edgeFlags = MouseEdgeAnchor.Flags()
+            resetRelativeRemainder()
             // Drop the pre-leave target only. A newer Enter/DMMV (targetEpoch > leaveEpoch)
             // must survive so attach can snap to it after a drain-ordered close.
             if (targetEpoch == leaveEpoch) {
@@ -164,6 +168,7 @@ internal class HidMouseState(
             leaveEpoch = -1
             needsCenterSeed = false
             edgeFlags = MouseEdgeAnchor.Flags()
+            resetRelativeRemainder()
         }
     }
 
@@ -240,6 +245,10 @@ internal class HidMouseState(
      */
     fun applySuccessfulPlan(plan: MouseEdgeAnchor.Plan, sentAtNs: Long, settingsSpeed: Int? = null) {
         synchronized(lock) {
+            if (plan.isRaw) {
+                velocity.record(sentAtNs, plan.hidX, plan.hidY)
+                return
+            }
             if (settingsSpeed != null && !plan.isEdgePulse) {
                 val (dx, dy) = velocity.predict(sentAtNs, plan.hidX.toDouble(), plan.hidY.toDouble(), settingsSpeed)
                 cookedX = (cookedX + dx).coerceIn(0.0, maxX.toDouble())
@@ -251,6 +260,35 @@ internal class HidMouseState(
             velocity.record(sentAtNs, plan.hidX, plan.hidY)
             edgeFlags = plan.flagsAfter
             needsCenterSeed = false
+        }
+    }
+
+    /** Fractions of a count not yet sent by [planRelative]. */
+    private var remX = 0.0
+    private var remY = 0.0
+
+    private fun resetRelativeRemainder() {
+        remX = 0.0
+        remY = 0.0
+    }
+
+    /**
+     * A relative move (DMRM) as raw counts, for games that capture the pointer: Android
+     * then reads counts * [scale] with no clamp and no acceleration. No screen clamp or edge
+     * pulse here. A captured pointer doesn't move on screen, so [applySuccessfulPlan] leaves
+     * the cooked estimate and edge flags alone. Null when under half a count, which is
+     * carried to the next report.
+     */
+    fun planRelative(dx: Int, dy: Int, scale: Double): MouseEdgeAnchor.Plan? {
+        synchronized(lock) {
+            val vx = dx / scale + remX
+            val vy = dy / scale + remY
+            val cx = vx.roundToInt()
+            val cy = vy.roundToInt()
+            remX = vx - cx
+            remY = vy - cy
+            if (cx == 0 && cy == 0) return null
+            return MouseEdgeAnchor.Plan(cx, cy, MouseEdgeAnchor.Flags(), cookedX, cookedY, isEdgePulse = false, isRaw = true)
         }
     }
 

@@ -43,6 +43,8 @@ internal object MouseEdgeAnchor {
         val cookedXAfter: Double,
         val cookedYAfter: Double,
         val isEdgePulse: Boolean,
+        /** Raw counts from a relative move; they don't move the cooked estimate. */
+        val isRaw: Boolean = false,
     ) {
         val isNoOp: Boolean get() = hidX == 0 && hidY == 0
     }

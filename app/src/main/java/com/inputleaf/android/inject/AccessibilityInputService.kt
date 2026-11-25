@@ -123,7 +123,8 @@ class AccessibilityInputService : AccessibilityService() {
 
     /**
      * Select the keyboard [imeId]. Android 11+ does it silently; older versions only
-     * through the picker, where [onAccessibilityEvent] taps the matching entry.
+     * through the picker, where [onAccessibilityEvent] taps the matching entry. Those
+     * versions get their window events from the service config (xml, not xml-v30).
      */
     fun switchKeyboard(imeId: String): Boolean {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {

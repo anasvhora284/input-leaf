@@ -70,7 +70,7 @@ object UpdateService {
     private val RELEASES = listOf(
         VersionChangelog(
             versionName = "1.4.7",
-            versionCode = 17,
+            versionCode = 18,
             highlights = listOf(
                 "Shizuku and root: the mouse lands where your PC puts it, slow or fast, with Android's pointer acceleration on, and enters at the edge instead of the middle of the screen.",
                 "Shizuku and root: new setting to keep the mouse and keyboard attached while connected, so apps no longer reload each time the pointer enters or leaves the phone.",
@@ -78,6 +78,10 @@ object UpdateService {
                 "Accessibility mode: PC shortcuts work. Alt+Tab opens Recents, Print Screen and Win+Shift+S take a screenshot, Win+N opens notifications, Win+A Quick Settings, and Win+L locks the phone.",
                 "Settings → Share debug logs sends the app's recent logs for a bug report. They never include what you type.",
                 "Fixed Shizuku sometimes crashing and dropping the session while connecting.",
+                "Games that capture the mouse: with Deskflow's \"relative mouse moves\" on and the cursor locked to the phone (Scroll Lock), movement is passed straight through, so the camera keeps turning past the screen edge.",
+                "The connection stays up after you swipe Input Leaf away from Recents. Tap Disconnect in the notification to end it.",
+                "Accessibility mode: faster and steadier in browsers and other web-heavy apps.",
+                "Accessibility mode: AltGr characters such as @ and € type correctly from a Windows PC.",
             ),
         ),
         VersionChangelog(
@@ -379,7 +383,7 @@ internal fun versionNameFrom(packageInfo: PackageInfo?): String =
 // [sdkInt] carries the API check (a parameter so tests can cover both branches).
 @SuppressLint("NewApi")
 internal fun versionCodeFrom(packageInfo: PackageInfo?, sdkInt: Int = Build.VERSION.SDK_INT): Long {
-    if (packageInfo == null) return 17L
+    if (packageInfo == null) return 18L
     return if (sdkInt >= Build.VERSION_CODES.P) {
         packageInfo.longVersionCode
     } else {

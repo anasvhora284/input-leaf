@@ -51,6 +51,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -205,6 +206,11 @@ class MainViewModel @JvmOverloads constructor(
 
     // TOFU: suspending channel — UI collects this and shows FingerprintDialog
     private val _fingerprintRequest = Channel<FingerprintRequest>(1)
+    // Prompts the service is still awaiting; onCleared rejects them. The service calls in from an IO
+    // thread, so every access goes through pendingFingerprintLock.
+    private val pendingFingerprintLock = Any()
+    private val pendingFingerprintResponses = mutableSetOf<kotlinx.coroutines.CompletableDeferred<Boolean>>()
+    private var fingerprintPromptsClosed = false
     val fingerprintRequest = _fingerprintRequest.receiveAsFlow()
 
     private val _updateCheckResult = MutableStateFlow<UpdateCheckResult?>(null)
@@ -471,8 +477,19 @@ class MainViewModel @JvmOverloads constructor(
             // Wire TOFU callback: bridge service's suspend callback → UI Channel
             service!!.onFingerprintConfirmationRequired = { ip, newFp, oldFp ->
                 val deferred = kotlinx.coroutines.CompletableDeferred<Boolean>()
-                _fingerprintRequest.send(FingerprintRequest(ip, newFp, oldFp, deferred))
-                deferred.await()
+                synchronized(pendingFingerprintLock) {
+                    if (fingerprintPromptsClosed) deferred.complete(false) else pendingFingerprintResponses += deferred
+                }
+                try {
+                    // Race the send against the answer so onCleared can wake a send blocked on a full buffer.
+                    select<Unit> {
+                        _fingerprintRequest.onSend(FingerprintRequest(ip, newFp, oldFp, deferred)) {}
+                        deferred.onAwait {}
+                    }
+                    deferred.await()
+                } finally {
+                    synchronized(pendingFingerprintLock) { pendingFingerprintResponses -= deferred }
+                }
             }
             service!!.onConnectionRejected = {
                 _errorState.value = "Connection not trusted"
@@ -823,6 +840,16 @@ class MainViewModel @JvmOverloads constructor(
     override fun onCleared() {
         scanJob?.cancel()
         permissionProvider.cleanup()
+        // The service outlives this ViewModel; a prompt nobody can answer any more would hang the handshake.
+        synchronized(pendingFingerprintLock) {
+            fingerprintPromptsClosed = true
+            pendingFingerprintResponses.forEach { it.complete(false) }
+        }
+        service?.run {
+            onFingerprintConfirmationRequired = null
+            onConnectionRejected = null
+            onConnectionFailed = null
+        }
         if (serviceBound) {
             getApplication<Application>().unbindService(serviceConnection)
         }

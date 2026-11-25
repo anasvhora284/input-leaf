@@ -9,6 +9,7 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
+import com.inputleaf.android.inject.AltGrTracker
 import com.inputleaf.android.inject.InputInjector
 import com.inputleaf.android.inject.ScrollSpeed
 import com.inputleaf.android.inject.NativePointerState
@@ -36,10 +37,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 
 private const val TAG = "ShizukuInputInjector"
-private const val ALT_GR_KEY_ID = 0xEF7E
-private const val ISO_LEVEL3_SHIFT = 0xFE03
 private const val NUM_LOCK_KEY_ID = 0xEF7F
-private const val PROTOCOL_MASK_ALT_GR = 0x0020
 
 class ShizukuInputInjector internal constructor(
     screenWidth: Int,
@@ -87,9 +85,7 @@ class ShizukuInputInjector internal constructor(
 
     private var metaState = 0
     private val scanCodeDecoder = ProtocolScanCodeDecoder()
-    private var altGrHeld = false
-    /** Buttons pressed as AltGr characters; their release skips the HID keyboard too. */
-    private val altGrButtons = mutableSetOf<Int>()
+    private val altGr = AltGrTracker()
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -487,10 +483,12 @@ class ShizukuInputInjector internal constructor(
                         hidMouse.clampY(event.y),
                         svc,
                     )
+                // Raw counts, so a captured pointer (a game's camera) isn't clipped at the edge.
+                // ponytail: an uncaptured pointer does move, and the next DMMV is open-loop from
+                // the old cooked estimate; add a re-sync if that shows up in practice.
                 is InputLeapEvent.MouseMoveRel -> {
-                    val tx = hidMouse.clampX(hidMouse.protocolX + event.dx)
-                    val ty = hidMouse.clampY(hidMouse.protocolY + event.dy)
-                    moveHidToProtocolTarget(tx, ty, svc)
+                    val plan = hidMouse.planRelative(event.dx, event.dy, MousePointerCompensation.cursorScale)
+                    plan == null || sendPlan(svc, plan)
                 }
                 is InputLeapEvent.MouseDown -> {
                     val buttons = hidMouse.buttons() or inputLeapButtonToHid(event.buttonId)
@@ -728,7 +726,7 @@ class ShizukuInputInjector internal constructor(
         // Pressing it on the HID keyboard toggles Android's own Num Lock, which starts
         // off while the PC's is on, so the two stay opposite and the key seems dead (#82).
         if (keysym == NUM_LOCK_KEY_ID) return
-        val altGrChar = typesAltGrChar(keysym, mask, button, isDown)
+        val altGrChar = altGr.typesChar(keysym, mask, button, isDown)
         val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown)
         if (!altGrChar && !typesKeypadText(keysym, mask) && scancode != 0 && svc.injectHidKey(scancode, isDown)) {
             return
@@ -775,7 +773,7 @@ class ShizukuInputInjector internal constructor(
     ) {
         if (keysym == NUM_LOCK_KEY_ID) return
         val scancode = scanCodeDecoder.decodeKeyEvent(button, keysym, isDown = true)
-        if (button !in altGrButtons && !typesKeypadText(keysym, mask) && scancode != 0 &&
+        if (!altGr.isTyping(button) && !typesKeypadText(keysym, mask) && scancode != 0 &&
             svc.injectHidKey(scancode, true)
         ) {
             return
@@ -819,24 +817,7 @@ class ShizukuInputInjector internal constructor(
 
     private fun clearPressedKeys() {
         scanCodeDecoder.clearPressedKeys()
-        altGrHeld = false
-        altGrButtons.clear()
-    }
-
-    /**
-     * A character typed with AltGr skips the HID keyboard (#82). A Windows server sends
-     * AltGr as a held Left Ctrl plus a Right Alt the HID keyboard can't press, so the
-     * HID key came out as Ctrl+key. The server already sends the composed character.
-     */
-    private fun typesAltGrChar(keysym: Int, mask: Int, button: Int, isDown: Boolean): Boolean {
-        if (keysym == ALT_GR_KEY_ID || keysym == ISO_LEVEL3_SHIFT) altGrHeld = isDown
-        if (!isDown) return altGrButtons.remove(button)
-        val altGr = altGrHeld || mask and PROTOCOL_MASK_ALT_GR != 0
-        if (!altGr || KeysymUnicodeTable.lookup(keysym) == null || KeyMapUtils.protocolMaskHasShortcuts(mask)) {
-            return false
-        }
-        altGrButtons += button
-        return true
+        altGr.clear()
     }
 
     private fun injectTextOrLog(svc: IInputInjector, char: String, keysym: Int): Boolean {
