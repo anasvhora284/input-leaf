@@ -18,6 +18,7 @@ import android.provider.Settings
 import android.util.Log
 import android.view.WindowManager
 import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 import com.inputleaf.android.clipboard.ClipboardReceiver
 import com.inputleaf.android.clipboard.ClipboardSync
 import com.inputleaf.android.clipboard.DeviceClipboard
@@ -246,6 +247,13 @@ class ConnectionService : Service() {
         }
 
         stopping = false
+        // Only bound, the service would be destroyed with the app's UI (swiping it away
+        // from Recents). Starting it keeps the connection alive until Disconnect.
+        runCatching {
+            ContextCompat.startForegroundService(this, Intent(this, ConnectionService::class.java))
+        }.onFailure { error ->
+            Log.w(TAG, "Failed to start the service: ${error.message}", error)
+        }
         val plan = coordinator.startConnect(serverIp, screenName, forceReconnect = force)
         cancelPendingJobs(keepConnection = false)
         clipboardSync.beginSession(serverIp)
@@ -749,7 +757,9 @@ class ConnectionService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_DISCONNECT) disconnect()
-        return START_STICKY
+        // A killed process loses the connection, so a restart would only leave an idle
+        // service with no notification.
+        return START_NOT_STICKY
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
