@@ -39,6 +39,7 @@ class AccessibilityInputInjector(
     private var mouseX = 0f
     private var mouseY = 0f
     private var metaState = 0
+    private val altGr = AltGrTracker()
     private val scanCodeDecoder = ProtocolScanCodeDecoder()
     private val wheelNotches = com.inputleaf.android.shizuku.uhid.WheelNotchAccumulator()
     private val hWheelNotches = com.inputleaf.android.shizuku.uhid.WheelNotchAccumulator()
@@ -65,6 +66,7 @@ class AccessibilityInputInjector(
     override fun onNewConnection() {
         scanCodeDecoder.resetForConnection()
         metaState = 0
+        altGr.clear()
     }
 
     override suspend fun connect(): Boolean {
@@ -91,6 +93,7 @@ class AccessibilityInputInjector(
     override fun disconnect() {
         scanCodeDecoder.resetForConnection()
         metaState = 0
+        altGr.clear()
         Log.d(TAG, "disconnect called")
         ImeSwitcher.restore(context)
     }
@@ -191,9 +194,16 @@ class AccessibilityInputInjector(
             if (isDown) AccessibilityInputService.getInstance()?.performGlobalAction(action)
             return
         }
+        // Tracked before the keyboard check so a lost keyboard can't leave AltGr stuck.
+        // The held Ctrl a Windows server sends with AltGr must not turn the character into Ctrl+key (#82).
+        val altGrChar = altGr.typesChar(keysym, mask, button, isDown)
         val ime = keyboard()
         if (ime == null) {
             Log.w(TAG, "InputLeafIME not running, dropping key event")
+            return
+        }
+        if (altGrChar) {
+            if (isDown) KeysymUnicodeTable.lookup(keysym)?.let(ime::commitText)
             return
         }
         val shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState) ||
@@ -237,6 +247,10 @@ class AccessibilityInputInjector(
         val ime = keyboard()
         if (ime == null) {
             Log.w(TAG, "InputLeafIME not running, dropping KeyRepeat")
+            return
+        }
+        if (altGr.isTyping(button)) {
+            KeysymUnicodeTable.lookup(keysym)?.let { char -> repeat(count) { ime.commitText(char) } }
             return
         }
         val shortcutModifiers = KeyMapUtils.hasShortcutModifiers(metaState) ||
